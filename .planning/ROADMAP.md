@@ -21,7 +21,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 ## Phase Details
 
 ### Phase 1: Core Queue Loop
-**Goal**: A client can submit a task via gRPC or HTTPS, an internal node can poll and claim that task, execute it, report the result, and the client can retrieve the result by polling -- all backed by Redis with reliable queue semantics
+**Goal**: A client can submit a task via gRPC or HTTPS, an internal node can poll and claim that task via gRPC server-streaming, execute it, report the result via unary RPC, and the client can retrieve the result by polling -- all backed by Redis Streams with consumer group semantics for reliable delivery
 **Depends on**: Nothing (first phase)
 **Requirements**: TASK-01, TASK-02, TASK-03, TASK-04, RSLT-01, RSLT-02, RSLT-05, NODE-01, NODE-02, NODE-04, LIFE-01, LIFE-02, SRVC-02, INFR-01, INFR-02
 **Success Criteria** (what must be TRUE):
@@ -30,12 +30,12 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. Node can report task completion (success or failure) with a result payload back to the gateway
   4. Client can poll by task ID via both gRPC and HTTPS and retrieve the task status and result
   5. Tasks are persisted in Redis using reliable queue pattern (BLMOVE to processing list) so no task is lost if the gateway restarts mid-operation
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 01-01: TBD
-- [ ] 01-02: TBD
-- [ ] 01-03: TBD
+- [ ] 01-01-PLAN.md -- Cargo workspace, proto codegen, types, config, Redis Streams queue layer
+- [ ] 01-02-PLAN.md -- gRPC services (TaskService + NodeService), HTTP REST handlers, dual-port server startup
+- [ ] 01-03-PLAN.md -- Runner agent binary, integration tests, end-to-end verification
 
 ### Phase 2: Authentication and TLS
 **Goal**: All connections to the gateway are authenticated and encrypted -- HTTPS clients use API keys, gRPC clients use mTLS, internal nodes use per-service tokens, and all traffic runs over TLS with HTTP/2 keepalive
