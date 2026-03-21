@@ -8,6 +8,7 @@
 use std::time::Duration;
 
 use clap::Parser;
+use tonic::transport::{Certificate, ClientTlsConfig};
 use tracing_subscriber::EnvFilter;
 
 use xgent_proto::node_service_client::NodeServiceClient;
@@ -16,8 +17,8 @@ use xgent_proto::{PollTasksRequest, ReportResultRequest, TaskAssignment};
 #[derive(Parser, Debug)]
 #[command(name = "xgent-agent", about = "Node-side runner agent for xgent gateway")]
 struct Cli {
-    /// Gateway gRPC address (e.g., http://localhost:50051)
-    #[arg(long, env = "AGENT_GATEWAY_ADDR", default_value = "http://localhost:50051")]
+    /// Gateway gRPC address (host:port, e.g., localhost:50051)
+    #[arg(long, env = "AGENT_GATEWAY_ADDR", default_value = "localhost:50051")]
     gateway_addr: String,
 
     /// Service name this agent serves
@@ -31,6 +32,18 @@ struct Cli {
     /// Local service URL to dispatch tasks to
     #[arg(long, env = "AGENT_DISPATCH_URL", default_value = "http://localhost:8090/execute")]
     dispatch_url: String,
+
+    /// Node authentication token (required for gateway communication)
+    #[arg(long, env = "XGENT_NODE_TOKEN")]
+    token: String,
+
+    /// Path to CA certificate for TLS verification
+    #[arg(long, env = "XGENT_CA_CERT")]
+    ca_cert: Option<String>,
+
+    /// Skip TLS verification (development only -- NOT for production)
+    #[arg(long, default_value = "false")]
+    tls_skip_verify: bool,
 
     /// Max reconnect delay in seconds
     #[arg(long, default_value = "30")]
@@ -53,6 +66,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         node_id = %cli.node_id,
         gateway = %cli.gateway_addr,
         dispatch_url = %cli.dispatch_url,
+        tls = cli.ca_cert.is_some(),
         "agent starting"
     );
 
@@ -80,17 +94,42 @@ async fn run_poll_loop(
     cli: &Cli,
     http_client: &reqwest::Client,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let mut client = NodeServiceClient::connect(cli.gateway_addr.clone()).await?;
+    // Build the gRPC channel with optional TLS
+    let channel = if cli.ca_cert.is_some() || cli.tls_skip_verify {
+        // TLS mode
+        let mut tls_config = ClientTlsConfig::new().domain_name("localhost");
+        if let Some(ref ca_path) = cli.ca_cert {
+            let ca_pem = std::fs::read_to_string(ca_path)?;
+            tls_config = tls_config.ca_certificate(Certificate::from_pem(&ca_pem));
+        }
+
+        tonic::transport::Channel::from_shared(format!("https://{}", cli.gateway_addr))?
+            .tls_config(tls_config)?
+            .connect()
+            .await?
+    } else {
+        // Plain gRPC (dev mode, no TLS)
+        tonic::transport::Channel::from_shared(format!("http://{}", cli.gateway_addr))?
+            .connect()
+            .await?
+    };
+
+    let mut client = NodeServiceClient::new(channel.clone());
     tracing::info!("connected to gateway");
 
     // Clone the client for result reporting -- tonic clients are clone-safe
     // and reuse the underlying HTTP/2 connection (D-15).
     let report_client = client.clone();
 
-    let request = PollTasksRequest {
+    // Build the PollTasks request with auth token in metadata
+    let mut request = tonic::Request::new(PollTasksRequest {
         service_name: cli.service_name.clone(),
         node_id: cli.node_id.clone(),
-    };
+    });
+    request.metadata_mut().insert(
+        "authorization",
+        format!("Bearer {}", cli.token).parse().unwrap(),
+    );
 
     let mut stream = client.poll_tasks(request).await?.into_inner();
 
