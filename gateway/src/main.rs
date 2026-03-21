@@ -33,8 +33,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let queue = queue::RedisQueue::new(&config).await?;
     tracing::info!(redis_url=%config.redis.url, "connected to Redis");
 
+    // Open a dedicated Redis connection for auth lookups
+    let auth_client = redis::Client::open(config.redis.url.as_str())?;
+    let auth_conn = auth_client.get_multiplexed_async_connection().await?;
+    tracing::info!("auth Redis connection established");
+
     // Build shared state
-    let state = Arc::new(state::AppState::new(queue, config.clone()));
+    let state = Arc::new(state::AppState::new(queue, config.clone(), auth_conn));
 
     let mut handles: Vec<tokio::task::JoinHandle<Result<(), Box<dyn std::error::Error + Send + Sync>>>> = Vec::new();
 
