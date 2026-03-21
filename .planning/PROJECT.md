@@ -84,4 +84,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-21 after initialization*
+*Last updated: 2026-03-21 — Phase 01 (core-queue-loop) complete: Cargo workspace, gRPC/HTTP dual-port gateway, Redis Streams queue, node runner agent, 6 integration tests passing*
