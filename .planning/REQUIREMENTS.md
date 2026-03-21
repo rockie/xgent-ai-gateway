@@ -7,15 +7,15 @@
 
 ### Task Submission
 
-- [ ] **TASK-01**: Client can submit a task via gRPC with an opaque payload and receive a task ID
-- [ ] **TASK-02**: Client can submit a task via HTTPS REST with an opaque payload and receive a task ID
+- [x] **TASK-01**: Client can submit a task via gRPC with an opaque payload and receive a task ID
+- [x] **TASK-02**: Client can submit a task via HTTPS REST with an opaque payload and receive a task ID
 - [x] **TASK-03**: Client can attach arbitrary key-value metadata/labels to a task at submission
 - [x] **TASK-04**: Task payloads are treated as opaque bytes — the gateway does not interpret payload content
 
 ### Task Results
 
-- [ ] **RSLT-01**: Client can poll task status and result by task ID via gRPC
-- [ ] **RSLT-02**: Client can poll task status and result by task ID via HTTPS REST
+- [x] **RSLT-01**: Client can poll task status and result by task ID via gRPC
+- [x] **RSLT-02**: Client can poll task status and result by task ID via HTTPS REST
 - [ ] **RSLT-03**: Client can optionally provide a callback URL at submission for result delivery
 - [ ] **RSLT-04**: Gateway delivers results to callback URL with exponential backoff retries on failure
 - [x] **RSLT-05**: Task results are stored in Redis with a configurable TTL
@@ -29,10 +29,10 @@
 
 ### Node Management
 
-- [ ] **NODE-01**: Internal nodes can reverse-poll the gateway via gRPC to pick up tasks for their service
+- [x] **NODE-01**: Internal nodes can reverse-poll the gateway via gRPC to pick up tasks for their service
 - [ ] **NODE-02**: Internal nodes can reverse-poll the gateway via HTTPS to pick up tasks for their service
 - [ ] **NODE-03**: Nodes authenticate with pre-shared tokens scoped to their service
-- [ ] **NODE-04**: Nodes report task completion (success or failure) with result payload back to the gateway
+- [x] **NODE-04**: Nodes report task completion (success or failure) with result payload back to the gateway
 - [ ] **NODE-05**: Gateway tracks node health via heartbeat (last poll time, stale detection)
 - [ ] **NODE-06**: Nodes can signal graceful drain — gateway stops assigning new tasks, waits for in-flight completion
 
@@ -103,12 +103,12 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| TASK-01 | Phase 1 | Pending |
-| TASK-02 | Phase 1 | Pending |
+| TASK-01 | Phase 1 | Complete |
+| TASK-02 | Phase 1 | Complete |
 | TASK-03 | Phase 1 | Complete |
 | TASK-04 | Phase 1 | Complete |
-| RSLT-01 | Phase 1 | Pending |
-| RSLT-02 | Phase 1 | Pending |
+| RSLT-01 | Phase 1 | Complete |
+| RSLT-02 | Phase 1 | Complete |
 | RSLT-03 | Phase 4 | Pending |
 | RSLT-04 | Phase 4 | Pending |
 | RSLT-05 | Phase 1 | Complete |
@@ -116,10 +116,10 @@
 | SRVC-02 | Phase 1 | Complete |
 | SRVC-03 | Phase 3 | Pending |
 | SRVC-04 | Phase 3 | Pending |
-| NODE-01 | Phase 1 | Pending |
+| NODE-01 | Phase 1 | Complete |
 | NODE-02 | Phase 1 | Pending |
 | NODE-03 | Phase 3 | Pending |
-| NODE-04 | Phase 1 | Pending |
+| NODE-04 | Phase 1 | Complete |
 | NODE-05 | Phase 3 | Pending |
 | NODE-06 | Phase 3 | Pending |
 | LIFE-01 | Phase 1 | Complete |
