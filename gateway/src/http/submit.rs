@@ -2,9 +2,11 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use axum::extract::State;
+use axum::Extension;
 use axum::Json;
 use serde::{Deserialize, Serialize};
 
+use crate::auth::api_key::ClientMetadata;
 use crate::error::GatewayError;
 use crate::state::AppState;
 use crate::types::ServiceName;
@@ -24,11 +26,26 @@ pub struct SubmitTaskResponse {
 }
 
 /// POST /v1/tasks - Submit a new task.
+///
+/// Requires API key auth middleware to inject `ClientMetadata` into request extensions.
+/// Enforces per-service authorization: the API key must be authorized for the requested service.
 pub async fn submit_task(
     State(state): State<Arc<AppState>>,
+    Extension(client_meta): Extension<ClientMetadata>,
     Json(req): Json<SubmitTaskRequest>,
 ) -> Result<Json<SubmitTaskResponse>, GatewayError> {
     let service = ServiceName::new(&req.service_name)?;
+
+    // D-02/D-09: Check service authorization
+    if !client_meta.service_names.contains(&req.service_name) {
+        tracing::debug!(
+            key_hash=%client_meta.key_hash,
+            requested_service=%req.service_name,
+            authorized_services=?client_meta.service_names,
+            "API key not authorized for requested service"
+        );
+        return Err(GatewayError::Unauthorized);
+    }
 
     // Payload is treated as an opaque base64 string by the gateway.
     // Store it as bytes for consistency with gRPC (which uses bytes natively).

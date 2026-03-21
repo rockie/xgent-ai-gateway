@@ -32,10 +32,39 @@ impl NodeService for GrpcNodeService {
         &self,
         request: Request<PollTasksRequest>,
     ) -> Result<Response<Self::PollTasksStream>, Status> {
+        // Extract auth token from metadata BEFORE consuming the request
+        let raw_token = request
+            .metadata()
+            .get("authorization")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.strip_prefix("Bearer "))
+            .map(|s| s.to_string())
+            .ok_or_else(|| {
+                tracing::debug!("Node poll rejected: missing auth token");
+                Status::unauthenticated("unauthorized")
+            })?;
+
         let req = request.into_inner();
 
         let service =
             ServiceName::new(&req.service_name).map_err(|e| -> Status { e.into() })?;
+
+        // Validate token against Redis for this service
+        let token_valid = crate::auth::node_token::validate_node_token(
+            &mut self.state.auth_conn.clone(),
+            &req.service_name,
+            &raw_token,
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!("Redis error during node auth: {}", e);
+            Status::internal("internal error")
+        })?;
+
+        if !token_valid {
+            tracing::debug!(service=%req.service_name, "Node poll rejected: invalid token");
+            return Err(Status::unauthenticated("unauthorized"));
+        }
 
         if req.node_id.is_empty() {
             return Err(Status::invalid_argument("node_id must not be empty"));
