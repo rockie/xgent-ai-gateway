@@ -14,7 +14,7 @@ path = "src/bin/agent.rs"
 [dependencies]
 xgent-proto = { path = "../proto" }
 tokio = { version = "1.50", features = ["full"] }
-tonic = "0.14"
+tonic = { version = "0.14", features = ["tls-ring"] }
 axum = "0.8"
 redis = { version = "1.0", features = ["tokio-comp", "aio", "streams"] }
 tower = "0.5"
@@ -45,3 +45,4 @@ reqwest = { version = "0.12", features = ["json"] }
 [dev-dependencies]
 tempfile = "3"
 rcgen = "0.13"
+toml = "0.8"

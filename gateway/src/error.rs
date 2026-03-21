@@ -17,6 +17,9 @@ pub enum GatewayError {
 
     #[error("invalid state transition from {from} to {to}")]
     InvalidStateTransition { from: String, to: String },
+
+    #[error("unauthorized")]
+    Unauthorized,
 }
 
 impl From<GatewayError> for tonic::Status {
@@ -31,6 +34,7 @@ impl From<GatewayError> for tonic::Status {
             GatewayError::Redis(ref e) => {
                 tonic::Status::internal(format!("internal error: {e}"))
             }
+            GatewayError::Unauthorized => tonic::Status::unauthenticated("unauthorized"),
         }
     }
 }
@@ -48,6 +52,7 @@ impl IntoResponse for GatewayError {
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "internal error".to_string(),
             ),
+            GatewayError::Unauthorized => (StatusCode::UNAUTHORIZED, "unauthorized".to_string()),
         };
 
         let body = serde_json::json!({ "error": message });

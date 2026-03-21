@@ -10,6 +10,8 @@ pub struct GatewayConfig {
     pub redis: RedisConfig,
     #[serde(default)]
     pub queue: QueueConfig,
+    #[serde(default)]
+    pub admin: AdminConfig,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -18,6 +20,8 @@ pub struct GrpcConfig {
     pub enabled: bool,
     #[serde(default = "default_grpc_addr")]
     pub listen_addr: String,
+    /// Optional TLS config for mTLS on gRPC. None = plaintext (dev mode).
+    pub tls: Option<GrpcTlsConfig>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -26,6 +30,38 @@ pub struct HttpConfig {
     pub enabled: bool,
     #[serde(default = "default_http_addr")]
     pub listen_addr: String,
+    /// Optional TLS config for HTTPS. None = plaintext (dev mode).
+    pub tls: Option<TlsConfig>,
+}
+
+/// TLS certificate and key paths for server identity.
+#[derive(Debug, Deserialize, Clone)]
+pub struct TlsConfig {
+    pub cert_path: String,
+    pub key_path: String,
+}
+
+/// gRPC TLS config with server identity and client CA for mTLS.
+#[derive(Debug, Deserialize, Clone)]
+pub struct GrpcTlsConfig {
+    #[serde(flatten)]
+    pub server: TlsConfig,
+    /// Path to client CA certificate for mTLS -- require client certs.
+    pub client_ca_path: String,
+}
+
+/// Admin endpoint configuration.
+#[derive(Debug, Deserialize, Clone)]
+pub struct AdminConfig {
+    /// Bootstrap admin token from config file. If set, admin endpoints require this token.
+    /// If not set, admin endpoints are unauthenticated (dev mode).
+    pub token: Option<String>,
+}
+
+impl Default for AdminConfig {
+    fn default() -> Self {
+        Self { token: None }
+    }
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -76,6 +112,7 @@ fn default_grpc() -> GrpcConfig {
     GrpcConfig {
         enabled: true,
         listen_addr: default_grpc_addr(),
+        tls: None,
     }
 }
 
@@ -83,6 +120,7 @@ fn default_http() -> HttpConfig {
     HttpConfig {
         enabled: true,
         listen_addr: default_http_addr(),
+        tls: None,
     }
 }
 
