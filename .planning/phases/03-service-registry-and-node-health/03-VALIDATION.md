@@ -2,8 +2,8 @@
 phase: 3
 slug: service-registry-and-node-health
 status: draft
-nyquist_compliant: false
-wave_0_complete: false
+nyquist_compliant: true
+wave_0_complete: true
 created: 2026-03-21
 ---
 
@@ -19,16 +19,16 @@ created: 2026-03-21
 |----------|-------|
 | **Framework** | cargo test (Rust built-in) |
 | **Config file** | `gateway/Cargo.toml` `[dev-dependencies]` |
-| **Quick run command** | `cargo test -p gateway --lib` |
-| **Full suite command** | `cargo test -p gateway` |
+| **Quick run command** | `cargo test -p xgent-gateway --lib` |
+| **Full suite command** | `cargo test -p xgent-gateway` |
 | **Estimated runtime** | ~15 seconds |
 
 ---
 
 ## Sampling Rate
 
-- **After every task commit:** Run `cargo test -p gateway --lib`
-- **After every plan wave:** Run `cargo test -p gateway`
+- **After every task commit:** Run `cargo test -p xgent-gateway --lib`
+- **After every plan wave:** Run `cargo test -p xgent-gateway`
 - **Before `/gsd:verify-work`:** Full suite must be green
 - **Max feedback latency:** 15 seconds
 
@@ -36,27 +36,31 @@ created: 2026-03-21
 
 ## Per-Task Verification Map
 
-| Task ID | Plan | Wave | Requirement | Test Type | Automated Command | File Exists | Status |
-|---------|------|------|-------------|-----------|-------------------|-------------|--------|
-| 03-01-01 | 01 | 1 | SRVC-01 | unit | `cargo test -p gateway service_registry` | ❌ W0 | ⬜ pending |
-| 03-01-02 | 01 | 1 | SRVC-03 | unit | `cargo test -p gateway service_deregister` | ❌ W0 | ⬜ pending |
-| 03-01-03 | 01 | 1 | SRVC-04 | unit | `cargo test -p gateway service_persist` | ❌ W0 | ⬜ pending |
-| 03-02-01 | 02 | 2 | NODE-03 | unit | `cargo test -p gateway node_health` | ❌ W0 | ⬜ pending |
-| 03-02-02 | 02 | 2 | NODE-05 | unit | `cargo test -p gateway node_drain` | ❌ W0 | ⬜ pending |
-| 03-02-03 | 02 | 2 | NODE-06 | unit | `cargo test -p gateway node_heartbeat` | ❌ W0 | ⬜ pending |
+| Task ID | Plan | Wave | Requirement | Test Type | Automated Command | Status |
+|---------|------|------|-------------|-----------|-------------------|--------|
+| 03-01-T1 | 01 | 1 | SRVC-01, SRVC-03, SRVC-04 | unit + build | `cargo build -p xgent-gateway && cargo test -p xgent-gateway --lib` | ⬜ pending |
+| 03-01-T2 | 01 | 1 | NODE-03 | build | `cargo build -p xgent-gateway` | ⬜ pending |
+| 03-02-T1 | 02 | 2 | NODE-05 | unit | `cargo test -p xgent-gateway --lib` | ⬜ pending |
+| 03-02-T2 | 02 | 2 | NODE-05, NODE-06 | build | `cargo build -p xgent-gateway` | ⬜ pending |
+| 03-03-T1 | 03 | 3 | SRVC-01, SRVC-03, SRVC-04, NODE-03, NODE-05, NODE-06 | integration | `cargo test -p xgent-gateway --test registry_integration_test -- --ignored` | ⬜ pending |
+| 03-03-T2 | 03 | 3 | NODE-06 | build | `cargo build -p xgent-gateway --bin xgent-agent` | ⬜ pending |
 
-*Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
+*Status: ⬜ pending / ✅ green / ❌ red / ⚠️ flaky*
 
 ---
 
 ## Wave 0 Requirements
 
-- [ ] `gateway/src/service/mod.rs` — service registry module stubs
-- [ ] `gateway/src/service/tests.rs` — unit test stubs for SRVC-01, SRVC-03, SRVC-04
-- [ ] `gateway/src/health/mod.rs` — node health module stubs
-- [ ] `gateway/src/health/tests.rs` — unit test stubs for NODE-03, NODE-05, NODE-06
+No separate Wave 0 plan needed. All plan tasks include inline `<automated>` verify blocks:
 
-*Existing cargo test infrastructure covers framework needs. No new test framework required.*
+- Plan 01 Task 1: `cargo build` + `cargo test --lib` (catches proto codegen and unit test failures)
+- Plan 01 Task 2: `cargo build` (verifies wiring compiles)
+- Plan 02 Task 1: `cargo test --lib` (verifies node health CRUD compiles)
+- Plan 02 Task 2: `cargo build` (verifies RPC + poll loop compiles)
+- Plan 03 Task 1: `cargo test --test registry_integration_test -- --ignored` (full integration)
+- Plan 03 Task 2: `cargo build --bin xgent-agent` (verifies agent compiles)
+
+All tasks satisfy the Nyquist rule with automated verification commands.
 
 ---
 
@@ -71,11 +75,11 @@ created: 2026-03-21
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 15s
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] All tasks have `<automated>` verify blocks
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify
+- [x] No watch-mode flags
+- [x] Feedback latency < 15s
+- [x] `nyquist_compliant: true` set in frontmatter
+- [x] `wave_0_complete: true` set in frontmatter (inline tests satisfy coverage)
 
 **Approval:** pending
