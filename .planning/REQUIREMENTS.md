@@ -33,8 +33,8 @@
 - [x] **NODE-02**: Internal nodes can reverse-poll the gateway via HTTPS to pick up tasks for their service
 - [x] **NODE-03**: Nodes authenticate with pre-shared tokens scoped to their service
 - [x] **NODE-04**: Nodes report task completion (success or failure) with result payload back to the gateway
-- [ ] **NODE-05**: Gateway tracks node health via heartbeat (last poll time, stale detection)
-- [ ] **NODE-06**: Nodes can signal graceful drain — gateway stops assigning new tasks, waits for in-flight completion
+- [x] **NODE-05**: Gateway tracks node health via heartbeat (last poll time, stale detection)
+- [x] **NODE-06**: Nodes can signal graceful drain — gateway stops assigning new tasks, waits for in-flight completion
 
 ### Task Lifecycle
 
@@ -120,8 +120,8 @@
 | NODE-02 | Phase 1 | Complete |
 | NODE-03 | Phase 3 | Complete |
 | NODE-04 | Phase 1 | Complete |
-| NODE-05 | Phase 3 | Pending |
-| NODE-06 | Phase 3 | Pending |
+| NODE-05 | Phase 3 | Complete |
+| NODE-06 | Phase 3 | Complete |
 | LIFE-01 | Phase 1 | Complete |
 | LIFE-02 | Phase 1 | Complete |
 | LIFE-03 | Phase 4 | Pending |

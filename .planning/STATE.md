@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 03-01-PLAN.md
-last_updated: "2026-03-21T13:58:09.782Z"
+stopped_at: Completed 03-02-PLAN.md
+last_updated: "2026-03-21T14:03:21.183Z"
 progress:
   total_phases: 5
   completed_phases: 2
   total_plans: 9
-  completed_plans: 7
+  completed_plans: 8
 ---
 
 # Project State
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-03-21)
 ## Current Position
 
 Phase: 03 (service-registry-and-node-health) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 
 ## Performance Metrics
 
@@ -53,6 +53,7 @@ Plan: 2 of 3
 | Phase 02 P02 | 3min | 2 tasks | 5 files |
 | Phase 02 P03 | 4min | 2 tasks | 2 files |
 | Phase 03 P01 | 8min | 2 tasks | 14 files |
+| Phase 03 P02 | 2min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -78,6 +79,8 @@ Recent decisions affecting current work:
 - [Phase 03]: Service registry check in HTTP/gRPC handlers rather than inside RedisQueue
 - [Phase 03]: Consumer group creation moved from submit_task to service registration
 - [Phase 03]: Heartbeat/DrainNode RPCs stubbed for proto compatibility, full impl in Plan 03-02
+- [Phase 03]: HSETNX for conditional node field init -- preserves existing draining/in_flight state on re-registration
+- [Phase 03]: Drain timeout tracked in-memory via tokio::time::Instant rather than Redis state
 
 ### Pending Todos
 
@@ -91,6 +94,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-21T13:58:09.780Z
-Stopped at: Completed 03-01-PLAN.md
+Last session: 2026-03-21T14:03:21.180Z
+Stopped at: Completed 03-02-PLAN.md
 Resume file: None
