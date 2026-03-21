@@ -51,7 +51,7 @@ Plans:
 Plans:
 - [x] 02-01-PLAN.md -- Auth module foundation: API key + node token CRUD, TLS config builders, extended config/state/error
 - [x] 02-02-PLAN.md -- Wire TLS, auth middleware, admin endpoints, keepalive into server startup
-- [ ] 02-03-PLAN.md -- Auth integration tests with rcgen certs, runner agent auth support
+- [x] 02-03-PLAN.md -- Auth integration tests with rcgen certs, runner agent auth support
 
 ### Phase 3: Service Registry and Node Health
 **Goal**: Admins can register and manage services, and the gateway tracks node health per service so it knows which nodes are alive and can gracefully handle node departures

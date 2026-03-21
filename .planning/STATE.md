@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 02-02-PLAN.md
-last_updated: "2026-03-21T11:38:33.856Z"
+stopped_at: Completed 02-03-PLAN.md
+last_updated: "2026-03-21T11:45:06.049Z"
 progress:
   total_phases: 5
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 6
-  completed_plans: 5
+  completed_plans: 6
 ---
 
 # Project State
@@ -51,6 +51,7 @@ Plan: 3 of 3
 | Phase 01 P03 | 5min | 3 tasks | 4 files |
 | Phase 02 P01 | 8min | 2 tasks | 11 files |
 | Phase 02 P02 | 3min | 2 tasks | 5 files |
+| Phase 02 P03 | 4min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -72,6 +73,7 @@ Recent decisions affecting current work:
 - [Phase 02]: Admin endpoints unauthenticated in Phase 2; admin auth deferred to Phase 3
 - [Phase 02]: Manual TLS accept loop with hyper-util for per-connection HTTP/2 keepalive control
 - [Phase 02]: report_result not token-validated; unguessable UUID v7 task_id is implicit auth (deferred)
+- [Phase 02]: Runner agent --token is required; TLS auto-detected by --ca-cert presence
 
 ### Pending Todos
 
@@ -85,6 +87,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-21T11:38:33.853Z
-Stopped at: Completed 02-02-PLAN.md
+Last session: 2026-03-21T11:45:06.047Z
+Stopped at: Completed 02-03-PLAN.md
 Resume file: None
