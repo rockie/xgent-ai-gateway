@@ -1,0 +1,69 @@
+syntax = "proto3";
+package xgent.gateway.v1;
+
+// Client-facing service
+service TaskService {
+  rpc SubmitTask(SubmitTaskRequest) returns (SubmitTaskResponse);
+  rpc GetTaskStatus(GetTaskStatusRequest) returns (GetTaskStatusResponse);
+}
+
+// Node-facing service
+service NodeService {
+  rpc PollTasks(PollTasksRequest) returns (stream TaskAssignment);
+  rpc ReportResult(ReportResultRequest) returns (ReportResultResponse);
+}
+
+message SubmitTaskRequest {
+  string service_name = 1;
+  bytes payload = 2;
+  map<string, string> metadata = 3;
+}
+
+message SubmitTaskResponse {
+  string task_id = 1;
+}
+
+message GetTaskStatusRequest {
+  string task_id = 1;
+}
+
+message GetTaskStatusResponse {
+  string task_id = 1;
+  TaskState state = 2;
+  bytes result = 3;
+  string error_message = 4;
+  string created_at = 5;
+  string completed_at = 6;
+  map<string, string> metadata = 7;
+}
+
+enum TaskState {
+  TASK_STATE_UNSPECIFIED = 0;
+  TASK_STATE_PENDING = 1;
+  TASK_STATE_ASSIGNED = 2;
+  TASK_STATE_RUNNING = 3;
+  TASK_STATE_COMPLETED = 4;
+  TASK_STATE_FAILED = 5;
+}
+
+message PollTasksRequest {
+  string service_name = 1;
+  string node_id = 2;
+}
+
+message TaskAssignment {
+  string task_id = 1;
+  bytes payload = 2;
+  map<string, string> metadata = 3;
+}
+
+message ReportResultRequest {
+  string task_id = 1;
+  bool success = 2;
+  bytes result = 3;
+  string error_message = 4;
+}
+
+message ReportResultResponse {
+  bool acknowledged = 1;
+}
