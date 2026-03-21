@@ -103,48 +103,48 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| TASK-01 | — | Pending |
-| TASK-02 | — | Pending |
-| TASK-03 | — | Pending |
-| TASK-04 | — | Pending |
-| RSLT-01 | — | Pending |
-| RSLT-02 | — | Pending |
-| RSLT-03 | — | Pending |
-| RSLT-04 | — | Pending |
-| RSLT-05 | — | Pending |
-| SRVC-01 | — | Pending |
-| SRVC-02 | — | Pending |
-| SRVC-03 | — | Pending |
-| SRVC-04 | — | Pending |
-| NODE-01 | — | Pending |
-| NODE-02 | — | Pending |
-| NODE-03 | — | Pending |
-| NODE-04 | — | Pending |
-| NODE-05 | — | Pending |
-| NODE-06 | — | Pending |
-| LIFE-01 | — | Pending |
-| LIFE-02 | — | Pending |
-| LIFE-03 | — | Pending |
-| LIFE-04 | — | Pending |
-| LIFE-05 | — | Pending |
-| AUTH-01 | — | Pending |
-| AUTH-02 | — | Pending |
-| AUTH-03 | — | Pending |
-| OBSV-01 | — | Pending |
-| OBSV-02 | — | Pending |
-| OBSV-03 | — | Pending |
-| INFR-01 | — | Pending |
-| INFR-02 | — | Pending |
-| INFR-03 | — | Pending |
-| INFR-04 | — | Pending |
-| INFR-05 | — | Pending |
-| INFR-06 | — | Pending |
+| TASK-01 | Phase 1 | Pending |
+| TASK-02 | Phase 1 | Pending |
+| TASK-03 | Phase 1 | Pending |
+| TASK-04 | Phase 1 | Pending |
+| RSLT-01 | Phase 1 | Pending |
+| RSLT-02 | Phase 1 | Pending |
+| RSLT-03 | Phase 4 | Pending |
+| RSLT-04 | Phase 4 | Pending |
+| RSLT-05 | Phase 1 | Pending |
+| SRVC-01 | Phase 3 | Pending |
+| SRVC-02 | Phase 1 | Pending |
+| SRVC-03 | Phase 3 | Pending |
+| SRVC-04 | Phase 3 | Pending |
+| NODE-01 | Phase 1 | Pending |
+| NODE-02 | Phase 1 | Pending |
+| NODE-03 | Phase 3 | Pending |
+| NODE-04 | Phase 1 | Pending |
+| NODE-05 | Phase 3 | Pending |
+| NODE-06 | Phase 3 | Pending |
+| LIFE-01 | Phase 1 | Pending |
+| LIFE-02 | Phase 1 | Pending |
+| LIFE-03 | Phase 4 | Pending |
+| LIFE-04 | Phase 4 | Pending |
+| LIFE-05 | Phase 4 | Pending |
+| AUTH-01 | Phase 2 | Pending |
+| AUTH-02 | Phase 2 | Pending |
+| AUTH-03 | Phase 2 | Pending |
+| OBSV-01 | Phase 5 | Pending |
+| OBSV-02 | Phase 5 | Pending |
+| OBSV-03 | Phase 5 | Pending |
+| INFR-01 | Phase 1 | Pending |
+| INFR-02 | Phase 1 | Pending |
+| INFR-03 | Phase 5 | Pending |
+| INFR-04 | Phase 5 | Pending |
+| INFR-05 | Phase 2 | Pending |
+| INFR-06 | Phase 2 | Pending |
 
 **Coverage:**
 - v1 requirements: 36 total
-- Mapped to phases: 0
-- Unmapped: 36 ⚠️
+- Mapped to phases: 36
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-21*
-*Last updated: 2026-03-21 after initial definition*
+*Last updated: 2026-03-21 after roadmap creation*
