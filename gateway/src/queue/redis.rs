@@ -27,9 +27,17 @@ pub struct TaskAssignmentData {
 }
 
 /// Redis Streams-backed task queue.
+///
+/// Uses two connections:
+/// - `conn`: shared multiplexed connection for non-blocking commands (HSET, HGETALL, XADD, XACK, etc.)
+/// - `blocking_conn`: dedicated connection for blocking operations (XREADGROUP BLOCK)
+///
+/// This separation prevents blocking XREADGROUP from starving other commands
+/// on the multiplexed connection.
 #[derive(Clone)]
 pub struct RedisQueue {
     conn: ::redis::aio::MultiplexedConnection,
+    blocking_conn: ::redis::aio::MultiplexedConnection,
     pub result_ttl_secs: u64,
     pub stream_maxlen: usize,
     pub block_timeout_ms: usize,
@@ -43,9 +51,14 @@ impl RedisQueue {
             .get_multiplexed_async_connection()
             .await
             .map_err(GatewayError::Redis)?;
+        let blocking_conn = client
+            .get_multiplexed_async_connection()
+            .await
+            .map_err(GatewayError::Redis)?;
 
         Ok(Self {
             conn,
+            blocking_conn,
             result_ttl_secs: config.redis.result_ttl_secs,
             stream_maxlen: config.queue.stream_maxlen,
             block_timeout_ms: config.queue.block_timeout_ms,
@@ -202,8 +215,6 @@ impl RedisQueue {
         result: Vec<u8>,
         error_message: String,
     ) -> Result<(), GatewayError> {
-        use ::redis::AsyncCommands;
-
         let hash_key = format!("task:{}", task_id);
         let mut conn = self.conn.clone();
 
@@ -270,27 +281,28 @@ impl RedisQueue {
         let _: () = pipe
             .query_async(&mut conn)
             .await
-            .map_err(GatewayError::Redis)?;
+            .map_err(|e| {
+                tracing::error!(task_id=%task_id, stream_key=%stream_key, stream_id=%stream_id, "report_result pipeline failed: {e}");
+                GatewayError::Redis(e)
+            })?;
 
         Ok(())
     }
 
     /// Poll for the next task for a service. Returns None on timeout.
+    ///
+    /// Uses the dedicated `blocking_conn` for the XREADGROUP BLOCK call
+    /// to avoid starving other commands on the shared connection.
     pub async fn poll_task(
         &self,
         service: &ServiceName,
         node_id: &str,
     ) -> Result<Option<TaskAssignmentData>, GatewayError> {
         let stream_key = format!("tasks:{}", service);
-        let mut conn = self.conn.clone();
+        let mut conn = self.blocking_conn.clone();
 
         // Ensure consumer group exists
         self.ensure_consumer_group(service).await?;
-
-        let opts = ::redis::streams::StreamReadOptions::default()
-            .group("workers", node_id)
-            .count(1)
-            .block(self.block_timeout_ms);
 
         let result: ::redis::streams::StreamReadReply = ::redis::cmd("XREADGROUP")
             .arg("GROUP")
@@ -316,7 +328,9 @@ impl RedisQueue {
                     let task_id = TaskId::from(task_id_str);
 
                     // Update task state to assigned and record stream_id
+                    // Use the main (non-blocking) connection for this write
                     let hash_key = format!("task:{}", task_id);
+                    let mut write_conn = self.conn.clone();
                     let _: () = ::redis::pipe()
                         .cmd("HSET")
                         .arg(&hash_key)
@@ -325,7 +339,7 @@ impl RedisQueue {
                         .arg("stream_id")
                         .arg(entry_id.as_str())
                         .ignore()
-                        .query_async(&mut conn)
+                        .query_async(&mut write_conn)
                         .await
                         .map_err(GatewayError::Redis)?;
 

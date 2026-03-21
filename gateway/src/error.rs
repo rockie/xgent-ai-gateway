@@ -28,7 +28,9 @@ impl From<GatewayError> for tonic::Status {
             GatewayError::InvalidStateTransition { .. } => {
                 tonic::Status::failed_precondition(err.to_string())
             }
-            GatewayError::Redis(_) => tonic::Status::internal("internal error"),
+            GatewayError::Redis(ref e) => {
+                tonic::Status::internal(format!("internal error: {e}"))
+            }
         }
     }
 }
