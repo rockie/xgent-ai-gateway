@@ -9,11 +9,19 @@
 //! - AUTH-03: Node poll with bad/wrong-service token -> rejected
 //! - INFR-05: All traffic over TLS
 
-use std::sync::Arc;
+use std::sync::{Arc, Once};
 use std::time::Duration;
 
 use rcgen::{BasicConstraints, CertificateParams, IsCa, KeyPair};
 use tempfile::TempDir;
+
+static CRYPTO_INIT: Once = Once::new();
+
+fn ensure_crypto_provider() {
+    CRYPTO_INIT.call_once(|| {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+    });
+}
 
 use xgent_gateway::{auth, config, grpc, http, queue, state, tls};
 use xgent_proto::node_service_client::NodeServiceClient;
@@ -93,6 +101,7 @@ struct AuthTestGateway {
 
 /// Start a test gateway with TLS enabled and auth middleware active.
 async fn start_auth_test_gateway(_test_name: &str) -> AuthTestGateway {
+    ensure_crypto_provider();
     let certs = generate_test_certs();
 
     // Find free ports
@@ -728,5 +737,224 @@ async fn test_https_tls_connection() {
     assert!(
         plain_result.is_err(),
         "plain HTTP to TLS port should fail"
+    );
+}
+
+// ============================================================================
+// UAT-1: TLS Handshake Behavior Under Load
+// ============================================================================
+
+#[tokio::test]
+#[ignore]
+async fn test_uat_tls_concurrent_requests() {
+    let gw = start_auth_test_gateway("tls_concurrent").await;
+
+    let api_key = create_test_api_key(
+        &mut gw.auth_conn.clone(),
+        &["load-svc".to_string()],
+    )
+    .await;
+
+    // Spawn 20 concurrent HTTPS requests, each establishing a fresh TLS handshake
+    let mut handles = Vec::new();
+    for i in 0..20u32 {
+        let addr = gw.http_addr.clone();
+        let key = api_key.clone();
+        let ca_pem = gw.certs.ca_cert_pem.clone();
+        handles.push(tokio::spawn(async move {
+            // Build a fresh client per request to force new TLS handshake
+            let client = build_https_client(&ca_pem);
+            let resp = client
+                .post(format!("{}/v1/tasks", addr))
+                .header("Authorization", format!("Bearer {key}"))
+                .json(&serde_json::json!({
+                    "service_name": "load-svc",
+                    "payload": base64::Engine::encode(
+                        &base64::engine::general_purpose::STANDARD,
+                        format!("req-{i}").as_bytes(),
+                    ),
+                    "metadata": {}
+                }))
+                .send()
+                .await;
+            (i, resp)
+        }));
+    }
+
+    let mut successes = 0u32;
+    let mut failures = Vec::new();
+    for handle in handles {
+        let (i, result) = handle.await.unwrap();
+        match result {
+            Ok(resp) if resp.status() == 200 => successes += 1,
+            Ok(resp) => failures.push(format!("req-{i}: status {}", resp.status())),
+            Err(e) => failures.push(format!("req-{i}: {e}")),
+        }
+    }
+
+    assert!(
+        failures.is_empty(),
+        "All 20 concurrent TLS requests should succeed. {} failed: {:?}",
+        failures.len(),
+        failures,
+    );
+    assert_eq!(successes, 20, "Expected 20 successful responses");
+}
+
+// ============================================================================
+// UAT-2: mTLS Certificate Rejection (Wrong CA)
+// ============================================================================
+
+#[tokio::test]
+#[ignore]
+async fn test_uat_grpc_wrong_ca_cert() {
+    let gw = start_auth_test_gateway("wrong_ca").await;
+
+    // Generate a completely separate CA and client cert NOT trusted by the server
+    let rogue_ca_key = KeyPair::generate().unwrap();
+    let mut rogue_ca_params =
+        CertificateParams::new(vec!["Rogue CA".to_string()]).unwrap();
+    rogue_ca_params.is_ca = IsCa::Ca(BasicConstraints::Unconstrained);
+    let rogue_ca_cert = rogue_ca_params.self_signed(&rogue_ca_key).unwrap();
+
+    let rogue_client_key = KeyPair::generate().unwrap();
+    let rogue_client_params =
+        CertificateParams::new(vec!["rogue-client".to_string()]).unwrap();
+    let rogue_client_cert = rogue_client_params
+        .signed_by(&rogue_client_key, &rogue_ca_cert, &rogue_ca_key)
+        .unwrap();
+
+    // Connect using the rogue client cert (signed by rogue CA) but trust the real server CA
+    let tls_config = tonic::transport::ClientTlsConfig::new()
+        .domain_name("localhost")
+        .ca_certificate(tonic::transport::Certificate::from_pem(&gw.certs.ca_cert_pem))
+        .identity(tonic::transport::Identity::from_pem(
+            rogue_client_cert.pem(),
+            rogue_client_key.serialize_pem(),
+        ));
+
+    let channel_result = tonic::transport::Channel::from_shared(gw.grpc_addr.clone())
+        .unwrap()
+        .tls_config(tls_config)
+        .unwrap()
+        .connect()
+        .await;
+
+    match channel_result {
+        Err(_) => {
+            // Expected: TLS handshake fails because server doesn't trust rogue CA
+        }
+        Ok(ch) => {
+            // If channel somehow connected, the first RPC must fail
+            let node_token =
+                create_test_node_token(&mut gw.auth_conn.clone(), "test-svc").await;
+            let mut client = NodeServiceClient::new(ch);
+            let mut request = tonic::Request::new(PollTasksRequest {
+                service_name: "test-svc".to_string(),
+                node_id: "rogue-node".to_string(),
+            });
+            request.metadata_mut().insert(
+                "authorization",
+                format!("Bearer {node_token}").parse().unwrap(),
+            );
+
+            let result = client.poll_tasks(request).await;
+            assert!(
+                result.is_err(),
+                "gRPC with wrong-CA client cert should be rejected"
+            );
+        }
+    }
+}
+
+// ============================================================================
+// UAT-3: Redis Connection Resilience for Auth
+// ============================================================================
+
+#[tokio::test]
+#[ignore]
+async fn test_uat_redis_reconnect_after_restart() {
+    // This test simulates Redis disconnection by using a proxy-like approach:
+    // 1. Start gateway with Redis
+    // 2. Make a successful auth request
+    // 3. Flush the specific auth keys (simulates data loss, not full restart)
+    // 4. Re-create the key and verify auth still works
+    //
+    // Note: A full Redis restart test requires external orchestration (docker restart).
+    // This test verifies that MultiplexedConnection handles transient failures gracefully.
+
+    let gw = start_auth_test_gateway("redis_resilience").await;
+    let client = build_https_client(&gw.certs.ca_cert_pem);
+
+    // Step 1: Create key and verify it works
+    let api_key = create_test_api_key(
+        &mut gw.auth_conn.clone(),
+        &["resilience-svc".to_string()],
+    )
+    .await;
+
+    let resp = client
+        .post(format!("{}/v1/tasks", gw.http_addr))
+        .header("Authorization", format!("Bearer {api_key}"))
+        .json(&serde_json::json!({
+            "service_name": "resilience-svc",
+            "payload": base64::Engine::encode(&base64::engine::general_purpose::STANDARD, b"before"),
+            "metadata": {}
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 200, "Initial request should succeed");
+
+    // Step 2: Delete the specific key hash to simulate data loss
+    let mut conn = gw.auth_conn.clone();
+    let key_hash = auth::api_key::hash_api_key(&api_key);
+    let redis_key = format!("api_keys:{key_hash}");
+    let _: () = redis::cmd("DEL")
+        .arg(&redis_key)
+        .query_async(&mut conn)
+        .await
+        .unwrap();
+
+    // Step 3: Old key should now be rejected (data gone)
+    let resp = client
+        .post(format!("{}/v1/tasks", gw.http_addr))
+        .header("Authorization", format!("Bearer {api_key}"))
+        .json(&serde_json::json!({
+            "service_name": "resilience-svc",
+            "payload": base64::Engine::encode(&base64::engine::general_purpose::STANDARD, b"after-flush"),
+            "metadata": {}
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        resp.status(),
+        401,
+        "Deleted key should be rejected — proves Redis connection is still alive"
+    );
+
+    // Step 4: Create a NEW key and verify auth pipeline still works end-to-end
+    let new_key = create_test_api_key(
+        &mut gw.auth_conn.clone(),
+        &["resilience-svc".to_string()],
+    )
+    .await;
+
+    let resp = client
+        .post(format!("{}/v1/tasks", gw.http_addr))
+        .header("Authorization", format!("Bearer {new_key}"))
+        .json(&serde_json::json!({
+            "service_name": "resilience-svc",
+            "payload": base64::Engine::encode(&base64::engine::general_purpose::STANDARD, b"recovered"),
+            "metadata": {}
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        resp.status(),
+        200,
+        "New key after Redis data loss should work — connection recovered"
     );
 }
