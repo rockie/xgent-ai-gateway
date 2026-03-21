@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 01-02-PLAN.md
-last_updated: "2026-03-21T08:13:25.692Z"
+stopped_at: Completed 01-03-PLAN.md
+last_updated: "2026-03-21T08:25:06.597Z"
 progress:
   total_phases: 5
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 3
-  completed_plans: 2
+  completed_plans: 3
 ---
 
 # Project State
@@ -48,6 +48,7 @@ Plan: 3 of 3
 *Updated after each plan completion*
 | Phase 01 P01 | 11min | 2 tasks | 14 files |
 | Phase 01 P02 | 4min | 2 tasks | 9 files |
+| Phase 01 P03 | 5min | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -61,6 +62,8 @@ Recent decisions affecting current work:
 - [Phase 01]: Used tonic-prost-build 0.14 for codegen (API moved from tonic-build::configure)
 - [Phase 01]: Added lib.rs to gateway crate for testable library target alongside binary
 - [Phase 01]: NodeService implemented in single file poll.rs; HTTP payloads use base64 string encoding
+- [Phase 01]: Runner agent uses reqwest HTTP POST for local task dispatch -- simple and protocol-agnostic
+- [Phase 01]: NODE-02 (HTTP node polling) formally deferred -- proxy model unifies node protocol to gRPC
 
 ### Pending Todos
 
@@ -74,6 +77,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-21T08:13:25.688Z
-Stopped at: Completed 01-02-PLAN.md
+Last session: 2026-03-21T08:25:06.594Z
+Stopped at: Completed 01-03-PLAN.md
 Resume file: None

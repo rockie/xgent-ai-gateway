@@ -30,7 +30,7 @@
 ### Node Management
 
 - [x] **NODE-01**: Internal nodes can reverse-poll the gateway via gRPC to pick up tasks for their service
-- [ ] **NODE-02**: Internal nodes can reverse-poll the gateway via HTTPS to pick up tasks for their service
+- [x] **NODE-02**: Internal nodes can reverse-poll the gateway via HTTPS to pick up tasks for their service
 - [ ] **NODE-03**: Nodes authenticate with pre-shared tokens scoped to their service
 - [x] **NODE-04**: Nodes report task completion (success or failure) with result payload back to the gateway
 - [ ] **NODE-05**: Gateway tracks node health via heartbeat (last poll time, stale detection)
@@ -117,7 +117,7 @@
 | SRVC-03 | Phase 3 | Pending |
 | SRVC-04 | Phase 3 | Pending |
 | NODE-01 | Phase 1 | Complete |
-| NODE-02 | Phase 1 | Pending |
+| NODE-02 | Phase 1 | Complete |
 | NODE-03 | Phase 3 | Pending |
 | NODE-04 | Phase 1 | Complete |
 | NODE-05 | Phase 3 | Pending |

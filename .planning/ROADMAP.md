@@ -35,7 +35,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 Plans:
 - [x] 01-01-PLAN.md -- Cargo workspace, proto codegen, types, config, Redis Streams queue layer
 - [x] 01-02-PLAN.md -- gRPC services (TaskService + NodeService), HTTP REST handlers, dual-port server startup
-- [ ] 01-03-PLAN.md -- Runner agent binary, integration tests, end-to-end verification
+- [x] 01-03-PLAN.md -- Runner agent binary, integration tests, end-to-end verification
 
 ### Phase 2: Authentication and TLS
 **Goal**: All connections to the gateway are authenticated and encrypted -- HTTPS clients use API keys, gRPC clients use mTLS, internal nodes use per-service tokens, and all traffic runs over TLS with HTTP/2 keepalive
