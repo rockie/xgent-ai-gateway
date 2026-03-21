@@ -15,7 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [ ] **Phase 1: Core Queue Loop** - Redis storage, task state machine, reliable queue, dual-protocol submit and poll, node reverse-polling
 - [ ] **Phase 2: Authentication and TLS** - API key, mTLS, and node token auth with TLS termination and keepalive
 - [ ] **Phase 3: Service Registry and Node Health** - Service CRUD, node heartbeat tracking, graceful drain
-- [ ] **Phase 4: Task Reliability and Callbacks** - Timeout detection, retry with backoff, dead letter queue, callback delivery
+- [ ] **Phase 4: Task Reliability and Callbacks** - Timeout detection, callback delivery (retries and DLQ descoped)
 - [ ] **Phase 5: Observability and Packaging** - Structured logging, Prometheus metrics, admin health API, static binary and Docker image
 
 ## Phase Details
@@ -71,19 +71,17 @@ Plans:
 - [x] 03-03-PLAN.md -- Integration tests for registry and node health, runner agent SIGTERM handler
 
 ### Phase 4: Task Reliability and Callbacks
-**Goal**: Tasks that fail or time out are automatically retried, permanently failed tasks land in a dead letter queue, and clients can optionally receive results via callback URL instead of polling
+**Goal**: Timed-out tasks (node died) are detected by a background reaper and marked as failed, and clients can optionally receive results via callback URL instead of polling
 **Depends on**: Phase 3
-**Requirements**: LIFE-03, LIFE-04, LIFE-05, RSLT-03, RSLT-04
+**Requirements**: LIFE-03, RSLT-03, RSLT-04
 **Success Criteria** (what must be TRUE):
-  1. A task assigned to an unresponsive node is detected by the background reaper and re-queued for another node
-  2. Failed tasks are retried with configurable max retries and exponential backoff
-  3. Tasks that exhaust all retries are moved to a per-service dead letter queue
-  4. Client can provide a callback URL at submission and receive the result delivered to that URL with exponential backoff retries on failure
-**Plans**: TBD
+  1. A task assigned to an unresponsive node is detected by the background reaper and marked as failed
+  2. Client can provide a callback URL at submission and receive the result delivered to that URL with exponential backoff retries on failure
+**Plans**: 2 plans
 
 Plans:
-- [ ] 04-01: TBD
-- [ ] 04-02: TBD
+- [ ] 04-01-PLAN.md -- Reaper module (XPENDING scan + mark-failed), callback delivery function, config/state/types foundation
+- [ ] 04-02-PLAN.md -- Callback URL plumbing (API keys, submit, PATCH endpoint), delivery triggers, integration tests
 
 ### Phase 5: Observability and Packaging
 **Goal**: The gateway emits structured logs, exposes Prometheus metrics, provides admin health data, and ships as a single static binary and Docker image ready for production deployment
