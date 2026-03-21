@@ -46,11 +46,12 @@ Plans:
   2. gRPC client connections without a valid client certificate are rejected at the TLS handshake
   3. Node poll requests with an invalid or wrong-service token are rejected
   4. Gateway serves all traffic over TLS and maintains HTTP/2 keepalive pings to prevent silent connection death
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 02-01: TBD
-- [ ] 02-02: TBD
+- [ ] 02-01-PLAN.md -- Auth module foundation: API key + node token CRUD, TLS config builders, extended config/state/error
+- [ ] 02-02-PLAN.md -- Wire TLS, auth middleware, admin endpoints, keepalive into server startup
+- [ ] 02-03-PLAN.md -- Auth integration tests with rcgen certs, runner agent auth support
 
 ### Phase 3: Service Registry and Node Health
 **Goal**: Admins can register and manage services, and the gateway tracks node health per service so it knows which nodes are alive and can gracefully handle node departures
@@ -105,8 +106,8 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Core Queue Loop | 0/3 | Not started | - |
-| 2. Authentication and TLS | 0/2 | Not started | - |
+| 1. Core Queue Loop | 3/3 | Complete | 2026-03-21 |
+| 2. Authentication and TLS | 0/3 | Not started | - |
 | 3. Service Registry and Node Health | 0/2 | Not started | - |
 | 4. Task Reliability and Callbacks | 0/2 | Not started | - |
 | 5. Observability and Packaging | 0/2 | Not started | - |
