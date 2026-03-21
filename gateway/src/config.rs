@@ -132,3 +132,81 @@ pub fn load_config(config_path: Option<&str>) -> Result<GatewayConfig, config::C
 
     builder.build()?.try_deserialize()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Mutex;
+
+    // Serialize config tests that touch env vars to prevent races.
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+    #[test]
+    fn default_config_values() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        // Clear any GATEWAY__* env vars that might interfere
+        for (key, _) in std::env::vars() {
+            if key.starts_with("GATEWAY__") {
+                std::env::remove_var(&key);
+            }
+        }
+        let cfg = load_config(None).unwrap();
+        assert!(cfg.grpc.enabled);
+        assert_eq!(cfg.grpc.listen_addr, "0.0.0.0:50051");
+        assert!(cfg.http.enabled);
+        assert_eq!(cfg.http.listen_addr, "0.0.0.0:8080");
+        assert_eq!(cfg.redis.url, "redis://127.0.0.1:6379");
+        assert_eq!(cfg.redis.result_ttl_secs, 86400);
+        assert_eq!(cfg.queue.stream_maxlen, 10000);
+        assert_eq!(cfg.queue.block_timeout_ms, 5000);
+    }
+
+    #[test]
+    fn config_loads_from_toml() {
+        use std::io::Write;
+        let _guard = ENV_LOCK.lock().unwrap();
+        // Clear any GATEWAY__* env vars that might interfere
+        for (key, _) in std::env::vars() {
+            if key.starts_with("GATEWAY__") {
+                std::env::remove_var(&key);
+            }
+        }
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("test.toml");
+        let mut f = std::fs::File::create(&path).unwrap();
+        writeln!(
+            f,
+            r#"
+[grpc]
+listen_addr = "127.0.0.1:9090"
+
+[redis]
+result_ttl_secs = 3600
+"#
+        )
+        .unwrap();
+
+        let cfg = load_config(Some(path.to_str().unwrap())).unwrap();
+        assert_eq!(cfg.grpc.listen_addr, "127.0.0.1:9090");
+        assert_eq!(cfg.redis.result_ttl_secs, 3600);
+        // Defaults preserved for unset fields
+        assert_eq!(cfg.http.listen_addr, "0.0.0.0:8080");
+    }
+
+    #[test]
+    fn config_env_var_override() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        // Clear first, then set only the one we want
+        for (key, _) in std::env::vars() {
+            if key.starts_with("GATEWAY__") {
+                std::env::remove_var(&key);
+            }
+        }
+        std::env::set_var("GATEWAY__QUEUE__BLOCK_TIMEOUT_MS", "9999");
+        let cfg = load_config(None).unwrap();
+        assert_eq!(cfg.queue.block_timeout_ms, 9999);
+        // Verify other defaults are untouched
+        assert_eq!(cfg.grpc.listen_addr, "0.0.0.0:50051");
+        std::env::remove_var("GATEWAY__QUEUE__BLOCK_TIMEOUT_MS");
+    }
+}

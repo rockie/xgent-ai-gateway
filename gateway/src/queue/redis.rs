@@ -345,7 +345,108 @@ impl RedisQueue {
     }
 }
 
-// Drop the unused import warning
-use base64 as _;
-use chrono as _;
-use serde_json as _;
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::load_config;
+
+    /// Helper to create a RedisQueue connected to local Redis for testing.
+    /// Tests using this are gated with #[ignore] -- run with `cargo test -- --ignored`.
+    async fn test_queue() -> RedisQueue {
+        let config = load_config(None).unwrap();
+        RedisQueue::new(&config).await.expect("Redis must be running for integration tests")
+    }
+
+    /// Helper to clean up test keys.
+    async fn cleanup(queue: &RedisQueue, keys: &[&str]) {
+        let mut conn = queue.conn.clone();
+        for key in keys {
+            let _: Result<(), _> = ::redis::cmd("DEL").arg(*key).query_async(&mut conn).await;
+        }
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn submit_task_stores_hash_and_adds_to_stream() {
+        let queue = test_queue().await;
+        let service = ServiceName::new("test-submit").unwrap();
+        let payload = b"hello world".to_vec();
+        let mut metadata = HashMap::new();
+        metadata.insert("key".to_string(), "value".to_string());
+
+        let task_id = queue.submit_task(&service, payload.clone(), metadata.clone()).await.unwrap();
+
+        // Verify task hash exists
+        let status = queue.get_task_status(&task_id).await.unwrap();
+        assert_eq!(status.state, TaskState::Pending);
+        assert_eq!(status.payload, payload);
+        assert_eq!(status.metadata.get("key").unwrap(), "value");
+        assert_eq!(status.service, "test-submit");
+        assert!(!status.created_at.is_empty());
+
+        cleanup(&queue, &[&format!("task:{}", task_id), "tasks:test-submit"]).await;
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn get_task_status_returns_not_found_for_missing() {
+        let queue = test_queue().await;
+        let fake_id = TaskId::from("nonexistent-id".to_string());
+        let result = queue.get_task_status(&fake_id).await;
+        assert!(matches!(result, Err(GatewayError::TaskNotFound(_))));
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn consumer_group_creation_handles_busygroup() {
+        let queue = test_queue().await;
+        let service = ServiceName::new("test-busygroup").unwrap();
+
+        // Create group twice -- second call should not error
+        queue.ensure_consumer_group(&service).await.unwrap();
+        queue.ensure_consumer_group(&service).await.unwrap();
+
+        cleanup(&queue, &["tasks:test-busygroup"]).await;
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn different_services_use_different_streams() {
+        let queue = test_queue().await;
+        let svc_a = ServiceName::new("test-svc-a").unwrap();
+        let svc_b = ServiceName::new("test-svc-b").unwrap();
+
+        let id_a = queue.submit_task(&svc_a, b"a".to_vec(), HashMap::new()).await.unwrap();
+        let id_b = queue.submit_task(&svc_b, b"b".to_vec(), HashMap::new()).await.unwrap();
+
+        // Both tasks should be retrievable
+        let status_a = queue.get_task_status(&id_a).await.unwrap();
+        let status_b = queue.get_task_status(&id_b).await.unwrap();
+        assert_eq!(status_a.service, "test-svc-a");
+        assert_eq!(status_b.service, "test-svc-b");
+
+        cleanup(&queue, &[
+            &format!("task:{}", id_a),
+            &format!("task:{}", id_b),
+            "tasks:test-svc-a",
+            "tasks:test-svc-b",
+        ]).await;
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn result_ttl_is_set_on_task_hash() {
+        let queue = test_queue().await;
+        let service = ServiceName::new("test-ttl").unwrap();
+        let task_id = queue.submit_task(&service, b"data".to_vec(), HashMap::new()).await.unwrap();
+
+        // Check that TTL is set
+        let hash_key = format!("task:{}", task_id);
+        let mut conn = queue.conn.clone();
+        let ttl: i64 = ::redis::cmd("TTL").arg(&hash_key).query_async(&mut conn).await.unwrap();
+        assert!(ttl > 0, "TTL should be positive, got {}", ttl);
+        assert!(ttl <= 86400, "TTL should be <= 86400, got {}", ttl);
+
+        cleanup(&queue, &[&hash_key, "tasks:test-ttl"]).await;
+    }
+}

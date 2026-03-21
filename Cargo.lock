@@ -2368,6 +2368,7 @@ dependencies = [
  "redis",
  "serde",
  "serde_json",
+ "tempfile",
  "thiserror",
  "tokio",
  "tokio-stream",

@@ -1,9 +1,5 @@
-mod config;
-mod error;
-mod queue;
-mod types;
-
 use clap::Parser;
+use xgent_gateway::config;
 
 #[derive(Parser, Debug)]
 #[command(name = "xgent-gateway", about = "Pull-model task gateway")]
