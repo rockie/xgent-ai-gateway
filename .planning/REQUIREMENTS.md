@@ -63,7 +63,7 @@
 - [ ] **INFR-03**: Gateway builds as a single static binary (musl target)
 - [ ] **INFR-04**: Gateway ships as a Docker image
 - [x] **INFR-05**: Gateway supports TLS termination for HTTPS and gRPC
-- [ ] **INFR-06**: Gateway configures HTTP/2 keepalive pings to prevent silent connection death through NAT/LB
+- [x] **INFR-06**: Gateway configures HTTP/2 keepalive pings to prevent silent connection death through NAT/LB
 
 ## v2 Requirements
 
@@ -138,7 +138,7 @@
 | INFR-03 | Phase 5 | Pending |
 | INFR-04 | Phase 5 | Pending |
 | INFR-05 | Phase 2 | Complete |
-| INFR-06 | Phase 2 | Pending |
+| INFR-06 | Phase 2 | Complete |
 
 **Coverage:**
 - v1 requirements: 36 total
