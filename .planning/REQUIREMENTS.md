@@ -9,8 +9,8 @@
 
 - [ ] **TASK-01**: Client can submit a task via gRPC with an opaque payload and receive a task ID
 - [ ] **TASK-02**: Client can submit a task via HTTPS REST with an opaque payload and receive a task ID
-- [ ] **TASK-03**: Client can attach arbitrary key-value metadata/labels to a task at submission
-- [ ] **TASK-04**: Task payloads are treated as opaque bytes — the gateway does not interpret payload content
+- [x] **TASK-03**: Client can attach arbitrary key-value metadata/labels to a task at submission
+- [x] **TASK-04**: Task payloads are treated as opaque bytes — the gateway does not interpret payload content
 
 ### Task Results
 
@@ -18,12 +18,12 @@
 - [ ] **RSLT-02**: Client can poll task status and result by task ID via HTTPS REST
 - [ ] **RSLT-03**: Client can optionally provide a callback URL at submission for result delivery
 - [ ] **RSLT-04**: Gateway delivers results to callback URL with exponential backoff retries on failure
-- [ ] **RSLT-05**: Task results are stored in Redis with a configurable TTL
+- [x] **RSLT-05**: Task results are stored in Redis with a configurable TTL
 
 ### Service Registry
 
 - [ ] **SRVC-01**: Admin can register a new service with the gateway (name, config, node auth tokens)
-- [ ] **SRVC-02**: Each registered service gets its own isolated task queue
+- [x] **SRVC-02**: Each registered service gets its own isolated task queue
 - [ ] **SRVC-03**: Admin can deregister a service (drains queue, removes config)
 - [ ] **SRVC-04**: Service configuration is persisted in Redis and survives gateway restarts
 
@@ -38,8 +38,8 @@
 
 ### Task Lifecycle
 
-- [ ] **LIFE-01**: Tasks follow a state machine: pending → assigned → running → completed/failed
-- [ ] **LIFE-02**: Gateway uses reliable queue pattern (atomic move to processing list) to prevent task loss
+- [x] **LIFE-01**: Tasks follow a state machine: pending → assigned → running → completed/failed
+- [x] **LIFE-02**: Gateway uses reliable queue pattern (atomic move to processing list) to prevent task loss
 - [ ] **LIFE-03**: Background reaper detects timed-out tasks (node died) and re-queues them
 - [ ] **LIFE-04**: Failed tasks retry with configurable max retries and exponential backoff
 - [ ] **LIFE-05**: Tasks exhausting retries move to a per-service dead letter queue
@@ -58,8 +58,8 @@
 
 ### Infrastructure
 
-- [ ] **INFR-01**: Gateway connects to Redis/Valkey for all persistent state (queues, results, config)
-- [ ] **INFR-02**: Gateway is configurable via environment variables with optional TOML config file override
+- [x] **INFR-01**: Gateway connects to Redis/Valkey for all persistent state (queues, results, config)
+- [x] **INFR-02**: Gateway is configurable via environment variables with optional TOML config file override
 - [ ] **INFR-03**: Gateway builds as a single static binary (musl target)
 - [ ] **INFR-04**: Gateway ships as a Docker image
 - [ ] **INFR-05**: Gateway supports TLS termination for HTTPS and gRPC
@@ -105,15 +105,15 @@
 |-------------|-------|--------|
 | TASK-01 | Phase 1 | Pending |
 | TASK-02 | Phase 1 | Pending |
-| TASK-03 | Phase 1 | Pending |
-| TASK-04 | Phase 1 | Pending |
+| TASK-03 | Phase 1 | Complete |
+| TASK-04 | Phase 1 | Complete |
 | RSLT-01 | Phase 1 | Pending |
 | RSLT-02 | Phase 1 | Pending |
 | RSLT-03 | Phase 4 | Pending |
 | RSLT-04 | Phase 4 | Pending |
-| RSLT-05 | Phase 1 | Pending |
+| RSLT-05 | Phase 1 | Complete |
 | SRVC-01 | Phase 3 | Pending |
-| SRVC-02 | Phase 1 | Pending |
+| SRVC-02 | Phase 1 | Complete |
 | SRVC-03 | Phase 3 | Pending |
 | SRVC-04 | Phase 3 | Pending |
 | NODE-01 | Phase 1 | Pending |
@@ -122,8 +122,8 @@
 | NODE-04 | Phase 1 | Pending |
 | NODE-05 | Phase 3 | Pending |
 | NODE-06 | Phase 3 | Pending |
-| LIFE-01 | Phase 1 | Pending |
-| LIFE-02 | Phase 1 | Pending |
+| LIFE-01 | Phase 1 | Complete |
+| LIFE-02 | Phase 1 | Complete |
 | LIFE-03 | Phase 4 | Pending |
 | LIFE-04 | Phase 4 | Pending |
 | LIFE-05 | Phase 4 | Pending |
@@ -133,8 +133,8 @@
 | OBSV-01 | Phase 5 | Pending |
 | OBSV-02 | Phase 5 | Pending |
 | OBSV-03 | Phase 5 | Pending |
-| INFR-01 | Phase 1 | Pending |
-| INFR-02 | Phase 1 | Pending |
+| INFR-01 | Phase 1 | Complete |
+| INFR-02 | Phase 1 | Complete |
 | INFR-03 | Phase 5 | Pending |
 | INFR-04 | Phase 5 | Pending |
 | INFR-05 | Phase 2 | Pending |

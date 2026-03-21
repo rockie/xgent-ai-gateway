@@ -33,7 +33,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 3 plans
 
 Plans:
-- [ ] 01-01-PLAN.md -- Cargo workspace, proto codegen, types, config, Redis Streams queue layer
+- [x] 01-01-PLAN.md -- Cargo workspace, proto codegen, types, config, Redis Streams queue layer
 - [ ] 01-02-PLAN.md -- gRPC services (TaskService + NodeService), HTTP REST handlers, dual-port server startup
 - [ ] 01-03-PLAN.md -- Runner agent binary, integration tests, end-to-end verification
 
