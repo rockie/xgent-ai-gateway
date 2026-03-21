@@ -1,7 +1,8 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use clap::Parser;
-use xgent_gateway::{config, grpc, http, queue, state};
+use xgent_gateway::{auth, config, grpc, http, queue, state, tls};
 
 use xgent_proto::node_service_server::NodeServiceServer;
 use xgent_proto::task_service_server::TaskServiceServer;
@@ -47,9 +48,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     if config.grpc.enabled {
         let grpc_state = state.clone();
         let grpc_addr = config.grpc.listen_addr.parse()?;
+        let grpc_tls = config.grpc.tls.clone();
         handles.push(tokio::spawn(async move {
             tracing::info!(%grpc_addr, "gRPC server starting");
-            tonic::transport::Server::builder()
+
+            let mut grpc_builder = tonic::transport::Server::builder()
+                .http2_keepalive_interval(Some(Duration::from_secs(30)))
+                .http2_keepalive_timeout(Some(Duration::from_secs(10)));
+
+            if let Some(ref tls_cfg) = grpc_tls {
+                let tls_config = tls::config::build_grpc_tls_config(tls_cfg)
+                    .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> {
+                        format!("gRPC TLS config error: {e}").into()
+                    })?;
+                grpc_builder = grpc_builder.tls_config(tls_config)
+                    .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { e.into() })?;
+                tracing::info!("gRPC mTLS enabled");
+            }
+
+            grpc_builder
                 .add_service(TaskServiceServer::new(
                     grpc::GrpcTaskService::new(grpc_state.clone()),
                 ))
@@ -66,20 +83,90 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     if config.http.enabled {
         let http_state = state.clone();
         let http_addr = config.http.listen_addr.clone();
+        let http_tls = config.http.tls.clone();
         handles.push(tokio::spawn(async move {
-            let app = axum::Router::new()
+            // API routes protected by API key auth middleware
+            let api_routes = axum::Router::new()
                 .route("/v1/tasks", axum::routing::post(http::submit::submit_task))
                 .route(
                     "/v1/tasks/{task_id}",
                     axum::routing::get(http::result::get_task),
                 )
+                .layer(axum::middleware::from_fn_with_state(
+                    http_state.clone(),
+                    auth::api_key::api_key_auth_middleware,
+                ));
+
+            // Admin routes -- unauthenticated in Phase 2 (admin auth deferred to Phase 3)
+            let admin_routes = axum::Router::new()
+                .route(
+                    "/v1/admin/api-keys",
+                    axum::routing::post(http::admin::create_api_key),
+                )
+                .route(
+                    "/v1/admin/api-keys/revoke",
+                    axum::routing::post(http::admin::revoke_api_key),
+                )
+                .route(
+                    "/v1/admin/node-tokens",
+                    axum::routing::post(http::admin::create_node_token),
+                )
+                .route(
+                    "/v1/admin/node-tokens/revoke",
+                    axum::routing::post(http::admin::revoke_node_token),
+                );
+
+            let app = axum::Router::new()
+                .merge(api_routes)
+                .merge(admin_routes)
                 .with_state(http_state);
 
-            tracing::info!(%http_addr, "HTTP server starting");
-            let listener = tokio::net::TcpListener::bind(&http_addr).await?;
-            axum::serve(listener, app)
-                .await
-                .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { e.into() })
+            if let Some(ref tls_cfg) = http_tls {
+                // TLS mode: manual accept loop with rustls
+                let tls_config = tls::config::build_http_tls_config(tls_cfg)
+                    .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> {
+                        format!("HTTP TLS config error: {e}").into()
+                    })?;
+                let tls_acceptor = tokio_rustls::TlsAcceptor::from(Arc::new(tls_config));
+                let tcp_listener = tokio::net::TcpListener::bind(&http_addr).await?;
+
+                tracing::info!(%http_addr, "HTTPS server starting (TLS enabled)");
+
+                loop {
+                    let (tcp_stream, addr) = tcp_listener.accept().await?;
+                    let acceptor = tls_acceptor.clone();
+                    let app = app.clone();
+                    tokio::spawn(async move {
+                        match acceptor.accept(tcp_stream).await {
+                            Ok(tls_stream) => {
+                                let io = hyper_util::rt::TokioIo::new(tls_stream);
+                                let service = hyper_util::service::TowerToHyperService::new(app);
+                                let mut builder = hyper_util::server::conn::auto::Builder::new(
+                                    hyper_util::rt::TokioExecutor::new(),
+                                );
+                                builder
+                                    .http2()
+                                    .keep_alive_interval(Some(Duration::from_secs(30)))
+                                    .keep_alive_timeout(Duration::from_secs(10));
+                                let conn = builder.serve_connection(io, service);
+                                if let Err(e) = conn.await {
+                                    tracing::debug!(%addr, error=%e, "HTTP connection error");
+                                }
+                            }
+                            Err(e) => {
+                                tracing::debug!(%addr, error=%e, "TLS handshake failed");
+                            }
+                        }
+                    });
+                }
+            } else {
+                // Plain HTTP mode (backward compatible with Phase 1)
+                tracing::info!(%http_addr, "HTTP server starting");
+                let listener = tokio::net::TcpListener::bind(&http_addr).await?;
+                axum::serve(listener, app)
+                    .await
+                    .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { e.into() })
+            }
         }));
     }
 
