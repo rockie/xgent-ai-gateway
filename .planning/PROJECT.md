@@ -14,6 +14,8 @@ Tasks submitted by clients reliably reach internal nodes and results reliably fl
 
 - [x] Nodes authenticate with pre-shared tokens scoped to a service — Validated in Phase 2: Authentication and TLS
 - [x] Client authentication via API key (HTTPS) and mTLS (gRPC) — Validated in Phase 2: Authentication and TLS
+- [x] Services can be registered with the gateway, each with its own task queue — Validated in Phase 3: Service Registry & Node Health
+- [x] Service-level node pool management (register, deregister, health status) — Validated in Phase 3: Service Registry & Node Health
 
 ### Active
 
@@ -21,12 +23,10 @@ Tasks submitted by clients reliably reach internal nodes and results reliably fl
 - [ ] Clients can submit tasks via HTTPS and receive a task ID
 - [ ] Clients can poll task status/result by task ID (gRPC and HTTPS)
 - [ ] Clients can optionally provide a callback URL for result delivery
-- [ ] Services can be registered with the gateway, each with its own task queue
 - [ ] Internal nodes reverse-poll the gateway to pick up tasks for their service
 - [ ] Task queue state persisted in Redis/Valkey for durability across restarts
 - [ ] Nodes report task results back through the gateway
 - [ ] Gateway delivers results to polling clients and fires optional callbacks
-- [ ] Service-level node pool management (register, deregister, health status)
 - [ ] Task lifecycle tracking (pending → assigned → running → completed/failed)
 - [ ] Task timeout and retry handling for unresponsive nodes
 
@@ -83,4 +83,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-21 — Phase 01 (core-queue-loop) complete: Cargo workspace, gRPC/HTTP dual-port gateway, Redis Streams queue, node runner agent, 6 integration tests passing*
+*Last updated: 2026-03-21 — Phase 03 (service-registry-and-node-health) complete: Service registry with Redis CRUD and admin endpoints, node health tracking with Heartbeat/DrainNode RPCs, drain-aware poll loop, SIGTERM graceful drain agent, 9 integration tests*
