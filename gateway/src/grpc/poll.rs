@@ -77,17 +77,101 @@ impl NodeService for GrpcNodeService {
         let (tx, rx) = mpsc::channel::<Result<TaskAssignment, Status>>(1);
 
         let queue = self.state.queue.clone();
+        let state_clone = self.state.clone();
 
         tokio::spawn(async move {
+            let mut health_conn = state_clone.auth_conn.clone();
+            let service_name_str = service.0.clone();
+            let node_id_clone = node_id.clone();
+
+            // Drain timeout tracking (per D-20)
+            let mut drain_started_at: Option<tokio::time::Instant> = None;
+            let mut drain_timeout: Option<Duration> = None;
+
+            // Register node on first poll
+            let _ = crate::registry::node_health::register_or_update_node(
+                &mut health_conn,
+                &service_name_str,
+                &node_id_clone,
+            )
+            .await;
+
             loop {
+                // Check drain state BEFORE polling (per D-18)
+                let draining = crate::registry::node_health::is_node_draining(
+                    &mut health_conn,
+                    &service_name_str,
+                    &node_id_clone,
+                )
+                .await
+                .unwrap_or(false);
+
+                if draining {
+                    // Track drain start time for timeout enforcement (per D-20)
+                    if drain_started_at.is_none() {
+                        let svc = crate::registry::service::get_service(
+                            &mut health_conn,
+                            &service_name_str,
+                        )
+                        .await
+                        .ok();
+                        let timeout_secs = svc.map(|s| s.drain_timeout_secs).unwrap_or(300);
+                        drain_started_at = Some(tokio::time::Instant::now());
+                        drain_timeout = Some(Duration::from_secs(timeout_secs));
+                        tracing::info!(
+                            node_id=%node_id_clone, service=%service_name_str,
+                            timeout_secs, "node draining, stopping task dispatch"
+                        );
+                    }
+                    // Check if drain timeout has elapsed
+                    if let (Some(started), Some(timeout)) = (drain_started_at, drain_timeout) {
+                        if started.elapsed() >= timeout {
+                            tracing::warn!(
+                                node_id=%node_id_clone, service=%service_name_str,
+                                "drain timeout expired, marking node disconnected"
+                            );
+                            let _ = crate::registry::node_health::mark_node_disconnected(
+                                &mut health_conn,
+                                &service_name_str,
+                                &node_id_clone,
+                            )
+                            .await;
+                            break;
+                        }
+                    }
+                    // Don't poll for new tasks, just keep stream alive as liveness signal
+                    tokio::time::sleep(Duration::from_secs(1)).await;
+                    continue;
+                }
+
                 tokio::select! {
                     _ = tx.closed() => {
-                        tracing::info!(node_id=%node_id, service=%service, "node disconnected");
+                        tracing::info!(node_id=%node_id_clone, service=%service_name_str, "node disconnected");
+                        let _ = crate::registry::node_health::mark_node_disconnected(
+                            &mut health_conn,
+                            &service_name_str,
+                            &node_id_clone,
+                        ).await;
                         break;
                     }
                     result = queue.poll_task(&service, &node_id) => {
+                        // Update last_seen on each poll cycle (passive tracking per D-12)
+                        let _ = crate::registry::node_health::register_or_update_node(
+                            &mut health_conn,
+                            &service_name_str,
+                            &node_id_clone,
+                        ).await;
+
                         match result {
                             Ok(Some(task_data)) => {
+                                // Increment in_flight_tasks on dispatch
+                                let _ = crate::registry::node_health::update_in_flight_tasks(
+                                    &mut health_conn,
+                                    &service_name_str,
+                                    &node_id_clone,
+                                    1,
+                                ).await;
+
                                 let assignment = TaskAssignment {
                                     task_id: task_data.task_id.to_string(),
                                     payload: task_data.payload,
@@ -136,23 +220,76 @@ impl NodeService for GrpcNodeService {
         }))
     }
 
-    /// Heartbeat RPC -- stub for Plan 03-02 implementation.
     async fn heartbeat(
         &self,
-        _request: Request<HeartbeatRequest>,
+        request: Request<HeartbeatRequest>,
     ) -> Result<Response<HeartbeatResponse>, Status> {
-        // TODO: Plan 03-02 will implement node heartbeat tracking
+        let req = request.into_inner();
+
+        // Validate service exists
+        let exists = crate::registry::service::service_exists(
+            &mut self.state.auth_conn.clone(),
+            &req.service_name,
+        )
+        .await
+        .map_err(|e| -> Status { e.into() })?;
+
+        if !exists {
+            return Err(Status::not_found(format!(
+                "service not found: {}",
+                req.service_name
+            )));
+        }
+
+        // Update node last_seen
+        crate::registry::node_health::register_or_update_node(
+            &mut self.state.auth_conn.clone(),
+            &req.service_name,
+            &req.node_id,
+        )
+        .await
+        .map_err(|e| -> Status { e.into() })?;
+
         Ok(Response::new(HeartbeatResponse {
             acknowledged: true,
         }))
     }
 
-    /// DrainNode RPC -- stub for Plan 03-02 implementation.
     async fn drain_node(
         &self,
-        _request: Request<DrainNodeRequest>,
+        request: Request<DrainNodeRequest>,
     ) -> Result<Response<DrainNodeResponse>, Status> {
-        // TODO: Plan 03-02 will implement node drain logic
-        Err(Status::unimplemented("drain_node not yet implemented"))
+        let req = request.into_inner();
+
+        // Validate service exists
+        let exists = crate::registry::service::service_exists(
+            &mut self.state.auth_conn.clone(),
+            &req.service_name,
+        )
+        .await
+        .map_err(|e| -> Status { e.into() })?;
+
+        if !exists {
+            return Err(Status::not_found(format!(
+                "service not found: {}",
+                req.service_name
+            )));
+        }
+
+        // Set drain flag, get timeout from service config
+        let drain_timeout = crate::registry::node_health::set_node_draining(
+            &mut self.state.auth_conn.clone(),
+            &req.service_name,
+            &req.node_id,
+        )
+        .await
+        .map_err(|e| -> Status { e.into() })?;
+
+        tracing::info!(service=%req.service_name, node_id=%req.node_id, "node drain initiated");
+
+        Ok(Response::new(DrainNodeResponse {
+            acknowledged: true,
+            drain_timeout_secs: drain_timeout,
+        }))
     }
 }
