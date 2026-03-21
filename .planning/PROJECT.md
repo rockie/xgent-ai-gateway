@@ -12,7 +12,8 @@ Tasks submitted by clients reliably reach internal nodes and results reliably fl
 
 ### Validated
 
-(None yet — ship to validate)
+- [x] Nodes authenticate with pre-shared tokens scoped to a service — Validated in Phase 2: Authentication and TLS
+- [x] Client authentication via API key (HTTPS) and mTLS (gRPC) — Validated in Phase 2: Authentication and TLS
 
 ### Active
 
@@ -22,8 +23,6 @@ Tasks submitted by clients reliably reach internal nodes and results reliably fl
 - [ ] Clients can optionally provide a callback URL for result delivery
 - [ ] Services can be registered with the gateway, each with its own task queue
 - [ ] Internal nodes reverse-poll the gateway to pick up tasks for their service
-- [ ] Nodes authenticate with pre-shared tokens scoped to a service
-- [ ] Client authentication via API key (HTTPS) and mTLS (gRPC)
 - [ ] Task queue state persisted in Redis/Valkey for durability across restarts
 - [ ] Nodes report task results back through the gateway
 - [ ] Gateway delivers results to polling clients and fires optional callbacks
@@ -64,7 +63,7 @@ Tasks submitted by clients reliably reach internal nodes and results reliably fl
 | Rust over Go/Node | Performance-critical gateway with gRPC; Rust's tonic crate provides excellent gRPC support | — Pending |
 | Redis/Valkey over PostgreSQL | Queue operations need low latency; Redis pub/sub can notify nodes of new tasks | — Pending |
 | Async-first task model | AI/CI tasks take seconds-minutes; blocking callers is impractical | — Pending |
-| API key + mTLS dual auth | Different security postures for HTTP (simpler) vs gRPC (stronger) clients | — Pending |
+| API key + mTLS dual auth | Different security postures for HTTP (simpler) vs gRPC (stronger) clients | Validated Phase 2 |
 
 ## Evolution
 
