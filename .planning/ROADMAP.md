@@ -49,7 +49,7 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 02-01-PLAN.md -- Auth module foundation: API key + node token CRUD, TLS config builders, extended config/state/error
+- [x] 02-01-PLAN.md -- Auth module foundation: API key + node token CRUD, TLS config builders, extended config/state/error
 - [ ] 02-02-PLAN.md -- Wire TLS, auth middleware, admin endpoints, keepalive into server startup
 - [ ] 02-03-PLAN.md -- Auth integration tests with rcgen certs, runner agent auth support
 

@@ -46,9 +46,9 @@
 
 ### Authentication
 
-- [ ] **AUTH-01**: HTTPS clients authenticate via API key (bearer token)
-- [ ] **AUTH-02**: gRPC clients authenticate via mTLS (mutual TLS certificates)
-- [ ] **AUTH-03**: Internal nodes authenticate via pre-shared tokens validated on each poll
+- [x] **AUTH-01**: HTTPS clients authenticate via API key (bearer token)
+- [x] **AUTH-02**: gRPC clients authenticate via mTLS (mutual TLS certificates)
+- [x] **AUTH-03**: Internal nodes authenticate via pre-shared tokens validated on each poll
 
 ### Observability
 
@@ -62,7 +62,7 @@
 - [x] **INFR-02**: Gateway is configurable via environment variables with optional TOML config file override
 - [ ] **INFR-03**: Gateway builds as a single static binary (musl target)
 - [ ] **INFR-04**: Gateway ships as a Docker image
-- [ ] **INFR-05**: Gateway supports TLS termination for HTTPS and gRPC
+- [x] **INFR-05**: Gateway supports TLS termination for HTTPS and gRPC
 - [ ] **INFR-06**: Gateway configures HTTP/2 keepalive pings to prevent silent connection death through NAT/LB
 
 ## v2 Requirements
@@ -127,9 +127,9 @@
 | LIFE-03 | Phase 4 | Pending |
 | LIFE-04 | Phase 4 | Pending |
 | LIFE-05 | Phase 4 | Pending |
-| AUTH-01 | Phase 2 | Pending |
-| AUTH-02 | Phase 2 | Pending |
-| AUTH-03 | Phase 2 | Pending |
+| AUTH-01 | Phase 2 | Complete |
+| AUTH-02 | Phase 2 | Complete |
+| AUTH-03 | Phase 2 | Complete |
 | OBSV-01 | Phase 5 | Pending |
 | OBSV-02 | Phase 5 | Pending |
 | OBSV-03 | Phase 5 | Pending |
@@ -137,7 +137,7 @@
 | INFR-02 | Phase 1 | Complete |
 | INFR-03 | Phase 5 | Pending |
 | INFR-04 | Phase 5 | Pending |
-| INFR-05 | Phase 2 | Pending |
+| INFR-05 | Phase 2 | Complete |
 | INFR-06 | Phase 2 | Pending |
 
 **Coverage:**
