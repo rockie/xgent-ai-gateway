@@ -66,7 +66,7 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 03-01-PLAN.md -- Registry module, service CRUD, cleanup, proto extensions, admin endpoints, submit_task gating
+- [x] 03-01-PLAN.md -- Registry module, service CRUD, cleanup, proto extensions, admin endpoints, submit_task gating
 - [ ] 03-02-PLAN.md -- Node health CRUD, Heartbeat/DrainNode RPCs, drain-aware poll loop
 - [ ] 03-03-PLAN.md -- Integration tests for registry and node health, runner agent SIGTERM handler
 

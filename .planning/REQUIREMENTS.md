@@ -22,16 +22,16 @@
 
 ### Service Registry
 
-- [ ] **SRVC-01**: Admin can register a new service with the gateway (name, config, node auth tokens)
+- [x] **SRVC-01**: Admin can register a new service with the gateway (name, config, node auth tokens)
 - [x] **SRVC-02**: Each registered service gets its own isolated task queue
-- [ ] **SRVC-03**: Admin can deregister a service (drains queue, removes config)
-- [ ] **SRVC-04**: Service configuration is persisted in Redis and survives gateway restarts
+- [x] **SRVC-03**: Admin can deregister a service (drains queue, removes config)
+- [x] **SRVC-04**: Service configuration is persisted in Redis and survives gateway restarts
 
 ### Node Management
 
 - [x] **NODE-01**: Internal nodes can reverse-poll the gateway via gRPC to pick up tasks for their service
 - [x] **NODE-02**: Internal nodes can reverse-poll the gateway via HTTPS to pick up tasks for their service
-- [ ] **NODE-03**: Nodes authenticate with pre-shared tokens scoped to their service
+- [x] **NODE-03**: Nodes authenticate with pre-shared tokens scoped to their service
 - [x] **NODE-04**: Nodes report task completion (success or failure) with result payload back to the gateway
 - [ ] **NODE-05**: Gateway tracks node health via heartbeat (last poll time, stale detection)
 - [ ] **NODE-06**: Nodes can signal graceful drain — gateway stops assigning new tasks, waits for in-flight completion
@@ -112,13 +112,13 @@
 | RSLT-03 | Phase 4 | Pending |
 | RSLT-04 | Phase 4 | Pending |
 | RSLT-05 | Phase 1 | Complete |
-| SRVC-01 | Phase 3 | Pending |
+| SRVC-01 | Phase 3 | Complete |
 | SRVC-02 | Phase 1 | Complete |
-| SRVC-03 | Phase 3 | Pending |
-| SRVC-04 | Phase 3 | Pending |
+| SRVC-03 | Phase 3 | Complete |
+| SRVC-04 | Phase 3 | Complete |
 | NODE-01 | Phase 1 | Complete |
 | NODE-02 | Phase 1 | Complete |
-| NODE-03 | Phase 3 | Pending |
+| NODE-03 | Phase 3 | Complete |
 | NODE-04 | Phase 1 | Complete |
 | NODE-05 | Phase 3 | Pending |
 | NODE-06 | Phase 3 | Pending |
