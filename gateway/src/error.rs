@@ -18,6 +18,9 @@ pub enum GatewayError {
     #[error("invalid state transition from {from} to {to}")]
     InvalidStateTransition { from: String, to: String },
 
+    #[error("service already exists: {0}")]
+    ServiceAlreadyExists(String),
+
     #[error("unauthorized")]
     Unauthorized,
 }
@@ -30,6 +33,9 @@ impl From<GatewayError> for tonic::Status {
             GatewayError::InvalidRequest(_) => tonic::Status::invalid_argument(err.to_string()),
             GatewayError::InvalidStateTransition { .. } => {
                 tonic::Status::failed_precondition(err.to_string())
+            }
+            GatewayError::ServiceAlreadyExists(_) => {
+                tonic::Status::already_exists(err.to_string())
             }
             GatewayError::Redis(ref e) => {
                 tonic::Status::internal(format!("internal error: {e}"))
@@ -48,6 +54,7 @@ impl IntoResponse for GatewayError {
             GatewayError::InvalidStateTransition { .. } => {
                 (StatusCode::CONFLICT, self.to_string())
             }
+            GatewayError::ServiceAlreadyExists(_) => (StatusCode::CONFLICT, self.to_string()),
             GatewayError::Redis(_) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "internal error".to_string(),

@@ -12,6 +12,8 @@ pub struct GatewayConfig {
     pub queue: QueueConfig,
     #[serde(default)]
     pub admin: AdminConfig,
+    #[serde(default)]
+    pub service_defaults: ServiceDefaultsConfig,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -62,6 +64,45 @@ impl Default for AdminConfig {
     fn default() -> Self {
         Self { token: None }
     }
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct ServiceDefaultsConfig {
+    #[serde(default = "default_node_stale_after_secs")]
+    pub node_stale_after_secs: u64,
+    #[serde(default = "default_drain_timeout_secs")]
+    pub drain_timeout_secs: u64,
+    #[serde(default = "default_task_timeout_secs")]
+    pub task_timeout_secs: u64,
+    #[serde(default = "default_max_retries")]
+    pub max_retries: u32,
+}
+
+impl Default for ServiceDefaultsConfig {
+    fn default() -> Self {
+        Self {
+            node_stale_after_secs: default_node_stale_after_secs(),
+            drain_timeout_secs: default_drain_timeout_secs(),
+            task_timeout_secs: default_task_timeout_secs(),
+            max_retries: default_max_retries(),
+        }
+    }
+}
+
+fn default_node_stale_after_secs() -> u64 {
+    60
+}
+
+fn default_drain_timeout_secs() -> u64 {
+    300
+}
+
+fn default_task_timeout_secs() -> u64 {
+    300
+}
+
+fn default_max_retries() -> u32 {
+    3
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -154,7 +195,11 @@ pub fn load_config(config_path: Option<&str>) -> Result<GatewayConfig, config::C
         .set_default("redis.url", "redis://127.0.0.1:6379")?
         .set_default("redis.result_ttl_secs", 86400_i64)?
         .set_default("queue.stream_maxlen", 10000_i64)?
-        .set_default("queue.block_timeout_ms", 5000_i64)?;
+        .set_default("queue.block_timeout_ms", 5000_i64)?
+        .set_default("service_defaults.node_stale_after_secs", 60_i64)?
+        .set_default("service_defaults.drain_timeout_secs", 300_i64)?
+        .set_default("service_defaults.task_timeout_secs", 300_i64)?
+        .set_default("service_defaults.max_retries", 3_i64)?;
 
     // TOML file override
     if let Some(path) = config_path {

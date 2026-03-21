@@ -11,6 +11,8 @@ service TaskService {
 service NodeService {
   rpc PollTasks(PollTasksRequest) returns (stream TaskAssignment);
   rpc ReportResult(ReportResultRequest) returns (ReportResultResponse);
+  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+  rpc DrainNode(DrainNodeRequest) returns (DrainNodeResponse);
 }
 
 message SubmitTaskRequest {
@@ -66,4 +68,30 @@ message ReportResultRequest {
 
 message ReportResultResponse {
   bool acknowledged = 1;
+}
+
+message HeartbeatRequest {
+  string service_name = 1;
+  string node_id = 2;
+}
+
+message HeartbeatResponse {
+  bool acknowledged = 1;
+}
+
+message DrainNodeRequest {
+  string service_name = 1;
+  string node_id = 2;
+}
+
+message DrainNodeResponse {
+  bool acknowledged = 1;
+  uint64 drain_timeout_secs = 2;
+}
+
+enum NodeHealthState {
+  NODE_HEALTH_UNSPECIFIED = 0;
+  NODE_HEALTH_HEALTHY = 1;
+  NODE_HEALTH_UNHEALTHY = 2;
+  NODE_HEALTH_DISCONNECTED = 3;
 }

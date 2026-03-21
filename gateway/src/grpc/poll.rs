@@ -6,8 +6,9 @@ use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status};
 
 use xgent_proto::{
-    node_service_server::NodeService, PollTasksRequest, ReportResultRequest,
-    ReportResultResponse, TaskAssignment,
+    node_service_server::NodeService, DrainNodeRequest, DrainNodeResponse, HeartbeatRequest,
+    HeartbeatResponse, PollTasksRequest, ReportResultRequest, ReportResultResponse,
+    TaskAssignment,
 };
 
 use crate::state::AppState;
@@ -133,5 +134,25 @@ impl NodeService for GrpcNodeService {
         Ok(Response::new(ReportResultResponse {
             acknowledged: true,
         }))
+    }
+
+    /// Heartbeat RPC -- stub for Plan 03-02 implementation.
+    async fn heartbeat(
+        &self,
+        _request: Request<HeartbeatRequest>,
+    ) -> Result<Response<HeartbeatResponse>, Status> {
+        // TODO: Plan 03-02 will implement node heartbeat tracking
+        Ok(Response::new(HeartbeatResponse {
+            acknowledged: true,
+        }))
+    }
+
+    /// DrainNode RPC -- stub for Plan 03-02 implementation.
+    async fn drain_node(
+        &self,
+        _request: Request<DrainNodeRequest>,
+    ) -> Result<Response<DrainNodeResponse>, Status> {
+        // TODO: Plan 03-02 will implement node drain logic
+        Err(Status::unimplemented("drain_node not yet implemented"))
     }
 }
