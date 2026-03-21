@@ -44,6 +44,11 @@ pub struct RedisQueue {
 }
 
 impl RedisQueue {
+    /// Get a reference to the non-blocking connection (for service registration consumer group creation).
+    pub fn conn(&self) -> &::redis::aio::MultiplexedConnection {
+        &self.conn
+    }
+
     pub async fn new(config: &GatewayConfig) -> Result<Self, GatewayError> {
         let client = ::redis::Client::open(config.redis.url.as_str())
             .map_err(GatewayError::Redis)?;
@@ -107,8 +112,8 @@ impl RedisQueue {
         let metadata_json = serde_json::to_string(&metadata).unwrap_or_default();
         let created_at = chrono::Utc::now().to_rfc3339();
 
-        // Ensure consumer group exists (lazy creation per D-02)
-        self.ensure_consumer_group(service).await?;
+        // Consumer group is created during service registration.
+        // No lazy creation here -- service must be registered first.
 
         let mut conn = self.conn.clone();
 

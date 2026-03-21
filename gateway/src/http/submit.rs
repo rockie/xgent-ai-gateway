@@ -47,6 +47,14 @@ pub async fn submit_task(
         return Err(GatewayError::Unauthorized);
     }
 
+    // Check service is registered before accepting the task
+    let exists =
+        crate::registry::service::service_exists(&mut state.auth_conn.clone(), &req.service_name)
+            .await?;
+    if !exists {
+        return Err(GatewayError::ServiceNotFound(req.service_name.clone()));
+    }
+
     // Payload is treated as an opaque base64 string by the gateway.
     // Store it as bytes for consistency with gRPC (which uses bytes natively).
     let payload_bytes = base64::Engine::decode(

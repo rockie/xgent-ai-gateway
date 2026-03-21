@@ -1,11 +1,14 @@
 use std::sync::Arc;
 
-use axum::extract::State;
+use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
 use serde::{Deserialize, Serialize};
 
 use crate::auth::{api_key, node_token};
+use crate::error::GatewayError;
+use crate::registry;
+use crate::registry::node_health::{derive_health_state, ServiceConfig};
 use crate::state::AppState;
 
 // --- API Key Management ---
@@ -143,4 +146,197 @@ pub async fn revoke_node_token(
     } else {
         Err(StatusCode::NOT_FOUND)
     }
+}
+
+// --- Service Management ---
+
+#[derive(Debug, Deserialize)]
+pub struct RegisterServiceRequest {
+    pub name: String,
+    pub description: Option<String>,
+    pub task_timeout_secs: Option<u64>,
+    pub max_retries: Option<u32>,
+    pub max_nodes: Option<u32>,
+    pub node_stale_after_secs: Option<u64>,
+    pub drain_timeout_secs: Option<u64>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ServiceResponse {
+    pub name: String,
+    pub description: String,
+    pub created_at: String,
+    pub task_timeout_secs: u64,
+    pub max_retries: u32,
+    pub max_nodes: Option<u32>,
+    pub node_stale_after_secs: u64,
+    pub drain_timeout_secs: u64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ListServicesResponse {
+    pub services: Vec<ServiceResponse>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ServiceDetailResponse {
+    #[serde(flatten)]
+    pub service: ServiceResponse,
+    pub nodes: Vec<NodeStatusResponse>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct NodeStatusResponse {
+    pub node_id: String,
+    pub health: String,
+    pub last_seen: String,
+    pub in_flight_tasks: u32,
+    pub draining: bool,
+}
+
+impl From<&ServiceConfig> for ServiceResponse {
+    fn from(cfg: &ServiceConfig) -> Self {
+        Self {
+            name: cfg.name.clone(),
+            description: cfg.description.clone(),
+            created_at: cfg.created_at.clone(),
+            task_timeout_secs: cfg.task_timeout_secs,
+            max_retries: cfg.max_retries,
+            max_nodes: cfg.max_nodes,
+            node_stale_after_secs: cfg.node_stale_after_secs,
+            drain_timeout_secs: cfg.drain_timeout_secs,
+        }
+    }
+}
+
+/// POST /v1/admin/services - Register a new service.
+pub async fn register_service(
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<RegisterServiceRequest>,
+) -> Result<(StatusCode, Json<ServiceResponse>), GatewayError> {
+    if req.name.is_empty() {
+        return Err(GatewayError::InvalidRequest(
+            "service name must not be empty".to_string(),
+        ));
+    }
+
+    let defaults = &state.config.service_defaults;
+    let config = ServiceConfig {
+        name: req.name.clone(),
+        description: req.description.unwrap_or_default(),
+        created_at: chrono::Utc::now().to_rfc3339(),
+        task_timeout_secs: req.task_timeout_secs.unwrap_or(defaults.task_timeout_secs),
+        max_retries: req.max_retries.unwrap_or(defaults.max_retries),
+        max_nodes: req.max_nodes,
+        node_stale_after_secs: req
+            .node_stale_after_secs
+            .unwrap_or(defaults.node_stale_after_secs),
+        drain_timeout_secs: req
+            .drain_timeout_secs
+            .unwrap_or(defaults.drain_timeout_secs),
+    };
+
+    let mut conn = state.auth_conn.clone();
+    let mut queue_conn = state.queue.conn().clone();
+    registry::service::register_service(&mut conn, &config, &mut queue_conn).await?;
+
+    Ok((StatusCode::CREATED, Json(ServiceResponse::from(&config))))
+}
+
+/// DELETE /v1/admin/services/{name} - Deregister a service.
+///
+/// Returns 202 Accepted immediately and runs cleanup in the background.
+pub async fn deregister_service(
+    State(state): State<Arc<AppState>>,
+    Path(name): Path<String>,
+) -> Result<StatusCode, GatewayError> {
+    let exists =
+        registry::service::service_exists(&mut state.auth_conn.clone(), &name).await?;
+    if !exists {
+        return Err(GatewayError::ServiceNotFound(name));
+    }
+
+    // Spawn background cleanup
+    let mut conn = state.auth_conn.clone();
+    let service_name = name.clone();
+    tokio::spawn(async move {
+        if let Err(e) = registry::cleanup::cleanup_service(&mut conn, &service_name).await {
+            tracing::error!(service=%service_name, error=%e, "service deregistration cleanup failed");
+        }
+    });
+
+    Ok(StatusCode::ACCEPTED)
+}
+
+/// GET /v1/admin/services - List all registered services.
+pub async fn list_services(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<ListServicesResponse>, GatewayError> {
+    let services =
+        registry::service::list_services(&mut state.auth_conn.clone()).await?;
+
+    let response = ListServicesResponse {
+        services: services.iter().map(ServiceResponse::from).collect(),
+    };
+
+    Ok(Json(response))
+}
+
+/// GET /v1/admin/services/{name} - Get service details with live node health.
+pub async fn get_service_detail(
+    State(state): State<Arc<AppState>>,
+    Path(name): Path<String>,
+) -> Result<Json<ServiceDetailResponse>, GatewayError> {
+    let config =
+        registry::service::get_service(&mut state.auth_conn.clone(), &name).await?;
+
+    // Enumerate nodes via SMEMBERS on nodes:{name}
+    let mut conn = state.auth_conn.clone();
+    let nodes_key = format!("nodes:{}", name);
+    let node_ids: Vec<String> = redis::AsyncCommands::smembers(&mut conn, &nodes_key)
+        .await
+        .unwrap_or_default();
+
+    let mut nodes = Vec::new();
+    for node_id in &node_ids {
+        let node_key = format!("node:{}:{}", name, node_id);
+        let fields: std::collections::HashMap<String, String> = redis::cmd("HGETALL")
+            .arg(&node_key)
+            .query_async(&mut conn)
+            .await
+            .unwrap_or_default();
+
+        if fields.is_empty() {
+            continue;
+        }
+
+        let last_seen = fields.get("last_seen").cloned().unwrap_or_default();
+        let is_disconnected = fields
+            .get("disconnected")
+            .map(|v| v == "true")
+            .unwrap_or(false);
+        let health =
+            derive_health_state(&last_seen, config.node_stale_after_secs, is_disconnected);
+        let in_flight_tasks: u32 = fields
+            .get("in_flight_tasks")
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(0);
+        let draining = fields
+            .get("draining")
+            .map(|v| v == "true")
+            .unwrap_or(false);
+
+        nodes.push(NodeStatusResponse {
+            node_id: node_id.clone(),
+            health: format!("{:?}", health).to_lowercase(),
+            last_seen,
+            in_flight_tasks,
+            draining,
+        });
+    }
+
+    Ok(Json(ServiceDetailResponse {
+        service: ServiceResponse::from(&config),
+        nodes,
+    }))
 }

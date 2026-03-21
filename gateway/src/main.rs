@@ -114,6 +114,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 .route(
                     "/v1/admin/node-tokens/revoke",
                     axum::routing::post(http::admin::revoke_node_token),
+                )
+                .route(
+                    "/v1/admin/services",
+                    axum::routing::post(http::admin::register_service)
+                        .get(http::admin::list_services),
+                )
+                .route(
+                    "/v1/admin/services/{name}",
+                    axum::routing::get(http::admin::get_service_detail)
+                        .delete(http::admin::deregister_service),
                 );
 
             let app = axum::Router::new()

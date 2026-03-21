@@ -31,6 +31,20 @@ impl TaskService for GrpcTaskService {
 
         let service = ServiceName::new(&req.service_name).map_err(|e| -> Status { e.into() })?;
 
+        // Check service is registered before accepting the task
+        let exists = crate::registry::service::service_exists(
+            &mut self.state.auth_conn.clone(),
+            &req.service_name,
+        )
+        .await
+        .map_err(|e| -> Status { e.into() })?;
+        if !exists {
+            return Err(Status::not_found(format!(
+                "service not found: {}",
+                req.service_name
+            )));
+        }
+
         let task_id = self
             .state
             .queue
