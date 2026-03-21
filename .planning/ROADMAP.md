@@ -63,11 +63,12 @@ Plans:
   3. Service configuration survives gateway restarts (persisted in Redis)
   4. Gateway detects stale nodes via heartbeat (last poll time) and marks them unhealthy
   5. A node can signal graceful drain, after which it receives no new tasks but completes in-flight work
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 03-01: TBD
-- [ ] 03-02: TBD
+- [ ] 03-01-PLAN.md -- Registry module, service CRUD, cleanup, proto extensions, admin endpoints, submit_task gating
+- [ ] 03-02-PLAN.md -- Node health CRUD, Heartbeat/DrainNode RPCs, drain-aware poll loop
+- [ ] 03-03-PLAN.md -- Integration tests for registry and node health, runner agent SIGTERM handler
 
 ### Phase 4: Task Reliability and Callbacks
 **Goal**: Tasks that fail or time out are automatically retried, permanently failed tasks land in a dead letter queue, and clients can optionally receive results via callback URL instead of polling
@@ -108,6 +109,6 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 |-------|----------------|--------|-----------|
 | 1. Core Queue Loop | 3/3 | Complete | 2026-03-21 |
 | 2. Authentication and TLS | 0/3 | Not started | - |
-| 3. Service Registry and Node Health | 0/2 | Not started | - |
+| 3. Service Registry and Node Health | 0/3 | Not started | - |
 | 4. Task Reliability and Callbacks | 0/2 | Not started | - |
 | 5. Observability and Packaging | 0/2 | Not started | - |
