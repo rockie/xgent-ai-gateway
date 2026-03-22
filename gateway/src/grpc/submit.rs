@@ -8,7 +8,7 @@ use xgent_proto::{
 };
 
 use crate::state::AppState;
-use crate::types::{ServiceName, TaskId, TaskState};
+use crate::types::{ServiceName, TaskId};
 
 /// gRPC implementation of the TaskService (client-facing).
 pub struct GrpcTaskService {
@@ -58,6 +58,8 @@ impl TaskService for GrpcTaskService {
         self.state.metrics.tasks_submitted_total
             .with_label_values(&[service_name.as_str(), "grpc"])
             .inc();
+
+        tracing::info!(task_id = %task_id, service = %service_name, protocol = "grpc", "task submitted");
 
         Ok(Response::new(SubmitTaskResponse {
             task_id: task_id.to_string(),

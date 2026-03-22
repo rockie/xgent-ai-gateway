@@ -95,6 +95,8 @@ pub async fn submit_task(
         .with_label_values(&[req.service_name.as_str(), "http"])
         .inc();
 
+    tracing::info!(task_id = %task_id, service = %req.service_name, protocol = "http", "task submitted");
+
     Ok(Json(SubmitTaskResponse {
         task_id: task_id.to_string(),
     }))
