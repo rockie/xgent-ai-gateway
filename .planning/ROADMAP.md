@@ -129,7 +129,12 @@ Plans:
   5. A sample service binary exists that can receive tasks from the runner agent and return results
   6. NODE-02 marked as deferred (not complete) in REQUIREMENTS.md
   7. All 9 tech debt items from the audit are resolved
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+- [ ] 07-01-PLAN.md -- Proto changes (callback_url, node_id), in_flight_tasks decrement, gRPC callback_url handling, plain HTTP keepalive
+- [ ] 07-02-PLAN.md -- mTLS identity mapping via gateway.toml config, reaper full-loop integration test
+- [ ] 07-03-PLAN.md -- Sample service echo binary, tech debt verification and cleanup
 
 ## Progress
 
@@ -144,4 +149,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 | 4. Task Reliability and Callbacks | 0/2 | Not started | - |
 | 5. Observability and Packaging | 0/3 | Not started | - |
 | 6. gRPC Auth Hardening | 0/2 | Not started | - |
-| 7. Integration Fixes, Sample Service, and Cleanup | 0/0 | Not started | - |
+| 7. Integration Fixes, Sample Service, and Cleanup | 0/3 | Not started | - |
