@@ -40,7 +40,7 @@
 
 - [x] **LIFE-01**: Tasks follow a state machine: pending → assigned → running → completed/failed
 - [x] **LIFE-02**: Gateway uses reliable queue pattern (atomic move to processing list) to prevent task loss
-- [ ] **LIFE-03**: Background reaper detects timed-out tasks (node died) and re-queues them
+- [x] **LIFE-03**: Background reaper detects timed-out tasks (node died) and re-queues them
 - [ ] **LIFE-04**: Failed tasks retry with configurable max retries and exponential backoff
 - [ ] **LIFE-05**: Tasks exhausting retries move to a per-service dead letter queue
 
@@ -124,7 +124,7 @@
 | NODE-06 | Phase 3 | Complete |
 | LIFE-01 | Phase 1 | Complete |
 | LIFE-02 | Phase 1 | Complete |
-| LIFE-03 | Phase 4 | Pending |
+| LIFE-03 | Phase 4 | Complete |
 | LIFE-04 | Phase 4 | Pending |
 | LIFE-05 | Phase 4 | Pending |
 | AUTH-01 | Phase 2 | Complete |

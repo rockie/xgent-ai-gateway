@@ -80,7 +80,7 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 04-01-PLAN.md -- Reaper module (XPENDING scan + mark-failed), callback delivery function, config/state/types foundation
+- [x] 04-01-PLAN.md -- Reaper module (XPENDING scan + mark-failed), callback delivery function, config/state/types foundation
 - [ ] 04-02-PLAN.md -- Callback URL plumbing (API keys, submit, PATCH endpoint), delivery triggers, integration tests
 
 ### Phase 5: Observability and Packaging

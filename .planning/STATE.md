@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 03-03-PLAN.md
-last_updated: "2026-03-21T14:16:11.743Z"
+stopped_at: Completed 04-01-PLAN.md
+last_updated: "2026-03-22T02:11:00.801Z"
 progress:
   total_phases: 5
   completed_phases: 3
-  total_plans: 9
-  completed_plans: 9
+  total_plans: 11
+  completed_plans: 10
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-21)
 
 **Core value:** Tasks submitted by clients reliably reach internal nodes and results reliably flow back, regardless of network topology
-**Current focus:** Phase 03 — service-registry-and-node-health
+**Current focus:** Phase 04 — task-reliability-and-callbacks
 
 ## Current Position
 
-Phase: 4
-Plan: Not started
+Phase: 04 (task-reliability-and-callbacks) — EXECUTING
+Plan: 2 of 2
 
 ## Performance Metrics
 
@@ -55,6 +55,7 @@ Plan: Not started
 | Phase 03 P01 | 8min | 2 tasks | 14 files |
 | Phase 03 P02 | 2min | 2 tasks | 2 files |
 | Phase 03 P03 | 5min | 2 tasks | 2 files |
+| Phase 04 P01 | 4min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -83,6 +84,9 @@ Recent decisions affecting current work:
 - [Phase 03]: HSETNX for conditional node field init -- preserves existing draining/in_flight state on re-registration
 - [Phase 03]: Drain timeout tracked in-memory via tokio::time::Instant rather than Redis state
 - [Phase 03]: Platform-agnostic shutdown_signal() async fn for SIGTERM/Ctrl+C handling
+- [Phase 04]: Reaper skips first tick to avoid reaping at startup
+- [Phase 04]: Per-service failed_count counter via Redis INCR for metrics
+- [Phase 04]: Callback delivery is fire-and-forget (log-only on exhausted retries)
 
 ### Pending Todos
 
@@ -96,6 +100,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-21T14:11:10.624Z
-Stopped at: Completed 03-03-PLAN.md
+Last session: 2026-03-22T02:11:00.797Z
+Stopped at: Completed 04-01-PLAN.md
 Resume file: None
