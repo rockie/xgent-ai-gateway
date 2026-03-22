@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use redis::AsyncCommands;
 use tonic::{Request, Response, Status};
 
 use xgent_proto::{
@@ -33,6 +34,7 @@ impl TaskService for GrpcTaskService {
             .cloned()
             .ok_or_else(|| Status::internal("auth metadata missing"))?;
         let req = request.into_inner();
+        let callback_url_str = req.callback_url.clone();
 
         let service = ServiceName::new(&req.service_name).map_err(|e| -> Status { e.into() })?;
 
@@ -69,6 +71,25 @@ impl TaskService for GrpcTaskService {
             .submit_task(&service, req.payload, req.metadata)
             .await
             .map_err(|e| -> Status { e.into() })?;
+
+        // Resolve callback URL: per-task override > per-key default (per D-04/RSLT-03)
+        let resolved_callback_url = if !callback_url_str.is_empty() {
+            Some(callback_url_str.as_str())
+        } else {
+            client_meta.callback_url.as_deref()
+        };
+
+        // Validate and store callback URL
+        if let Some(url) = resolved_callback_url {
+            crate::callback::validate_callback_url(url)
+                .map_err(|e| Status::invalid_argument(format!("invalid callback_url: {e}")))?;
+            let hash_key = format!("task:{}", task_id);
+            let mut conn = self.state.queue.conn().clone();
+            let _: () = conn
+                .hset(&hash_key, "callback_url", url)
+                .await
+                .map_err(|e| Status::internal(format!("failed to store callback_url: {e}")))?;
+        }
 
         // Record metric: task submitted via gRPC
         self.state.metrics.tasks_submitted_total

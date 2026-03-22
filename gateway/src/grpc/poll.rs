@@ -225,6 +225,8 @@ impl NodeService for GrpcNodeService {
         let req = request.into_inner();
         let task_id_str = req.task_id.clone();
         let was_success = req.success;
+        let report_node_id = req.node_id.clone();
+        let report_service_name = req.service_name.clone();
 
         let callback_url = self
             .state
@@ -237,6 +239,22 @@ impl NodeService for GrpcNodeService {
             )
             .await
             .map_err(|e| -> Status { e.into() })?;
+
+        // Decrement in_flight_tasks counter (NODE-05 fix)
+        let decrement_service = if !report_service_name.is_empty() {
+            report_service_name
+        } else {
+            _validated.service_name.clone()
+        };
+        if !report_node_id.is_empty() && !decrement_service.is_empty() {
+            let _ = crate::registry::node_health::update_in_flight_tasks(
+                &mut self.state.auth_conn.clone(),
+                &decrement_service,
+                &report_node_id,
+                -1,
+            )
+            .await;
+        }
 
         // Record task completion metrics
         let status_str = if was_success { "completed" } else { "failed" };

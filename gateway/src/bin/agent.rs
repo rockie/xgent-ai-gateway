@@ -249,6 +249,8 @@ async fn run_poll_loop(
                                     success: true,
                                     result: result_bytes,
                                     error_message: String::new(),
+                                    node_id: cli.node_id.clone(),
+                                    service_name: cli.service_name.clone(),
                                 }
                             }
                             Err(e) => {
@@ -258,6 +260,8 @@ async fn run_poll_loop(
                                     success: false,
                                     result: Vec::new(),
                                     error_message: e.to_string(),
+                                    node_id: cli.node_id.clone(),
+                                    service_name: cli.service_name.clone(),
                                 }
                             }
                         };
@@ -289,9 +293,17 @@ async fn dispatch_task(
     dispatch_url: &str,
     assignment: &TaskAssignment,
 ) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
-    let resp = http_client
+    let mut request = http_client
         .post(dispatch_url)
-        .header("X-Task-Id", &assignment.task_id)
+        .header("X-Task-Id", &assignment.task_id);
+
+    // Forward task metadata as X-Meta-{key} headers
+    for (key, value) in &assignment.metadata {
+        let header_name = format!("X-Meta-{}", key);
+        request = request.header(&header_name, value);
+    }
+
+    let resp = request
         .body(assignment.payload.clone())
         .send()
         .await?;
