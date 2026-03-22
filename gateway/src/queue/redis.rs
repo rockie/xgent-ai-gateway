@@ -100,8 +100,6 @@ impl RedisQueue {
         payload: Vec<u8>,
         metadata: HashMap<String, String>,
     ) -> Result<TaskId, GatewayError> {
-        use ::redis::AsyncCommands;
-
         let task_id = TaskId::new();
         let stream_key = format!("tasks:{}", service);
         let hash_key = format!("task:{}", task_id);

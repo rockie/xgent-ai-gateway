@@ -212,7 +212,7 @@ mod tests {
         metrics.node_poll_latency_seconds.with_label_values(&["test-svc"]).observe(0.1);
 
         let families = metrics.registry.gather();
-        let names: Vec<&str> = families.iter().map(|f| f.get_name()).collect();
+        let names: Vec<&str> = families.iter().map(|f| f.name()).collect();
 
         assert!(
             names.contains(&"gateway_tasks_submitted_total"),

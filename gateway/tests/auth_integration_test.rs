@@ -23,7 +23,7 @@ fn ensure_crypto_provider() {
     });
 }
 
-use xgent_gateway::{auth, config, grpc, http, queue, state, tls};
+use xgent_gateway::{auth, config, grpc, http, metrics::Metrics, queue, state, tls};
 use xgent_proto::node_service_client::NodeServiceClient;
 use xgent_proto::node_service_server::NodeServiceServer;
 use xgent_proto::task_service_client::TaskServiceClient;
@@ -148,6 +148,9 @@ async fn start_auth_test_gateway(_test_name: &str) -> AuthTestGateway {
             block_timeout_ms: 2000,
         },
         admin: config::AdminConfig { token: None },
+        service_defaults: config::ServiceDefaultsConfig::default(),
+        callback: config::CallbackConfig::default(),
+        logging: config::LoggingConfig::default(),
     };
 
     let redis_queue = queue::RedisQueue::new(&cfg)
@@ -165,6 +168,8 @@ async fn start_auth_test_gateway(_test_name: &str) -> AuthTestGateway {
         redis_queue,
         cfg.clone(),
         auth_conn.clone(),
+        reqwest::Client::new(),
+        Metrics::new(),
     ));
 
     let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
@@ -285,7 +290,7 @@ async fn create_test_api_key(
     service_names: &[String],
 ) -> String {
     let (raw_key, key_hash) = auth::api_key::generate_api_key();
-    auth::api_key::store_api_key(conn, &key_hash, service_names)
+    auth::api_key::store_api_key(conn, &key_hash, service_names, None)
         .await
         .unwrap();
     raw_key

@@ -110,6 +110,7 @@ async fn test_reaper_marks_timed_out_task_as_failed() {
         config,
         conn.clone(),
         http_client,
+        xgent_gateway::metrics::Metrics::new(),
     ));
 
     // Call the reaper (it's pub via the module)

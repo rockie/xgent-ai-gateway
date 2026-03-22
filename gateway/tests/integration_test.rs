@@ -15,7 +15,7 @@ use std::net::TcpListener;
 use std::sync::Arc;
 use std::time::Duration;
 
-use xgent_gateway::{config, grpc, http, queue, state};
+use xgent_gateway::{config, grpc, http, metrics::Metrics, queue, state};
 use xgent_proto::node_service_client::NodeServiceClient;
 use xgent_proto::node_service_server::NodeServiceServer;
 use xgent_proto::task_service_client::TaskServiceClient;
@@ -53,19 +53,25 @@ async fn start_test_gateway(test_name: &str) -> TestGateway {
         grpc: config::GrpcConfig {
             enabled: true,
             listen_addr: grpc_addr_str.clone(),
+            tls: None,
         },
         http: config::HttpConfig {
             enabled: true,
             listen_addr: http_addr_str.clone(),
+            tls: None,
         },
         redis: config::RedisConfig {
-            url: redis_url,
+            url: redis_url.clone(),
             result_ttl_secs: 300,
         },
         queue: config::QueueConfig {
             stream_maxlen: 1000,
             block_timeout_ms: 2000,
         },
+        admin: config::AdminConfig::default(),
+        service_defaults: config::ServiceDefaultsConfig::default(),
+        callback: config::CallbackConfig::default(),
+        logging: config::LoggingConfig::default(),
     };
 
     let redis_queue = queue::RedisQueue::new(&cfg)
@@ -75,7 +81,11 @@ async fn start_test_gateway(test_name: &str) -> TestGateway {
     // Clean up any leftover keys from previous test runs for this test
     cleanup_redis_keys(&redis_queue, test_name).await;
 
-    let app_state = Arc::new(state::AppState::new(redis_queue, cfg.clone()));
+    // Open auth connection
+    let auth_client = redis::Client::open(redis_url.as_str()).unwrap();
+    let auth_conn = auth_client.get_multiplexed_async_connection().await.unwrap();
+
+    let app_state = Arc::new(state::AppState::new(redis_queue, cfg.clone(), auth_conn, reqwest::Client::new(), Metrics::new()));
 
     let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
 
