@@ -92,11 +92,12 @@ Plans:
   2. Prometheus metrics endpoint exposes queue depth, task latency, node counts, and error rates
   3. Admin API endpoint returns node health data (active nodes per service, last seen time, in-flight task counts)
   4. Gateway compiles to a single static binary (musl target) and ships as a Docker image
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 05-01: TBD
-- [ ] 05-02: TBD
+- [ ] 05-01-PLAN.md -- Logging config, Metrics struct, tracing subscriber upgrade, /metrics and /v1/admin/health endpoints
+- [ ] 05-02-PLAN.md -- Instrument all code paths with Prometheus metric recording, background gauge refresh
+- [ ] 05-03-PLAN.md -- jemalloc allocator, default gateway.toml, multi-stage Dockerfile, .dockerignore
 
 ## Progress
 
@@ -109,4 +110,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 | 2. Authentication and TLS | 0/3 | Not started | - |
 | 3. Service Registry and Node Health | 0/3 | Not started | - |
 | 4. Task Reliability and Callbacks | 0/2 | Not started | - |
-| 5. Observability and Packaging | 0/2 | Not started | - |
+| 5. Observability and Packaging | 0/3 | Not started | - |
