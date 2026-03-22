@@ -134,7 +134,7 @@ Plans:
 Plans:
 - [ ] 07-01-PLAN.md -- Proto changes (callback_url, node_id), in_flight_tasks decrement, gRPC callback_url handling, plain HTTP keepalive
 - [ ] 07-02-PLAN.md -- mTLS identity mapping via gateway.toml config, reaper full-loop integration test
-- [ ] 07-03-PLAN.md -- Sample service echo binary, tech debt verification and cleanup
+- [x] 07-03-PLAN.md -- Sample service echo binary, tech debt verification and cleanup
 
 ## Progress
 
