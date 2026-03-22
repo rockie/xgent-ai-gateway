@@ -45,11 +45,28 @@ Tasks submitted by clients reliably reach internal nodes and results reliably fl
 
 ### Active
 
-(None — fresh for next milestone)
+<!-- Milestone v1.1: Admin Web UI -->
+
+- [ ] Admin authentication (login with admin account)
+- [ ] Dashboard with Prometheus metrics visualization
+- [ ] Service registration and management
+- [ ] Node agents management
+- [ ] Tasks management (view status/details, cancel tasks)
+
+## Current Milestone: v1.1 Admin Web UI
+
+**Goal:** Add an admin web UI as a separate frontend app for managing and monitoring the gateway.
+
+**Target features:**
+- Admin login/authentication
+- Dashboard with Prometheus metrics (integrate existing Prometheus UI lib if available)
+- Service registration and CRUD management
+- Node agents management
+- Task viewing, status details, and cancellation (returns failed result to client)
 
 ### Out of Scope
 
-- Web UI dashboard — CLI and API are sufficient; Prometheus + Grafana provides better observability
+- ~~Web UI dashboard~~ — now building custom admin UI in v1.1
 - Multi-region/federation — run independent instances per region; cross-region is caller's problem
 - Task priority queues — use separate services per priority tier; simpler, no starvation risk
 - Streaming/WebSocket results — poll + callback covers all practical use cases
@@ -58,8 +75,9 @@ Tasks submitted by clients reliably reach internal nodes and results reliably fl
 - Workflow orchestration / DAGs — turns gateway into workflow engine (Temporal territory)
 - Dynamic service loading (.so/.dylib) — opaque payloads with universal API is simpler and more secure
 - Payload encryption at rest — callers encrypt before submission; gateway treats payloads as opaque bytes
-- Task retry with exponential backoff — descoped v1; clients resubmit on failure (D-07)
+- Task retry with exponential backoff — never for this project; clients resubmit on failure (D-07)
 - Dead letter queues — descoped v1; failed state is terminal (D-08/D-09)
+- Log viewer in admin UI — deferred from v1.1; revisit later
 - HTTP node polling — deferred; runner agent proxy unifies node protocol to gRPC (D-13)
 
 ## Context
@@ -68,6 +86,7 @@ Shipped v1.0 with 8,429 LOC Rust across 3 crates (gateway, proto, runner-agent) 
 Tech stack: Rust, Tokio, Tonic (gRPC), Axum (HTTP), Redis Streams, rustls (TLS/mTLS).
 20 plans across 7 phases completed in 2 days.
 34 integration tests cover auth, registry, health, reaper, and gRPC auth flows.
+v1.1 adds a separate frontend app: Vite + React + TailwindCSS + shadcn/ui + TanStack Router & Query.
 
 ## Constraints
 
@@ -112,4 +131,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-22 after v1.0 milestone*
+*Last updated: 2026-03-22 after v1.1 milestone start*
