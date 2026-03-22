@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 07-01-PLAN.md
-last_updated: "2026-03-22T13:24:29.608Z"
+stopped_at: Completed 07-02-PLAN.md
+last_updated: "2026-03-22T13:24:54.576Z"
 progress:
   total_phases: 7
   completed_phases: 7
@@ -110,6 +110,8 @@ Recent decisions affecting current work:
 - [Phase 07]: Used hyper 1.x directly for standalone sample service example with zero gateway imports
 - [Phase 07]: Decrement service falls back to validated auth service_name if ReportResultRequest.service_name is empty
 - [Phase 07]: Plain HTTP path uses identical hyper_util manual accept loop as TLS path for keepalive parity
+- [Phase 07]: MtlsIdentityConfig uses HashMap<fingerprint, Vec<service>> with empty=disabled default; mTLS check skipped in plaintext dev mode
+- [Phase 07]: reap_timed_out_tasks made pub for testing; run_reaper stays as production infinite-loop entry point
 
 ### Pending Todos
 
@@ -123,6 +125,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-22T13:24:15.495Z
-Stopped at: Completed 07-01-PLAN.md
+Last session: 2026-03-22T13:24:54.573Z
+Stopped at: Completed 07-02-PLAN.md
 Resume file: None
