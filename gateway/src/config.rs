@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize, Clone)]
@@ -28,6 +30,18 @@ pub struct GrpcConfig {
     pub listen_addr: String,
     /// Optional TLS config for mTLS on gRPC. None = plaintext (dev mode).
     pub tls: Option<GrpcTlsConfig>,
+    /// mTLS client certificate identity mapping.
+    #[serde(default)]
+    pub mtls_identity: MtlsIdentityConfig,
+}
+
+/// Maps SHA-256 certificate fingerprints (hex-encoded) to authorized service names.
+/// When fingerprints is empty or absent, mTLS identity checking is disabled (all valid certs accepted).
+#[derive(Debug, Deserialize, Clone, Default)]
+pub struct MtlsIdentityConfig {
+    /// Map of SHA-256 cert fingerprint (hex-encoded DER) to list of authorized service names.
+    #[serde(default)]
+    pub fingerprints: HashMap<String, Vec<String>>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -202,6 +216,7 @@ fn default_grpc() -> GrpcConfig {
         enabled: true,
         listen_addr: default_grpc_addr(),
         tls: None,
+        mtls_identity: MtlsIdentityConfig::default(),
     }
 }
 

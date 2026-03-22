@@ -10,9 +10,49 @@ use tower::Service;
 
 use axum::http;
 
+use sha2::{Sha256, Digest};
+
 use crate::auth::api_key::{extract_api_key, hash_api_key, lookup_api_key};
 use crate::auth::node_token::validate_node_token;
+use crate::config::MtlsIdentityConfig;
 use crate::state::AppState;
+
+/// Compute the SHA-256 fingerprint of a DER-encoded certificate, returned as a hex string.
+fn cert_fingerprint(cert_der: &[u8]) -> String {
+    let hash = Sha256::digest(cert_der);
+    hex::encode(hash)
+}
+
+/// Check if a peer certificate is authorized for the given service according to the mTLS identity config.
+/// Returns Ok(()) if authorized or if identity checking is disabled (empty fingerprints map).
+/// Returns Err(Status) if the certificate is unknown or not authorized for the requested service.
+fn check_mtls_identity(
+    config: &MtlsIdentityConfig,
+    peer_certs: &[tonic::transport::Certificate],
+    service_name: &str,
+) -> Result<(), Status> {
+    if config.fingerprints.is_empty() {
+        return Ok(());
+    }
+
+    let cert = peer_certs.first().ok_or_else(|| {
+        Status::permission_denied("no client certificate presented")
+    })?;
+
+    let fp = cert_fingerprint(cert.get_ref());
+    match config.fingerprints.get(&fp) {
+        Some(allowed_services) => {
+            if allowed_services.iter().any(|s| s == service_name) {
+                Ok(())
+            } else {
+                Err(Status::permission_denied(
+                    "certificate not authorized for this service",
+                ))
+            }
+        }
+        None => Err(Status::permission_denied("unknown certificate fingerprint")),
+    }
+}
 
 /// Validated node auth data inserted into request extensions by NodeTokenAuthLayer.
 #[derive(Debug, Clone)]
@@ -186,6 +226,33 @@ where
 
             match validate_node_token(&mut conn, &service_name, &raw_token).await {
                 Ok(true) => {
+                    // Check mTLS identity if fingerprint mapping is configured
+                    let mtls_config = &state.config.grpc.mtls_identity;
+                    if !mtls_config.fingerprints.is_empty() {
+                        // Try to extract peer certs from request extensions.
+                        // Tonic inserts Arc<Vec<Certificate>> when TLS is enabled.
+                        if let Some(certs) = req.extensions().get::<std::sync::Arc<Vec<tonic::transport::Certificate>>>() {
+                            if let Err(status) = check_mtls_identity(mtls_config, certs.as_slice(), &service_name) {
+                                tracing::warn!(
+                                    service = %service_name,
+                                    "mTLS identity check failed"
+                                );
+                                state
+                                    .metrics
+                                    .errors_total
+                                    .with_label_values(&[service_name.as_str(), "auth_mtls_identity"])
+                                    .inc();
+                                return Ok(status.into_http());
+                            }
+                        } else {
+                            // No peer certs in extensions -- mTLS may not be active (dev/plaintext mode).
+                            // Skip identity check to allow plaintext dev mode to work.
+                            tracing::debug!(
+                                "mTLS identity configured but no peer certs in request extensions; skipping check"
+                            );
+                        }
+                    }
+
                     req.extensions_mut().insert(ValidatedNodeAuth {
                         service_name,
                     });

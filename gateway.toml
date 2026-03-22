@@ -6,6 +6,12 @@
 enabled = true
 listen_addr = "0.0.0.0:50051"
 
+# mTLS client certificate identity mapping (optional)
+# Maps SHA-256 fingerprint of client cert DER to authorized service names.
+# If [grpc.mtls_identity.fingerprints] is empty or absent, all valid certs are accepted.
+# [grpc.mtls_identity.fingerprints]
+# "a1b2c3d4e5f6..." = ["my-service", "other-service"]
+
 [http]
 enabled = true
 listen_addr = "0.0.0.0:8080"
