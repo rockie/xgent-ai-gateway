@@ -1,0 +1,38 @@
+# xgent-gateway default configuration
+# Override any value with GATEWAY__SECTION__KEY environment variables
+# Example: GATEWAY__REDIS__URL=redis://myhost:6379
+
+[grpc]
+enabled = true
+listen_addr = "0.0.0.0:50051"
+
+[http]
+enabled = true
+listen_addr = "0.0.0.0:8080"
+
+[redis]
+url = "redis://127.0.0.1:6379"
+result_ttl_secs = 86400
+
+[queue]
+stream_maxlen = 10000
+block_timeout_ms = 5000
+
+[admin]
+# Set admin.token to protect admin endpoints
+# token = "your-admin-token-here"
+
+[service_defaults]
+node_stale_after_secs = 60
+drain_timeout_secs = 300
+task_timeout_secs = 300
+max_retries = 3
+
+[callback]
+max_retries = 3
+initial_delay_ms = 1000
+timeout_secs = 10
+
+[logging]
+format = "json"
+# file = "/var/log/xgent/gateway.log"

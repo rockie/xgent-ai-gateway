@@ -45,12 +45,19 @@ impl TaskService for GrpcTaskService {
             )));
         }
 
+        let service_name = req.service_name.clone();
+
         let task_id = self
             .state
             .queue
             .submit_task(&service, req.payload, req.metadata)
             .await
             .map_err(|e| -> Status { e.into() })?;
+
+        // Record metric: task submitted via gRPC
+        self.state.metrics.tasks_submitted_total
+            .with_label_values(&[service_name.as_str(), "grpc"])
+            .inc();
 
         Ok(Response::new(SubmitTaskResponse {
             task_id: task_id.to_string(),

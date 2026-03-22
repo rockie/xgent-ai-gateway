@@ -145,10 +145,34 @@ async fn reap_service(state: &AppState, svc: &ServiceConfig) -> Result<u64, Gate
             .await
             .unwrap_or(None);
 
+        // Record metrics: timeout error and task completion (failed)
+        state.metrics.errors_total
+            .with_label_values(&[svc.name.as_str(), "timeout"])
+            .inc();
+        state.metrics.tasks_completed_total
+            .with_label_values(&[svc.name.as_str(), "failed"])
+            .inc();
+
+        // Record task duration if created_at is available
+        let created_at: Option<String> = redis::cmd("HGET")
+            .arg(&hash_key)
+            .arg("created_at")
+            .query_async(&mut conn)
+            .await
+            .unwrap_or(None);
+        if let Some(ref created) = created_at {
+            if let Some(duration) = crate::grpc::poll::compute_task_duration_secs(created, &now) {
+                state.metrics.task_duration_seconds
+                    .with_label_values(&[svc.name.as_str(), "failed"])
+                    .observe(duration);
+            }
+        }
+
         if let Some(url) = callback_url {
             let client = state.http_client.clone();
             let cfg = &state.config.callback;
             let tid = task_id.clone();
+            let cb_metrics = state.metrics.callback_delivery_total.clone();
             tokio::spawn(crate::callback::deliver_callback(
                 client,
                 url,
@@ -156,6 +180,7 @@ async fn reap_service(state: &AppState, svc: &ServiceConfig) -> Result<u64, Gate
                 "failed".to_string(),
                 cfg.max_retries,
                 cfg.initial_delay_ms,
+                Some(cb_metrics),
             ));
         }
 

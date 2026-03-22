@@ -14,6 +14,20 @@ use xgent_proto::{
 use crate::state::AppState;
 use crate::types::{ServiceName, TaskId};
 
+/// Compute poll latency: time from task creation to when a node claims it.
+pub fn compute_poll_latency_secs(created_at: &str) -> Option<f64> {
+    let created = chrono::DateTime::parse_from_rfc3339(created_at).ok()?;
+    let now = chrono::Utc::now();
+    Some(now.signed_duration_since(created).num_milliseconds() as f64 / 1000.0)
+}
+
+/// Compute task duration from created_at to completed_at.
+pub fn compute_task_duration_secs(created_at: &str, completed_at: &str) -> Option<f64> {
+    let created = chrono::DateTime::parse_from_rfc3339(created_at).ok()?;
+    let completed = chrono::DateTime::parse_from_rfc3339(completed_at).ok()?;
+    Some(completed.signed_duration_since(created).num_milliseconds() as f64 / 1000.0)
+}
+
 /// gRPC implementation of the NodeService (node-facing).
 pub struct GrpcNodeService {
     state: Arc<AppState>,
@@ -64,6 +78,9 @@ impl NodeService for GrpcNodeService {
 
         if !token_valid {
             tracing::debug!(service=%req.service_name, "Node poll rejected: invalid token");
+            self.state.metrics.errors_total
+                .with_label_values(&[req.service_name.as_str(), "auth_node_token"])
+                .inc();
             return Err(Status::unauthenticated("unauthorized"));
         }
 
@@ -172,6 +189,22 @@ impl NodeService for GrpcNodeService {
                                     1,
                                 ).await;
 
+                                // Record poll latency metric (time from task creation to claim)
+                                let task_hash_key = format!("task:{}", task_data.task_id);
+                                let created_at: Option<String> = redis::cmd("HGET")
+                                    .arg(&task_hash_key)
+                                    .arg("created_at")
+                                    .query_async(&mut health_conn)
+                                    .await
+                                    .unwrap_or(None);
+                                if let Some(ref created) = created_at {
+                                    if let Some(latency) = compute_poll_latency_secs(created) {
+                                        state_clone.metrics.node_poll_latency_seconds
+                                            .with_label_values(&[&service_name_str])
+                                            .observe(latency);
+                                    }
+                                }
+
                                 let assignment = TaskAssignment {
                                     task_id: task_data.task_id.to_string(),
                                     payload: task_data.payload,
@@ -218,20 +251,42 @@ impl NodeService for GrpcNodeService {
             .await
             .map_err(|e| -> Status { e.into() })?;
 
+        // Record task completion metrics
+        let status_str = if was_success { "completed" } else { "failed" };
+        // Fetch task details for service name and duration computation
+        let task_status = self
+            .state
+            .queue
+            .get_task_status(&TaskId(task_id_str.clone()))
+            .await
+            .ok();
+        if let Some(ref ts) = task_status {
+            self.state.metrics.tasks_completed_total
+                .with_label_values(&[ts.service.as_str(), status_str])
+                .inc();
+            if let Some(duration) = compute_task_duration_secs(&ts.created_at, &ts.completed_at) {
+                self.state.metrics.task_duration_seconds
+                    .with_label_values(&[ts.service.as_str(), status_str])
+                    .observe(duration);
+            }
+        }
+
         // Spawn callback delivery if task has a callback URL
         if let Some(url) = callback_url {
             let client = self.state.http_client.clone();
             let cfg = &self.state.config.callback;
             let max_retries = cfg.max_retries;
             let initial_delay_ms = cfg.initial_delay_ms;
-            let state_str = if was_success { "completed" } else { "failed" };
+            let metrics_ref = &self.state.metrics.callback_delivery_total;
+            let cb_metrics = metrics_ref.clone();
             tokio::spawn(crate::callback::deliver_callback(
                 client,
                 url,
                 task_id_str,
-                state_str.to_string(),
+                status_str.to_string(),
                 max_retries,
                 initial_delay_ms,
+                Some(cb_metrics),
             ));
         }
 

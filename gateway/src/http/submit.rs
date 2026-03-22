@@ -90,6 +90,11 @@ pub async fn submit_task(
             .map_err(GatewayError::Redis)?;
     }
 
+    // Record metric: task submitted via HTTP
+    state.metrics.tasks_submitted_total
+        .with_label_values(&[req.service_name.as_str(), "http"])
+        .inc();
+
     Ok(Json(SubmitTaskResponse {
         task_id: task_id.to_string(),
     }))
