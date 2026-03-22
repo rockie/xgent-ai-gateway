@@ -38,11 +38,9 @@ created: 2026-03-22
 
 | Task ID | Plan | Wave | Requirement | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|-----------|-------------------|-------------|--------|
-| 6-01-01 | 01 | 1 | AUTH-01 | integration | `cargo test grpc_client_auth` | ❌ W0 | ⬜ pending |
-| 6-01-02 | 01 | 1 | AUTH-03 | integration | `cargo test grpc_node_auth` | ❌ W0 | ⬜ pending |
-| 6-02-01 | 02 | 1 | TASK-01 | integration | `cargo test grpc_submit_task_auth` | ❌ W0 | ⬜ pending |
-| 6-02-02 | 02 | 1 | RSLT-01 | integration | `cargo test grpc_report_result_auth` | ❌ W0 | ⬜ pending |
-| 6-03-01 | 03 | 2 | NODE-03, NODE-04, NODE-06 | integration | `cargo test grpc_node_rpc_auth` | ❌ W0 | ⬜ pending |
+| 6-01-T1 | 01 | 1 | AUTH-01, AUTH-03 | unit/lib | `cargo test -p xgent-gateway --lib` | ✅ | ⬜ pending |
+| 6-01-T2 | 01 | 1 | TASK-01, RSLT-01, NODE-03, NODE-04, NODE-06 | unit/lib | `cargo test -p xgent-gateway --lib` | ✅ | ⬜ pending |
+| 6-02-T1 | 02 | 2 | AUTH-01, AUTH-03, TASK-01, RSLT-01, NODE-03, NODE-04, NODE-06 | integration | `cargo test --test grpc_auth_test -- --ignored` | ❌ W0 | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 

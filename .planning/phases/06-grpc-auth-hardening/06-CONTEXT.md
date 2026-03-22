@@ -14,7 +14,7 @@ All gRPC RPCs enforce the same authentication as their HTTP counterparts. API ke
 ## Implementation Decisions
 
 ### gRPC auth mechanism
-- **D-01:** Use tonic interceptors, not inline auth or Tower middleware
+- **D-01:** Use Tower Service layers as async "interceptors" (tonic's built-in Interceptor trait is sync-only and cannot do async Redis lookups — Tower Service layers are the standard async auth pattern in tonic)
 - **D-02:** Two interceptors: one for TaskService (API key auth), one for NodeService (node token auth)
 - **D-03:** Interceptors take `Arc<AppState>` at construction time, clone `MultiplexedConnection` for Redis access
 - **D-04:** Refactor existing inline auth in `poll_tasks` into the NodeService interceptor — all 4 node RPCs use the same code path
