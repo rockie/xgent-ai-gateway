@@ -1,293 +1,571 @@
-# Architecture Research
+# Architecture Research: Admin Web UI Integration
 
-**Domain:** Pull-model task gateway (Rust, gRPC/HTTPS, Redis-backed)
-**Researched:** 2026-03-21
+**Domain:** Frontend-to-backend integration for admin UI on existing Rust/Axum gateway
+**Researched:** 2026-03-22
 **Confidence:** HIGH
 
-## Standard Architecture
-
-### System Overview
+## System Overview
 
 ```
-                    PUBLIC INTERNET                         PRIVATE NETWORK
-                                                            (behind NAT)
-  ┌──────────┐                                            ┌──────────────┐
-  │ Client A │──┐                                    ┌────│   Node 1     │
-  │ (HTTPS)  │  │                                    │    │ (service: llm)│
-  └──────────┘  │    ┌───────────────────────────┐   │    └──────────────┘
-                │    │      GATEWAY PROCESS       │   │
-  ┌──────────┐  │    │                           │   │    ┌──────────────┐
-  │ Client B │──┼───▶│  ┌─────────────────────┐  │◀──┼────│   Node 2     │
-  │ (gRPC)   │  │    │  │  Protocol Layer      │  │   │    │ (service: llm)│
-  └──────────┘  │    │  │  (Axum + Tonic)      │  │   │    └──────────────┘
-                │    │  └─────────┬───────────┘  │   │
-  ┌──────────┐  │    │            │              │   │    ┌──────────────┐
-  │ Client C │──┘    │  ┌─────────▼───────────┐  │   └────│   Node 3     │
-  │ (gRPC+   │       │  │  Core Engine         │  │        │ (service: ci)│
-  │  mTLS)   │       │  │  - Auth              │  │        └──────────────┘
-  └──────────┘       │  │  - Task Router       │  │
-                     │  │  - Queue Manager     │  │
-                     │  │  - Node Registry     │  │
-                     │  │  - Result Dispatcher │  │
-                     │  └─────────┬───────────┘  │
-                     │            │              │
-                     │  ┌─────────▼───────────┐  │
-                     │  │  Storage Layer       │  │
-                     │  │  (Redis/Valkey)      │  │
-                     │  └─────────────────────┘  │
-                     └───────────────────────────┘
+                DEVELOPMENT                                  PRODUCTION
+
+  ┌─────────────────────────┐               ┌─────────────────────────────────────┐
+  │   Vite Dev Server :5173 │               │          Gateway Process :8080       │
+  │   ┌───────────────────┐ │               │                                     │
+  │   │  React Admin SPA  │ │               │  ┌─────────────────────────────────┐│
+  │   │  TanStack Router  │ │               │  │  Axum Router                    ││
+  │   │  TanStack Query   │ │               │  │                                 ││
+  │   └────────┬──────────┘ │               │  │  /admin/*  ──> ServeDir(dist/)  ││
+  │            │ /api/*     │               │  │               fallback index.html││
+  │   ┌────────▼──────────┐ │               │  │                                 ││
+  │   │  Vite Proxy       │─┼──┐            │  │  /v1/admin/* ──> Admin API      ││
+  │   │  /api/* -> :8080  │ │  │            │  │  /v1/tasks   ──> Client API     ││
+  │   └───────────────────┘ │  │            │  │  /metrics    ──> Prometheus      ││
+  └─────────────────────────┘  │            │  └─────────────────────────────────┘│
+                               │            │                                     │
+  ┌─────────────────────────┐  │            │  ┌──────────┐  ┌──────────────────┐│
+  │   Gateway :8080         │◀─┘            │  │  Auth    │  │  Redis/Valkey    ││
+  │   /v1/admin/*           │               │  │  Layer   │  │  (state store)   ││
+  │   /metrics              │               │  └──────────┘  └──────────────────┘│
+  └─────────────────────────┘               └─────────────────────────────────────┘
 ```
 
 ### Component Responsibilities
 
-| Component | Responsibility | Typical Implementation |
-|-----------|----------------|------------------------|
-| **Protocol Layer** | Accept gRPC and HTTPS on the same port, route to handlers | Axum + Tonic multiplexed via `content-type` header detection on a shared Hyper server |
-| **Auth Middleware** | Validate API keys (HTTP), mTLS certs (gRPC), pre-shared tokens (nodes) | Tower middleware layers; rustls for mTLS; API key lookup against Redis/config |
-| **Task Router** | Accept task submissions, assign task IDs, enqueue to correct service queue | Thin handler that validates payload, generates nanoid/ulid, pushes to Redis list |
-| **Queue Manager** | Maintain per-service FIFO queues, handle reliable dequeue, timeout reaping | Redis lists with BRPOPLPUSH for atomic dequeue into processing list; background reaper task |
-| **Node Registry** | Track which nodes exist per service, their health, last heartbeat | Redis hash per service mapping node_id to metadata; TTL-based liveness |
-| **Task Lifecycle Tracker** | Manage state machine: pending -> assigned -> running -> completed/failed | Redis hash per task_id storing state, timestamps, assigned_node, retry count |
-| **Result Dispatcher** | Deliver results to polling clients and fire optional HTTP callbacks | Read from task hash on poll; background tokio task for callback POST with retries |
-| **Node Poll Handler** | Handle long-poll or streaming connections from internal nodes requesting work | gRPC server-streaming or unary with blocking dequeue from Redis; Tokio channel bridge |
+| Component | Responsibility | Implementation |
+|-----------|----------------|----------------|
+| **Vite Dev Proxy** | Forward `/api/*` to gateway during development, avoid CORS in dev | `server.proxy` in `vite.config.ts` |
+| **Axum Static File Server** | Serve built SPA assets in production, fallback to `index.html` for client-side routing | `tower_http::services::ServeDir` with `fallback(ServeFile)` |
+| **CORS Layer** | Allow cross-origin requests (only needed if frontend served from different origin) | `tower_http::cors::CorsLayer` on admin API routes |
+| **Admin Auth Middleware** | Validate admin bearer token on all `/v1/admin/*` requests | Existing `admin_auth_middleware` -- already implemented |
+| **API Client (fetch wrapper)** | Typed HTTP client for frontend, attaches auth token, handles errors | Thin wrapper around `fetch` used by TanStack Query |
+| **TanStack Query** | Server state cache, automatic refetching, loading/error states | `queryClient` with queries per API endpoint |
+| **TanStack Router** | Client-side routing, auth guards, layout nesting | File-based routes with `beforeLoad` auth check |
+
+## Integration Architecture
+
+### Decision: Serve from Gateway in Production
+
+**Recommendation:** Serve the built SPA from the gateway process in production. Separate origin in development only.
+
+**Rationale:**
+- Eliminates CORS entirely in production (same origin)
+- No separate frontend process/container to deploy
+- Single Docker image remains (constraint from PROJECT.md)
+- Admin UI is low-traffic; no CDN needed
+- Vite dev proxy handles the development case cleanly
+
+**How it works:**
+- Development: Vite dev server on `:5173` proxies `/api/*` to gateway on `:8080`
+- Production: Gateway serves SPA from `dist/` directory at `/admin/*`, API at `/v1/admin/*`
+
+### New Axum Routes Needed
+
+| Route Pattern | Method | Purpose | Auth | New/Modified |
+|---------------|--------|---------|------|--------------|
+| `/admin/*` | GET | Serve SPA static assets + index.html fallback | None (SPA is public shell, auth in JS) | **NEW** |
+| `/v1/admin/auth/login` | POST | Admin login, returns bearer token | None (login endpoint) | **NEW** |
+| `/v1/admin/auth/me` | GET | Validate current token, return admin info | Admin token | **NEW** |
+| `/v1/admin/tasks` | GET | List tasks with pagination/filtering | Admin token | **NEW** |
+| `/v1/admin/tasks/{task_id}` | GET | Get task detail (reuse existing result endpoint logic) | Admin token | **NEW** (admin version with full detail) |
+| `/v1/admin/tasks/{task_id}/cancel` | POST | Cancel a pending/running task | Admin token | **NEW** |
+| `/v1/admin/metrics/query` | POST | Proxy PromQL queries to internal metrics | Admin token | **NEW** |
+| `/v1/admin/api-keys` | GET | List all API keys (hashes only) | Admin token | **NEW** (existing POST stays) |
+| `/v1/admin/node-tokens` | GET | List all node tokens per service | Admin token | **NEW** (existing POST stays) |
+| `/v1/admin/services` | GET/POST | Already exists | Admin token | Existing |
+| `/v1/admin/services/{name}` | GET/DELETE | Already exists | Admin token | Existing |
+| `/v1/admin/health` | GET | Already exists | Admin token | Existing |
+| `/metrics` | GET | Already exists (Prometheus exposition) | Admin token | Existing |
+
+### Endpoints NOT Needed
+
+| Endpoint | Why Not |
+|----------|---------|
+| WebSocket for live updates | Polling with TanStack Query refetchInterval is simpler and sufficient for an admin dashboard. Out of scope per PROJECT.md. |
+| `/v1/admin/logs` | Explicitly deferred in PROJECT.md out of scope |
+| Session/cookie auth | Bearer token is simpler, matches existing admin auth pattern |
 
 ## Recommended Project Structure
 
 ```
-src/
-├── main.rs                 # Entry point, server bootstrap, signal handling
-├── config.rs               # Configuration from env/file (clap + config crate)
-├── server/
-│   ├── mod.rs              # Server builder, protocol multiplexing
-│   ├── http.rs             # Axum router for HTTPS endpoints
-│   └── grpc.rs             # Tonic service implementations
-├── proto/                  # .proto files and generated code
-│   ├── gateway.proto       # Client-facing service definition
-│   └── worker.proto        # Node-facing service definition
-├── auth/
-│   ├── mod.rs              # Auth trait and dispatch
-│   ├── api_key.rs          # API key validation (HTTPS clients)
-│   ├── mtls.rs             # mTLS cert validation (gRPC clients)
-│   └── token.rs            # Pre-shared token validation (nodes)
-├── queue/
-│   ├── mod.rs              # Queue trait
-│   ├── redis.rs            # Redis-backed reliable queue implementation
-│   └── task.rs             # Task struct, state machine, serialization
-├── registry/
-│   ├── mod.rs              # Service and node registry
-│   └── health.rs           # Heartbeat checking, stale node reaping
-├── dispatch/
-│   ├── mod.rs              # Result delivery orchestration
-│   ├── poll.rs             # Client poll handler
-│   └── callback.rs         # HTTP callback delivery with retries
-├── error.rs                # Unified error types
-└── telemetry.rs            # Tracing, metrics setup
+admin-ui/                        # Separate directory at repo root (NOT in gateway/)
+├── index.html                   # Vite entry point
+├── package.json
+├── vite.config.ts               # Dev proxy config
+├── tsconfig.json
+├── tailwind.config.ts
+├── components.json              # shadcn/ui config
+├── src/
+│   ├── main.tsx                 # React entry, QueryClientProvider, RouterProvider
+│   ├── routeTree.gen.ts         # TanStack Router generated tree
+│   ├── api/
+│   │   ├── client.ts            # fetch wrapper with auth token injection
+│   │   ├── types.ts             # TypeScript types matching gateway JSON responses
+│   │   ├── services.ts          # TanStack Query hooks: useServices, useServiceDetail
+│   │   ├── tasks.ts             # TanStack Query hooks: useTasks, useTaskDetail, useCancelTask
+│   │   ├── nodes.ts             # TanStack Query hooks: useNodes
+│   │   ├── api-keys.ts          # TanStack Query hooks: useApiKeys, useCreateApiKey
+│   │   ├── metrics.ts           # TanStack Query hooks: useMetrics, useMetricQuery
+│   │   └── auth.ts              # TanStack Query hooks: useLogin, useAuthMe
+│   ├── routes/
+│   │   ├── __root.tsx           # Root layout: sidebar nav, auth guard
+│   │   ├── login.tsx            # Login page (no auth required)
+│   │   ├── _authenticated.tsx   # Layout route: checks auth, redirects to login
+│   │   ├── _authenticated/
+│   │   │   ├── index.tsx        # Dashboard (metrics overview)
+│   │   │   ├── services/
+│   │   │   │   ├── index.tsx    # Service list
+│   │   │   │   └── $name.tsx    # Service detail + nodes
+│   │   │   ├── tasks/
+│   │   │   │   ├── index.tsx    # Task list with filters
+│   │   │   │   └── $taskId.tsx  # Task detail
+│   │   │   ├── api-keys.tsx     # API key management
+│   │   │   └── settings.tsx     # Node tokens, gateway config view
+│   ├── components/
+│   │   ├── ui/                  # shadcn/ui components (generated)
+│   │   ├── layout/
+│   │   │   ├── sidebar.tsx
+│   │   │   ├── header.tsx
+│   │   │   └── page-container.tsx
+│   │   ├── dashboard/
+│   │   │   ├── metric-card.tsx
+│   │   │   ├── queue-depth-chart.tsx
+│   │   │   └── node-status-grid.tsx
+│   │   ├── services/
+│   │   │   ├── service-table.tsx
+│   │   │   ├── register-service-dialog.tsx
+│   │   │   └── node-health-badge.tsx
+│   │   └── tasks/
+│   │       ├── task-table.tsx
+│   │       ├── task-status-badge.tsx
+│   │       └── cancel-task-dialog.tsx
+│   ├── lib/
+│   │   ├── auth.ts              # Token storage (localStorage), auth context
+│   │   └── utils.ts             # shadcn/ui cn() helper, formatters
+│   └── hooks/
+│       └── use-auth.ts          # Auth state hook
+└── dist/                        # Build output (gitignored, copied into Docker image)
 ```
 
 ### Structure Rationale
 
-- **server/:** Isolates protocol concerns. The multiplexing logic lives here, not in business logic. Axum routes and Tonic services are separate files because they have different middleware stacks.
-- **proto/:** Separate .proto files for client-facing vs node-facing APIs. These are different trust boundaries with different auth requirements.
-- **auth/:** Three distinct auth mechanisms warrant their own module. A common trait allows the middleware to dispatch without coupling to a specific scheme.
-- **queue/:** The queue is the heart of the system. Trait-based design allows testing with an in-memory queue while production uses Redis. Task state machine logic lives here.
-- **registry/:** Service and node management is distinct from queueing. A service exists independently of whether it has tasks or nodes.
-- **dispatch/:** Result delivery is its own concern -- polling is synchronous, callbacks are async with retries, and they share nothing except reading from the task store.
+- **`admin-ui/` at repo root:** Keeps frontend completely separate from the Rust workspace. No cargo interaction. Clean build boundary.
+- **`api/` directory:** One file per resource domain. Each file exports TanStack Query hooks, keeping data fetching organized and co-located with types.
+- **`_authenticated` layout route:** TanStack Router convention for layout routes. All child routes automatically get auth checking without repeating it.
+- **`components/` by feature:** UI components grouped by the page/feature they serve, not by type (no `atoms/molecules/organisms` pattern -- that adds indirection without value at this scale).
 
 ## Architectural Patterns
 
-### Pattern 1: Reliable Queue via BRPOPLPUSH (now BLMOVE)
+### Pattern 1: Vite Dev Proxy
 
-**What:** When a node picks up a task, atomically move it from the pending queue to a processing list. The task is not deleted until the node confirms completion. If the node dies, a reaper notices the task in the processing list and re-enqueues it.
+**What:** During development, Vite's built-in proxy forwards API requests to the gateway. No CORS configuration needed in dev.
 
-**When to use:** Always, for every task dequeue operation. This is the foundation of reliability.
+**When to use:** Always during `npm run dev`. This is the standard Vite pattern for frontend+backend development.
 
-**Trade-offs:** Slightly more complex than simple LPOP, but prevents task loss on node crashes. The reaper adds a background goroutine but is essential.
+**Trade-offs:** Only works in development. Production needs a different solution (SPA serving from gateway).
 
-**Redis key layout:**
+**Configuration:**
+```typescript
+// vite.config.ts
+export default defineConfig({
+  server: {
+    proxy: {
+      '/v1': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
+      '/metrics': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
+    },
+  },
+  base: '/admin/',  // SPA lives under /admin/ in production
+});
 ```
-queue:{service_id}:pending       # LIST - tasks waiting for pickup
-queue:{service_id}:processing    # LIST - tasks currently being worked on
-task:{task_id}                   # HASH - task state, payload, result, timestamps
-service:{service_id}:nodes       # HASH - node_id -> {last_heartbeat, status}
-auth:apikeys                     # HASH - api_key -> client_id
-```
 
-**Example (pseudo-Rust):**
+### Pattern 2: SPA Serving from Axum with Fallback
+
+**What:** In production, Axum serves the built SPA files. Any request to `/admin/*` that does not match a static file returns `index.html`, enabling client-side routing.
+
+**When to use:** Production deployment. The gateway binary includes a path to the static files directory (configurable).
+
+**Trade-offs:** Adds a few lines to the Axum router. Static files are small (~500KB-2MB for a React SPA). No performance concern for an admin tool.
+
+**Implementation (Rust):**
 ```rust
-// Atomic dequeue: blocks until a task is available, then moves it
-// from pending to processing in one atomic operation
-let task_id: String = redis.blmove(
-    &format!("queue:{}:pending", service_id),
-    &format!("queue:{}:processing", service_id),
-    Duration::from_secs(30), // long-poll timeout
-).await?;
+use tower_http::services::{ServeDir, ServeFile};
 
-// Update task state
-redis.hset(&format!("task:{}", task_id), &[
-    ("state", "assigned"),
-    ("assigned_node", node_id),
-    ("assigned_at", &now_unix()),
-]).await?;
-```
-
-### Pattern 2: Protocol Multiplexing (Axum + Tonic on one port)
-
-**What:** Run both HTTP/1.1 (Axum) and gRPC/HTTP2 (Tonic) on the same TCP port by inspecting the `content-type` header. If it starts with `application/grpc`, route to Tonic; otherwise route to Axum.
-
-**When to use:** Always. A single port simplifies deployment, load balancer config, and TLS termination.
-
-**Trade-offs:** Slightly more complex server setup, but well-documented pattern with official Axum examples. Both frameworks share the Tower middleware ecosystem.
-
-**Example:**
-```rust
-// Tonic can convert its services into Axum routes directly
-let grpc_service = tonic::transport::Server::builder()
-    .add_service(GatewayServiceServer::new(gateway))
-    .add_service(WorkerServiceServer::new(worker))
-    .into_router();
+// In the HTTP router setup:
+let spa_service = ServeDir::new(&config.admin.static_dir)
+    .fallback(ServeFile::new(
+        format!("{}/index.html", config.admin.static_dir)
+    ));
 
 let app = Router::new()
-    .route("/v1/tasks", post(submit_task))
-    .route("/v1/tasks/:id", get(get_task))
-    .route("/v1/tasks/:id/result", get(get_result))
-    .merge(grpc_service);
+    .merge(api_routes)
+    .merge(admin_routes)
+    .nest_service("/admin", spa_service)  // SPA assets
+    .with_state(http_state);
 ```
 
-### Pattern 3: Separate Proto Services for Clients vs Nodes
-
-**What:** Define two separate gRPC service definitions: `GatewayService` (client-facing) and `WorkerService` (node-facing). They share the `Task` message type but have different RPCs and different auth requirements.
-
-**When to use:** Always. Clients and nodes are different trust boundaries with different capabilities.
-
-**Trade-offs:** Two .proto files to maintain, but clean separation of concerns. A node should never be able to call client APIs and vice versa.
-
-```protobuf
-// gateway.proto - Client-facing
-service GatewayService {
-  rpc SubmitTask(SubmitTaskRequest) returns (SubmitTaskResponse);
-  rpc GetTaskStatus(GetTaskStatusRequest) returns (TaskStatus);
-  rpc GetTaskResult(GetTaskResultRequest) returns (TaskResult);
-}
-
-// worker.proto - Node-facing
-service WorkerService {
-  rpc PollTask(PollTaskRequest) returns (PollTaskResponse);       // Unary long-poll
-  rpc StreamTasks(StreamTasksRequest) returns (stream Task);      // Server-streaming alternative
-  rpc ReportResult(ReportResultRequest) returns (ReportResultResponse);
-  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+**Config addition needed:**
+```rust
+// In AdminConfig:
+pub struct AdminConfig {
+    pub token: Option<String>,
+    /// Path to built SPA assets directory. None = UI disabled.
+    pub static_dir: Option<String>,
 }
 ```
 
-### Pattern 4: Node Task Pickup via gRPC Server-Streaming
+### Pattern 3: API Client with Token Injection
 
-**What:** Nodes open a persistent gRPC server-streaming connection. The gateway sends tasks down the stream as they become available. This is more efficient than repeated long-poll requests.
+**What:** A thin fetch wrapper that automatically attaches the admin bearer token from localStorage to every request. TanStack Query hooks use this client, never raw `fetch`.
 
-**When to use:** Preferred for gRPC nodes. Offer unary long-poll as a fallback for HTTP-only nodes.
+**When to use:** Every API call from the frontend.
 
-**Trade-offs:** Server-streaming keeps connections open, consuming server resources per connected node. At the v1 target of ~100 nodes, this is fine. The gateway must handle stream lifecycle (reconnection, backpressure). Simpler alternative: unary `PollTask` with a 30-second blocking wait (long-poll), which is stateless on the server side.
+**Trade-offs:** Simple and transparent. No axios dependency needed -- native `fetch` is sufficient for JSON APIs.
 
-**Recommendation:** Implement unary long-poll first (simpler, stateless). Add server-streaming as an optimization in a later phase.
+**Implementation:**
+```typescript
+// api/client.ts
+const API_BASE = import.meta.env.DEV ? '' : '/admin/..';
+// In dev, Vite proxy handles /v1/*. In prod, same origin.
+
+export async function apiClient<T>(
+  path: string,
+  options: RequestInit = {},
+): Promise<T> {
+  const token = localStorage.getItem('admin_token');
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...options.headers,
+  };
+
+  const response = await fetch(`${API_BASE}${path}`, {
+    ...options,
+    headers,
+  });
+
+  if (response.status === 401) {
+    localStorage.removeItem('admin_token');
+    window.location.href = '/admin/login';
+    throw new Error('Unauthorized');
+  }
+
+  if (!response.ok) {
+    throw new Error(`API error: ${response.status}`);
+  }
+
+  return response.json();
+}
+```
+
+### Pattern 4: TanStack Query for Server State
+
+**What:** Each API resource gets a query hook. Automatic caching, background refetching, and stale-while-revalidate. Mutations for write operations.
+
+**When to use:** Every data fetch in the UI. Never use `useEffect` + `useState` for API data.
+
+**Trade-offs:** Adds a dependency but eliminates manual loading/error/cache state management. TanStack Query is the established standard for this.
+
+**Example:**
+```typescript
+// api/services.ts
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { apiClient } from './client';
+
+export function useServices() {
+  return useQuery({
+    queryKey: ['services'],
+    queryFn: () => apiClient<ListServicesResponse>('/v1/admin/services'),
+    refetchInterval: 30_000, // Refresh every 30s for dashboard
+  });
+}
+
+export function useServiceDetail(name: string) {
+  return useQuery({
+    queryKey: ['services', name],
+    queryFn: () => apiClient<ServiceDetailResponse>(`/v1/admin/services/${name}`),
+    refetchInterval: 10_000, // More frequent for live node health
+  });
+}
+
+export function useRegisterService() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: RegisterServiceRequest) =>
+      apiClient('/v1/admin/services', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['services'] });
+    },
+  });
+}
+```
+
+### Pattern 5: Prometheus Metrics via Gateway Proxy Endpoint
+
+**What:** The frontend does NOT query Prometheus directly. Instead, the gateway exposes a `/v1/admin/metrics/query` endpoint that reads from its internal `prometheus::Registry` and returns formatted data. No external Prometheus server needed.
+
+**When to use:** Dashboard metrics visualization.
+
+**Why this approach:**
+- The gateway already has all metrics in its `prometheus::Registry` (8 metric families)
+- No external Prometheus server dependency for the admin UI
+- The `/metrics` endpoint already exposes Prometheus text format
+- Admin auth protects metric data
+
+**Implementation options (pick one):**
+
+**Option A -- Parse /metrics text format in frontend (simplest):**
+```typescript
+// Fetch raw Prometheus text, parse client-side
+export function useRawMetrics() {
+  return useQuery({
+    queryKey: ['metrics', 'raw'],
+    queryFn: async () => {
+      const token = localStorage.getItem('admin_token');
+      const res = await fetch('/metrics', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      return res.text(); // Prometheus exposition format
+    },
+    refetchInterval: 15_000,
+  });
+}
+// Use a library like `prom-client-parser` or write a simple parser
+// for the text exposition format (it is line-based and simple)
+```
+
+**Option B -- Add JSON metrics endpoint to gateway (recommended):**
+```rust
+// New endpoint: GET /v1/admin/metrics/summary
+// Returns pre-computed dashboard-friendly JSON
+#[derive(Serialize)]
+pub struct MetricsSummary {
+    pub queue_depths: HashMap<String, f64>,
+    pub active_nodes: HashMap<String, f64>,
+    pub tasks_submitted_total: HashMap<String, f64>,
+    pub tasks_completed_total: HashMap<String, f64>,
+    pub error_rate: HashMap<String, f64>,
+}
+
+pub async fn metrics_summary(
+    State(state): State<Arc<AppState>>,
+) -> Json<MetricsSummary> {
+    // Read directly from state.metrics gauge/counter handles
+    // No Prometheus text parsing needed
+}
+```
+
+**Recommendation:** Option B. The gateway already holds all metric handles in `state.metrics`. Reading them directly and returning JSON is trivial, type-safe, and avoids text format parsing on both sides. The existing `/metrics` endpoint continues to serve Prometheus scrapers.
 
 ## Data Flow
 
-### Task Submission Flow
+### Admin Authentication Flow
 
 ```
-Client                    Gateway                         Redis
-  │                         │                               │
-  │── POST /v1/tasks ──────▶│                               │
-  │   (or SubmitTask RPC)   │── validate auth ──────────────│
-  │                         │── generate task_id            │
-  │                         │── HSET task:{id} state=pending│
-  │                         │── LPUSH queue:{svc}:pending   │
-  │◀── 202 {task_id} ──────│                               │
+Browser                     Gateway                      Redis
+  |                           |                            |
+  |-- POST /v1/admin/auth/login                            |
+  |   { username, password }  |                            |
+  |                           |-- Validate against config  |
+  |                           |   (admin.token or          |
+  |                           |    admin.credentials)      |
+  |                           |                            |
+  |<-- 200 { token }         |                            |
+  |                           |                            |
+  | Store token in            |                            |
+  | localStorage              |                            |
+  |                           |                            |
+  |-- GET /v1/admin/services  |                            |
+  |   Authorization: Bearer X |                            |
+  |                           |-- admin_auth_middleware     |
+  |                           |   validates Bearer token   |
+  |                           |                            |
+  |<-- 200 { services: [...] }                             |
 ```
 
-### Node Task Pickup Flow
+**Auth token design decision:**
+
+The existing `admin_auth_middleware` already validates `Authorization: Bearer <token>` against `config.admin.token`. Two approaches for login:
+
+**Approach A -- Static token (simplest, recommended for v1.1):**
+- The admin token in `gateway.toml` IS the bearer token
+- Login endpoint validates username/password against config, returns the same static token
+- No JWT, no expiry, no Redis session state
+- Matches the existing auth model exactly
+- To "logout", frontend just clears localStorage
+
+**Approach B -- JWT tokens (future, if multi-admin needed):**
+- Login returns a signed JWT with expiry
+- Middleware validates JWT signature + expiry
+- Adds `jsonwebtoken` crate dependency
+- Only needed if multiple admin users with different permissions are required
+
+**Recommendation:** Approach A for v1.1. The gateway already has a single admin token. The login endpoint just verifies credentials and hands back that token. Zero new backend state.
+
+### Dashboard Data Refresh Flow
 
 ```
-Node                      Gateway                         Redis
-  │                         │                               │
-  │── PollTask(service) ───▶│                               │
-  │   (or long-poll HTTP)   │── validate node token         │
-  │                         │── BLMOVE pending -> processing│
-  │                         │   (blocks up to 30s)          │
-  │                         │── HSET task:{id} state=assigned│
-  │◀── Task payload ───────│                               │
-  │                         │                               │
-  │   ... node executes ... │                               │
-  │                         │                               │
-  │── ReportResult ────────▶│                               │
-  │                         │── HSET task:{id} result=...   │
-  │                         │── HSET task:{id} state=complete│
-  │                         │── LREM processing task_id     │
-  │                         │── fire callback (if set) ────▶│ (external URL)
-  │◀── ACK ────────────────│                               │
-```
-
-### Result Retrieval Flow
-
-```
-Client                    Gateway                         Redis
-  │                         │                               │
-  │── GET /v1/tasks/{id} ──▶│                               │
-  │                         │── HGETALL task:{id}           │
-  │◀── {state, result} ────│                               │
+React Component          TanStack Query Cache        Gateway API
+  |                           |                          |
+  | useServices()             |                          |
+  |-------------------------->|                          |
+  |                           |-- Cache MISS             |
+  |                           |-- GET /v1/admin/services |
+  |                           |                          |
+  |                           |<-- { services: [...] }   |
+  |<-- data (loading=false)   |                          |
+  |                           |                          |
+  |   ... 30s passes ...      |                          |
+  |                           |-- Background refetch     |
+  |                           |-- GET /v1/admin/services |
+  |                           |<-- { services: [...] }   |
+  |<-- data (updated silently)|                          |
 ```
 
 ### Key Data Flows
 
-1. **Task submission:** Client -> Auth middleware -> Task Router -> Redis (task hash + queue push) -> 202 response with task_id
-2. **Node pickup:** Node -> Auth middleware -> Queue Manager -> Redis BLMOVE (blocks until task available) -> Task payload to node
-3. **Result delivery:** Node -> Auth middleware -> Task Lifecycle Tracker -> Redis (update hash, remove from processing) -> Optional callback dispatch
-4. **Client polling:** Client -> Auth middleware -> Redis HGETALL -> State/result response
-5. **Health monitoring:** Background reaper task -> scan processing lists -> check task timeouts -> re-enqueue expired tasks -> check node heartbeat TTLs -> mark stale nodes
+1. **Login:** User submits credentials -> Gateway validates -> Returns admin token -> Frontend stores in localStorage -> All subsequent requests include `Authorization: Bearer` header
+2. **Dashboard load:** Multiple parallel TanStack Query fetches (services, health, metrics summary) -> Gateway reads Redis + internal metrics -> Returns JSON -> React renders
+3. **Service registration:** User fills form -> `useMutation` POSTs to `/v1/admin/services` -> On success, `invalidateQueries(['services'])` triggers automatic refetch of service list
+4. **Task cancellation:** User clicks cancel -> `useMutation` POSTs to `/v1/admin/tasks/{id}/cancel` -> Gateway marks task as failed in Redis -> Invalidate task queries
+5. **Metrics refresh:** `refetchInterval: 15000` on metrics query -> Gateway reads from `state.metrics` Prometheus handles -> Returns JSON summary -> Chart components re-render
 
-## Scaling Considerations
+## CORS Configuration
 
-| Scale | Architecture Adjustments |
-|-------|--------------------------|
-| 1-100 nodes, 1K tasks/hr | Single gateway process, single Redis instance. This is v1 target. No special optimizations needed. |
-| 100-1K nodes, 100K tasks/hr | Redis Cluster for queue sharding by service_id. Multiple gateway replicas behind a load balancer (stateless design enables this). Connection pooling for Redis. |
-| 1K+ nodes, 1M+ tasks/hr | Shard services across gateway clusters. Consider dedicated Redis instances per high-volume service. Add metrics-driven autoscaling. At this point, evaluate whether to add a proper message broker (NATS, Kafka) behind the gateway. |
+### Production: Not Needed
 
-### Scaling Priorities
+Same-origin serving eliminates CORS entirely. The SPA is served from `/admin/*` on the same gateway process that serves `/v1/admin/*`. No `Access-Control-*` headers needed.
 
-1. **First bottleneck: Redis connections.** Each blocking BLMOVE holds a connection for up to 30 seconds. With 100 nodes polling, that is 100 concurrent Redis connections just for task pickup. Use a dedicated Redis connection pool for blocking operations, separate from the general pool. Size it to node_count + buffer.
-2. **Second bottleneck: Callback delivery.** If many tasks complete simultaneously and all have callbacks, the gateway must fire many outbound HTTP requests. Use a bounded Tokio task pool for callbacks with backpressure, and retry with exponential backoff. Do not block task completion on callback success.
-3. **Third bottleneck: Task payload size.** If tasks carry large payloads (e.g., images for AI inference), storing them in Redis is inefficient. For v1, set a max payload size (e.g., 1MB). For v2, add an object store (S3/MinIO) and store only references in Redis.
+### Development: Not Needed (Vite Proxy)
+
+The Vite dev proxy forwards requests from `:5173` to `:8080` server-side. The browser sees all requests going to `:5173`. No CORS.
+
+### Fallback: If Separate Deployment Ever Needed
+
+If someone runs the frontend on a different origin (e.g., during testing), add CORS only to admin routes:
+
+```rust
+use tower_http::cors::{CorsLayer, Any};
+
+let cors = CorsLayer::new()
+    .allow_origin(["http://localhost:5173".parse().unwrap()])
+    .allow_methods([Method::GET, Method::POST, Method::PATCH, Method::DELETE])
+    .allow_headers([header::CONTENT_TYPE, header::AUTHORIZATION])
+    .allow_credentials(true);
+
+// Apply ONLY to admin routes, not client API routes
+let admin_routes = admin_routes.layer(cors);
+```
+
+**Recommendation:** Do not add CORS by default. The proxy + same-origin pattern means it is never needed in the normal workflow. Add it only if the deployment model changes.
+
+## Gateway Config Changes
+
+```toml
+# gateway.toml additions for v1.1:
+
+[admin]
+token = "your-admin-token"            # Existing
+static_dir = "./admin-ui/dist"        # NEW: path to built SPA assets
+# username = "admin"                  # NEW: optional, for login endpoint
+# password_hash = "sha256:..."        # NEW: hashed admin password
+```
+
+## Docker Build Integration
+
+```dockerfile
+# Multi-stage: build frontend, then build Rust, then combine
+FROM node:22-alpine AS frontend
+WORKDIR /app/admin-ui
+COPY admin-ui/package*.json ./
+RUN npm ci
+COPY admin-ui/ ./
+RUN npm run build
+
+FROM rust:1.85-alpine AS backend
+# ... existing Rust build ...
+
+FROM scratch
+COPY --from=backend /app/target/release/xgent-gateway /gateway
+COPY --from=frontend /app/admin-ui/dist /admin-ui/dist
+# Single binary + SPA assets
+```
 
 ## Anti-Patterns
 
-### Anti-Pattern 1: Pushing Tasks Directly to Nodes
+### Anti-Pattern 1: Embedding SPA in Rust Binary with include_bytes!
 
-**What people do:** Gateway maintains open connections to nodes and pushes tasks when they arrive, like a traditional load balancer.
-**Why it is wrong:** Nodes are behind NAT and cannot receive inbound connections. Even if they could, push requires the gateway to track node capacity, handle connection failures, and implement circuit breaking -- all of which the pull model avoids.
-**Do this instead:** Nodes poll the gateway. The gateway only needs to manage queues. Nodes self-regulate their concurrency by controlling how many poll requests they issue.
+**What people do:** Use `include_bytes!` or `rust-embed` to compile the SPA into the Rust binary.
+**Why it is wrong:** Every frontend change requires recompiling the Rust binary. Adds 1-2MB to binary size. Makes hot-reload impossible during development. Complicates CI (Rust build depends on Node build).
+**Do this instead:** Serve from a configurable directory path. The Docker multi-stage build places the files alongside the binary. In development, point to the Vite build output directory.
 
-### Anti-Pattern 2: Using Redis Pub/Sub for Task Dispatch
+### Anti-Pattern 2: Adding a Full Prometheus Server Dependency
 
-**What people do:** Publish tasks to a Redis channel and have nodes subscribe.
-**Why it is wrong:** Redis Pub/Sub is fire-and-forget. If no node is listening when a task is published, the task is lost. If multiple nodes receive the same message, you get duplicate execution. Pub/Sub has no persistence, no acknowledgment, no retry.
-**Do this instead:** Use Redis lists with BLMOVE for reliable, exactly-once task delivery. Pub/Sub can be used as a notification mechanism ("new task available, go poll") but never as the delivery mechanism.
+**What people do:** Deploy a Prometheus server alongside the gateway and have the frontend query Prometheus directly.
+**Why it is wrong:** Massive operational overhead for an admin dashboard. The gateway already has all the metrics in memory. Adding Prometheus adds a container, storage, and another network hop.
+**Do this instead:** Read metrics directly from the gateway's `prometheus::Registry` handles and return JSON. Keep the `/metrics` endpoint for external Prometheus scrapers if desired.
 
-### Anti-Pattern 3: Storing Task State Only in the Queue
+### Anti-Pattern 3: JWT with Refresh Tokens for Single-Admin Tool
 
-**What people do:** Put the entire task (payload + state) in the queue list. When it moves between states, they serialize/deserialize the whole thing.
-**Why it is wrong:** Expensive for large payloads, makes state queries slow (you must scan lists), and complicates the processing list pattern.
-**Do this instead:** Store task state in a Redis hash keyed by task_id. The queue lists contain only task_id strings. This separates the queue mechanism from the task data, making both simpler and faster.
+**What people do:** Build a full JWT auth system with access tokens, refresh tokens, and rotation.
+**Why it is wrong:** Over-engineered for a single-admin gateway tool. Adds crypto dependencies, token storage, and refresh logic. The gateway already has a static admin token.
+**Do this instead:** Use the existing static admin token pattern. The login endpoint validates credentials and returns the configured token. If multi-admin is needed later, upgrade to JWT then.
 
-### Anti-Pattern 4: Single Auth Mechanism for All Callers
+### Anti-Pattern 4: Polling with setInterval Instead of TanStack Query
 
-**What people do:** Use the same API key scheme for clients and nodes.
-**Why it is wrong:** Clients and nodes have fundamentally different trust levels and access patterns. A client API key should grant "submit tasks" and "read results." A node token should grant "pick up tasks for service X" and "report results." Mixing them risks privilege escalation.
-**Do this instead:** Separate auth schemes with separate middleware. Client auth (API key or mTLS) and node auth (pre-shared token scoped to a service) should be validated by different code paths with different permission sets.
+**What people do:** Use `setInterval` + `fetch` + `useState` for periodic data refresh.
+**Why it is wrong:** No request deduplication, no caching, no background refetch, no stale-while-revalidate, no automatic error retry, no garbage collection of unused queries.
+**Do this instead:** TanStack Query with `refetchInterval`. It handles all of the above automatically. One line of config vs 30+ lines of manual state management.
 
-### Anti-Pattern 5: Blocking the Event Loop on Redis Operations
+### Anti-Pattern 5: CORS Permissive Mode in Production
 
-**What people do:** Use synchronous Redis calls or forget to use the async Redis driver.
-**Why it is wrong:** A blocking BLMOVE call will block the entire Tokio runtime thread, starving all other connections on that thread.
-**Do this instead:** Use the `redis` crate with the `tokio-comp` feature for fully async operations. For blocking operations like BLMOVE, use a dedicated connection (not from the shared pool) so the block does not affect other operations.
+**What people do:** Add `CorsLayer::permissive()` to allow all origins.
+**Why it is wrong:** Allows any website to make authenticated requests to the admin API if the user has a token stored.
+**Do this instead:** Serve from the same origin (no CORS needed) or whitelist specific origins.
+
+## Build Order (Dependencies Between Frontend and Backend Changes)
+
+The following order respects dependencies -- backend endpoints must exist before frontend can consume them.
+
+### Phase 1: Backend Auth + New Endpoints
+1. Add `static_dir` to `AdminConfig`
+2. Add login endpoint (`/v1/admin/auth/login`) that validates credentials against config
+3. Add `/v1/admin/auth/me` endpoint
+4. Add `/v1/admin/metrics/summary` JSON endpoint (reads from `state.metrics`)
+5. Add `/v1/admin/tasks` list endpoint with pagination
+6. Add `/v1/admin/tasks/{task_id}/cancel` endpoint
+7. Add `/v1/admin/api-keys` GET (list) endpoint
+8. Add `/v1/admin/node-tokens` GET (list) endpoint
+9. Add SPA static file serving route (`/admin/*` with fallback)
+
+### Phase 2: Frontend Scaffolding
+1. Initialize Vite + React + TypeScript project in `admin-ui/`
+2. Configure Vite dev proxy, TailwindCSS, shadcn/ui
+3. Set up TanStack Router with `__root.tsx` and `_authenticated` layout
+4. Build API client (`api/client.ts`) and auth hooks
+5. Build login page
+
+### Phase 3: Frontend Feature Pages
+1. Dashboard page (metrics summary, queue depths, node counts)
+2. Services list + detail pages (uses existing endpoints)
+3. Task list + detail + cancel (uses new endpoints)
+4. API key management page
+5. Node token management page
+
+### Phase 4: Production Integration
+1. Docker multi-stage build (Node + Rust)
+2. Gateway config documentation for `admin.static_dir`
+3. Integration testing (build frontend, serve from gateway, verify routes)
+
+**Critical dependency:** Phase 2 step 4 (API client) depends on Phase 1 steps 2-3 (auth endpoints). The frontend cannot test auth flow without the login endpoint. Build auth endpoints first.
 
 ## Integration Points
 
@@ -295,49 +573,27 @@ Client                    Gateway                         Redis
 
 | Service | Integration Pattern | Notes |
 |---------|---------------------|-------|
-| Redis/Valkey | `redis` crate with `tokio-comp` and `connection-manager` features | Use connection pooling (`deadpool-redis` or `bb8-redis`). Separate pools for blocking vs non-blocking ops. |
-| Callback URLs | `reqwest` with timeout and retry | Fire-and-forget with retry queue. Do not block task completion on callback success. Store callback status in task hash. |
-| TLS/mTLS | `rustls` via `tonic`'s built-in TLS support | Configure `ServerTlsConfig` with CA cert for client verification. Use `rcgen` for dev cert generation. |
+| Redis/Valkey | Existing -- no changes | All admin data already in Redis |
+| Vite Dev Server | Dev proxy to gateway | Only during `npm run dev` |
 
 ### Internal Boundaries
 
 | Boundary | Communication | Notes |
 |----------|---------------|-------|
-| Protocol Layer <-> Core Engine | Direct Rust function calls via shared state (Arc) | No serialization overhead. Axum handlers and Tonic service impls call the same core functions. |
-| Core Engine <-> Redis | Async Redis commands via connection pool | Abstract behind a `Store` trait for testability. All Redis logic in `queue/redis.rs`. |
-| Auth <-> Core Engine | Tower middleware layers | Auth runs before handlers. Extracts identity into request extensions. Core reads identity from extensions. |
-| Background Tasks <-> Core Engine | Tokio tasks with shared Arc state | Reaper, heartbeat checker, and callback dispatcher run as background Tokio tasks spawned at startup. |
-
-## Build Order (Dependencies Between Components)
-
-The following order respects dependencies -- each layer builds on the previous:
-
-1. **Proto definitions + basic types** -- Everything depends on the shared message types. Define `gateway.proto`, `worker.proto`, `Task`, `TaskState` enum, error types.
-2. **Redis storage layer** -- Queue and task state operations with the `Store` trait. This is the data foundation. Test with real Redis (use testcontainers).
-3. **Core engine** -- Task router, queue manager, task lifecycle. Pure business logic calling the Store trait. Testable with mock store.
-4. **Protocol layer (HTTP + gRPC)** -- Axum routes + Tonic services, multiplexed on one port. Wires protocol handling to core engine.
-5. **Auth middleware** -- API key, mTLS, node tokens. Add as Tower layers. Can be built in parallel with protocol layer but wired in after.
-6. **Node registry + health** -- Service/node management, heartbeat processing, stale node reaping. Depends on storage layer.
-7. **Result dispatch** -- Client polling (simple, just reads Redis) and callback delivery (needs background task, retry logic).
-8. **Background tasks** -- Timeout reaper, heartbeat monitor. These are the "operational reliability" layer.
-
-**Phase grouping recommendation:**
-- Phase 1: Items 1-4 (core loop: submit task, pick up task, report result -- no auth)
-- Phase 2: Items 5-6 (auth + node management -- production hardening)
-- Phase 3: Items 7-8 (result delivery + operational reliability)
+| SPA <-> Admin API | HTTP JSON via `fetch` | All requests go through `apiClient` wrapper with auth token |
+| Admin API <-> Redis | Existing `auth_conn` | New list endpoints add read-only Redis queries |
+| Admin API <-> Metrics | Direct Rust struct access | `state.metrics` is `Arc<Metrics>`, read gauge/counter values directly |
+| SPA Router <-> Auth State | localStorage + React context | Token in localStorage, auth state in context, router guards in `beforeLoad` |
 
 ## Sources
 
-- [Axum + Tonic multiplexing example](https://github.com/sunsided/http-grpc-cohosting) -- Reference implementation for running both on one port
-- [Axum gRPC multiplex discussion](https://github.com/tokio-rs/axum/discussions/1840) -- Community patterns for protocol multiplexing
-- [Conductor Architecture](https://orkes.io/content/conductor-architecture) -- Pull-based worker polling architecture reference
-- [Conductor Task Lifecycle](https://conductor-oss.github.io/conductor/devguide/architecture/tasklifecycle.html) -- Task state machine with timeouts and retries
-- [Redis BRPOPLPUSH/BLMOVE](https://redis.io/docs/latest/commands/rpoplpush/) -- Reliable queue pattern documentation
-- [Resc - Rust task orchestrator](https://github.com/Canop/resc) -- Rust implementation of Redis-based task orchestration with BRPOPLPUSH
-- [Tonic mTLS discussion](https://github.com/hyperium/tonic/issues/511) -- mTLS authorization patterns with tonic
-- [Rust mTLS example](https://github.com/camelop/rust-mtls-example) -- Complete mTLS client/server example
-- [Tonic gRPC streaming](https://docs.rs/tonic/latest/tonic/struct.Streaming.html) -- Server-side streaming API reference
+- [Axum SPA fallback discussion](https://github.com/tokio-rs/axum/discussions/2486) -- ServeDir with fallback for React client-side routing
+- [tower-http CORS](https://docs.rs/tower-http/latest/tower_http/cors/struct.CorsLayer.html) -- CorsLayer configuration reference
+- [Vite server proxy docs](https://vite.dev/config/server-options#server-proxy) -- Dev proxy configuration
+- [TanStack Query auth patterns](https://github.com/TanStack/query/discussions/3253) -- Authentication with TanStack Query
+- [Prometheus HTTP API](https://prometheus.io/docs/prometheus/latest/querying/api/) -- Query API reference
+- [Axum static file serving](https://github.com/tokio-rs/axum/discussions/1309) -- Embedding and serving static files
 
 ---
-*Architecture research for: Rust pull-model task gateway*
-*Researched: 2026-03-21*
+*Architecture research for: Admin Web UI integration with Rust/Axum gateway*
+*Researched: 2026-03-22*

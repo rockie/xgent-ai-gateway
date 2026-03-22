@@ -1,184 +1,270 @@
-# Stack Research
+# Stack Research: Admin Web UI Frontend
 
-**Domain:** Rust pull-model task gateway (gRPC + HTTPS, Redis-backed queues)
-**Researched:** 2026-03-21
+**Domain:** Admin dashboard frontend for Rust API gateway
+**Researched:** 2026-03-22
 **Confidence:** HIGH
+
+> This document covers ONLY the new frontend stack additions for the v1.1 Admin Web UI.
+> The existing Rust backend stack (Axum, Tonic, Redis, etc.) is documented in CLAUDE.md and is not re-researched here.
 
 ## Recommended Stack
 
-### Core Technologies
+### Core Technologies (User-Selected, Versions Verified)
 
 | Technology | Version | Purpose | Why Recommended |
 |------------|---------|---------|-----------------|
-| **Rust** | stable (1.85+) | Language | Performance, memory safety, excellent async ecosystem. Constraint from PROJECT.md. |
-| **Tokio** | 1.43+ (LTS) | Async runtime | The async runtime for Rust. Tokio 1.43 is LTS until March 2026, 1.47 LTS until Sep 2026. Every library in this stack builds on Tokio. No alternative worth considering. |
-| **Tonic** | 0.14.x | gRPC server/client | The Rust gRPC implementation. Built on Tokio + Hyper + Prost. Mature, actively maintained, supports streaming, interceptors, mTLS via rustls. |
-| **Axum** | 0.8.x | HTTP server | Tokio-team's HTTP framework. Shares the Hyper + Tower foundation with Tonic, enabling co-hosting gRPC and HTTP on the same port. Tower middleware works across both. |
-| **Hyper** | 1.x | HTTP/2 transport | Underlying HTTP engine for both Axum and Tonic. Not used directly but pulled in as a dependency. Enables the single-port multiplexing pattern. |
-| **Redis (redis-rs)** | 1.0.x | Redis/Valkey client | The standard Rust Redis client, now at 1.0. Supports async via `tokio-comp` feature, `MultiplexedConnection` (clone-safe, cancellation-safe), RESP3, and Valkey compatibility. |
-| **Prost** | 0.14.x | Protobuf codegen | Protocol Buffers for Rust. Used by Tonic for gRPC message serialization. Tonic-build 0.14.x drives codegen from `.proto` files. |
+| **Vite** | 8.x | Build tool | Latest stable. Ships Rolldown (Rust-based bundler) for 10-30x faster builds. User-selected. |
+| **React** | 19.x | UI framework | User-selected. Required by shadcn/ui. |
+| **TailwindCSS** | 4.2.x | Utility CSS | v4 uses CSS-first config (no tailwind.config.js needed). 100x faster incremental builds. User-selected. |
+| **shadcn/ui** | CLI v4.1.x | Component library | Copy-paste components (not a runtime dependency). Install via `npx shadcn@latest init`. Built on Radix UI primitives. User-selected. |
+| **TanStack Router** | 1.168.x | Client routing | Fully type-safe routing with file-based route generation via Vite plugin. User-selected. |
+| **TanStack Query** | 5.94.x | Server state management | Caching, refetching, polling interval -- ideal for admin dashboard that polls gateway status. User-selected. |
+
+### Metrics Visualization
+
+| Technology | Version | Purpose | Why Recommended |
+|------------|---------|---------|-----------------|
+| **Recharts** | 3.8.x | Charts and graphs | shadcn/ui's built-in chart components ARE Recharts wrappers. Run `npx shadcn@latest add chart` to install chart primitives (AreaChart, BarChart, LineChart). 53 pre-built variants. Auto-themes with dark mode via CSS variables. No separate charting library needed -- Recharts comes in through shadcn. |
 
 ### Supporting Libraries
 
 | Library | Version | Purpose | When to Use |
 |---------|---------|---------|-------------|
-| **rustls** | 0.23.x | TLS implementation | All TLS needs: HTTPS termination, mTLS for gRPC clients, TLS to Redis. Pure Rust -- no OpenSSL dependency means easier static linking and cross-compilation. |
-| **rcgen** | 0.13.x | Certificate generation | Dev/test only: generate self-signed certs and CA chains for mTLS testing. Do not use in production cert management. |
-| **serde** | 1.x | Serialization | JSON request/response bodies on the HTTP side, config file parsing, Redis value serialization. Ubiquitous in Rust -- use `serde_json` for JSON. |
-| **tracing** | 0.1.x | Structured logging | Async-aware structured logging. Use `tracing-subscriber` for output formatting, `tracing-opentelemetry` if observability backends needed later. |
-| **clap** | 4.6.x | CLI argument parsing | Parse `--config`, `--port`, `--redis-url` flags. Use the derive API (`#[derive(Parser)]`) for type-safe argument definitions. |
-| **tower** | 0.5.x | Middleware framework | Shared middleware layer between Axum and Tonic: timeouts, rate limiting, auth extraction, request tracing. Both frameworks are Tower-native. |
-| **tower-http** | 0.6.x | HTTP middleware | CORS, compression, request-id, sensitive headers. Axum-specific Tower layers for the HTTP side. |
-| **uuid** | 1.x | Task IDs | Generate unique task identifiers. Use `v7` feature for time-sortable UUIDs (useful for debugging chronological task order). |
-| **chrono** | 0.4.x | Timestamps | Task lifecycle timestamps (created, assigned, completed). Serde integration for Redis storage. |
-| **tokio-rustls** | 0.26.x | Async TLS | Bridges rustls into Tokio's async I/O. Required for mTLS on the gRPC listener and TLS to Redis/Valkey. |
-| **config** | 0.15.x | Configuration | Layered config: defaults -> config file -> env vars -> CLI args. TOML file support for gateway configuration. |
+| **zustand** | 5.x | Client state (auth) | Lightweight store for auth state (isAuthenticated, adminToken). 1KB gzipped. No boilerplate, no providers. Persist middleware backs to sessionStorage. |
+| **date-fns** | 4.x | Date formatting | Format task timestamps, node last-seen times. Tree-shakable, functional API. |
+| **sonner** | latest | Toast notifications | shadcn/ui's recommended toast component. `npx shadcn@latest add sonner`. Use for mutation feedback (service created, task cancelled, key revoked). |
+| **lucide-react** | latest | Icons | shadcn/ui uses Lucide. Installed during `shadcn init`. Tree-shakable icon set. |
+| **class-variance-authority** | latest | Variant styling | Dependency of shadcn/ui. Installed during init. |
+| **clsx** + **tailwind-merge** | latest | Class merging | Powers shadcn's `cn()` utility. Installed during init. |
 
-### Development Tools
+### Development Dependencies
 
-| Tool | Purpose | Notes |
-|------|---------|-------|
-| **cargo** | Build system | Use workspaces if splitting into `gateway`, `proto`, `common` crates |
-| **protoc** | Protobuf compiler | Required by `tonic-build`. Install via system package manager or `protobuf-src` crate for hermetic builds |
-| **cargo-watch** | Dev reload | `cargo watch -x run` for auto-rebuild during development |
-| **grpcurl** | gRPC testing | CLI tool for ad-hoc gRPC calls during development. Install via `brew install grpcurl` |
-| **cross** | Cross-compilation | For building `x86_64-unknown-linux-musl` static binaries from macOS. Simpler than manual musl toolchain setup |
-| **cargo-deny** | Dependency audit | License checking and vulnerability scanning in CI |
+| Library | Version | Purpose | Notes |
+|---------|---------|---------|-------|
+| **TypeScript** | 5.x | Type safety | Strict mode. TanStack Router provides full type inference for routes, params, search. |
+| **@vitejs/plugin-react** | latest | Vite React plugin | Fast Refresh HMR for React in Vite 8. |
+| **@tanstack/router-plugin** | latest | Route codegen | Vite plugin for file-based route generation. Auto-generates route tree from `src/routes/`. |
+| **@tanstack/react-router-devtools** | 1.168.x | Router debugging | Dev only. Inspect route matches, params, search state. |
+| **@tanstack/react-query-devtools** | 5.94.x | Query debugging | Dev only. Inspect cache, refetch states, mutation status. |
+| **@tanstack/eslint-plugin-query** | latest | Query linting | Catches common TanStack Query mistakes (missing query keys, etc). |
 
 ## Installation
 
-```toml
-# Cargo.toml
+```bash
+# 1. Create project
+npm create vite@latest admin-ui -- --template react-ts
+cd admin-ui
 
-[dependencies]
-# Core
-tokio = { version = "1.43", features = ["full"] }
-tonic = { version = "0.14", features = ["tls"] }
-axum = "0.8"
-hyper = { version = "1", features = ["http2", "server"] }
-prost = "0.14"
+# 2. Core routing + data fetching
+npm install @tanstack/react-router @tanstack/react-query
 
-# Redis
-redis = { version = "1.0", features = ["tokio-comp", "aio"] }
+# 3. Client state (auth only)
+npm install zustand
 
-# TLS / Auth
-rustls = "0.23"
-tokio-rustls = "0.26"
-rcgen = "0.13"  # dev only
+# 4. Date formatting
+npm install date-fns
 
-# Serialization
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+# 5. Dev tools + build plugins
+npm install -D @tanstack/react-router-devtools @tanstack/react-query-devtools
+npm install -D @tanstack/router-plugin @tanstack/eslint-plugin-query
+npm install -D @vitejs/plugin-react
 
-# Observability
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+# 6. Initialize shadcn/ui (auto-installs tailwindcss, Recharts, Lucide, Radix, etc.)
+npx shadcn@latest init
 
-# Utilities
-clap = { version = "4.6", features = ["derive"] }
-uuid = { version = "1", features = ["v7", "serde"] }
-chrono = { version = "0.4", features = ["serde"] }
-tower = { version = "0.5", features = ["timeout", "limit"] }
-tower-http = { version = "0.6", features = ["cors", "trace", "compression-gzip"] }
-config = "0.15"
-thiserror = "2"
-anyhow = "1"
-
-[build-dependencies]
-tonic-build = "0.14"
+# 7. Add shadcn components for admin dashboard
+npx shadcn@latest add card table button input badge dialog alert
+npx shadcn@latest add chart sonner sidebar tabs dropdown-menu separator
+npx shadcn@latest add sheet command popover select label switch
 ```
+
+## Auth Integration Pattern
+
+**No additional auth library needed.** The existing gateway uses a simple Bearer token check via `admin_auth_middleware`:
+
+```
+Authorization: Bearer {admin.token}
+```
+
+Where `admin.token` is a pre-shared secret from the gateway's TOML config. This is NOT a user/password system -- it's a single admin token.
+
+**Frontend auth flow:**
+
+1. Login page: user enters the admin token
+2. Store token in zustand with sessionStorage persistence (cleared on tab close)
+3. Create a shared `fetch` wrapper that adds `Authorization: Bearer {token}` to all requests
+4. TanStack Query uses this wrapper as its `queryFn` transport
+5. On 401 response from any request: clear zustand state, redirect to login route
+6. Protected routes use TanStack Router's `beforeLoad` guard to check auth state
+
+**Why this approach:**
+- Matches the existing `admin_auth_middleware` exactly (Bearer token in header)
+- sessionStorage is appropriate: admin tokens should require re-entry per browser session
+- No JWT, no refresh tokens, no httpOnly cookies -- the admin token is static and long-lived
+- zustand's persist middleware handles sessionStorage serialization automatically
+
+**Gateway-side changes needed:**
+- Add CORS headers via `tower-http::CorsLayer` on admin routes (already a dependency)
+- Or use Vite proxy in dev + reverse proxy in prod to avoid CORS entirely (recommended)
+
+## Prometheus Metrics Strategy
+
+**Do NOT add a Prometheus server, Grafana, or prometheus-query-api dependency.** The gateway IS the metrics source, not a Prometheus server.
+
+**Approach: Direct fetch + parse + Recharts**
+
+1. **Fetch `/metrics`** via TanStack Query with `refetchInterval: 10000` (10s polling)
+2. **Parse Prometheus text format** client-side with a simple custom parser (~50 lines of TypeScript)
+3. **Accumulate time-series** in React state: store last N snapshots (e.g., 60 points at 10s = 10 min history)
+4. **Render with Recharts** via shadcn chart components: area charts for rates, bar charts for queue depth, number cards for counters
+
+**Why a custom parser instead of `parse-prometheus-text-format` (npm)?**
+The npm package is 7 years unmaintained. The Prometheus text exposition format is simple and well-specified:
+```
+# HELP metric_name Description
+# TYPE metric_name counter
+metric_name{label="value"} 42.0
+```
+A regex-based parser handling comments, metric names, labels, and values is trivial in TypeScript. Avoids a dead dependency.
+
+**Why NOT embedded Grafana or a Prometheus query API client?**
+- The gateway exposes raw `/metrics`, not a Prometheus query endpoint (`/api/v1/query`)
+- Embedding Grafana requires running a Grafana instance -- massive operational overhead for a simple admin panel
+- Direct fetch gives full control over visualization with zero infrastructure dependencies
+
+**Dashboard metrics to display (from existing `/metrics` endpoint):**
+- `gateway_tasks_total` -- task submission rate (counter, show as rate/min)
+- `gateway_queue_depth` -- per-service queue depth (gauge, show as bar chart)
+- `gateway_task_latency_seconds` -- task processing latency (histogram, show as area chart)
+- `gateway_active_nodes` -- per-service active node count (gauge, show as number card)
+- `gateway_errors_total` -- error rate by type (counter, show as rate chart)
 
 ## Alternatives Considered
 
 | Recommended | Alternative | When to Use Alternative |
 |-------------|-------------|-------------------------|
-| **Axum** (HTTP) | Actix-Web | Never for this project. Actix uses its own runtime (not Tokio-native), making Tower middleware sharing with Tonic impossible. Actix has slightly higher raw throughput but the interop cost is not worth it. |
-| **Tonic** (gRPC) | grpc-rs (C-based) | Never. grpc-rs wraps the C gRPC core, adding C dependency complexity. Tonic is pure Rust, Tokio-native, and the clear community standard. |
-| **redis-rs 1.0** (Redis) | fred 10.x | If you need built-in client-side clustering, reconnect policies, or round-robin pooling out of the box. Fred is more opinionated and feature-rich. redis-rs 1.0 is simpler and sufficient for this gateway's needs (single Redis instance, MultiplexedConnection handles concurrency). |
-| **redis-rs MultiplexedConnection** | deadpool-redis / bb8-redis | If using older redis-rs (<1.0). With redis-rs 1.0, `MultiplexedConnection` is clone-safe and cancellation-safe -- a single connection multiplexes across tasks. No external pool crate needed for most workloads. Add a second connection for blocking operations (BRPOP) if using Redis as a blocking queue. |
-| **rustls** (TLS) | OpenSSL via native-tls | Only if you must interop with legacy systems requiring specific OpenSSL cipher suites. rustls is safer (no C code), simpler to cross-compile, and sufficient for all standard TLS/mTLS needs. |
-| **Prost** (protobuf) | protobuf-rs (stepancheg) | Never. Prost is the Tonic-native protobuf implementation. Using anything else with Tonic requires unnecessary adapter code. |
-| **TOML config** | YAML / JSON config | Personal preference. TOML is Rust-idiomatic (Cargo.toml), simpler than YAML, and the `config` crate supports it natively. |
-| **uuid v7** (task IDs) | ULID / nanoid | ULIDs if you need lexicographic sorting. uuid v7 provides time-ordering with broader ecosystem support. nanoid if you need shorter human-readable IDs (but lose time-ordering). |
+| **Recharts** (via shadcn) | Chart.js, Victory, Nivo | Never for this project. shadcn chart components ARE Recharts wrappers. Using anything else fights the component library. |
+| **zustand** (auth state) | React Context | React Context works for this use case (just one boolean + one string). Use zustand because persist middleware to sessionStorage is built-in and avoids boilerplate. |
+| **Custom metrics parser** | parse-prometheus-text-format (npm) | Use npm package only if you want to avoid writing any parser code. It works but is unmaintained. |
+| **TanStack Query polling** | WebSocket/SSE live metrics | Only if gateway adds SSE support. Polling every 10s is standard for admin dashboards and matches Prometheus scrape intervals. |
+| **sessionStorage** (auth) | httpOnly cookies | httpOnly cookies only if you later add a proper user/password auth with server-issued sessions. For a static admin token, sessionStorage is simpler and appropriate. |
+| **date-fns** | dayjs | dayjs if you prefer a moment-like chainable API. date-fns is more tree-shakable. Either works. |
+| **Native fetch** | Axios | Axios adds a dependency for what `fetch()` does natively. TanStack Query works with any promise-returning function. |
 
 ## What NOT to Use
 
 | Avoid | Why | Use Instead |
 |-------|-----|-------------|
-| **Actix-Web** with Tonic | Different async runtime ecosystem. Tower middleware cannot be shared. You end up maintaining two middleware stacks. | Axum -- same Tokio/Tower/Hyper foundation as Tonic |
-| **Warp** | Effectively unmaintained. Last meaningful update was 2023. Axum superseded it within the Tokio ecosystem. | Axum |
-| **deadpool-redis** with redis 1.0 | Historical compatibility issues between deadpool-redis and newer redis-rs versions. redis-rs 1.0 MultiplexedConnection eliminates the need for external pooling in most cases. | `redis::aio::MultiplexedConnection` (built into redis-rs 1.0) |
-| **OpenSSL / native-tls** | Adds C dependency, complicates static binary builds, larger attack surface. mTLS with OpenSSL is harder to configure correctly. | rustls |
-| **async-std** | Tokio is the runtime for this stack. Mixing runtimes causes subtle bugs and doubled dependencies. | Tokio (already chosen) |
-| **protobuf-rs** (stepancheg) | Incompatible with Tonic codegen. Would require manual adapter layer. | Prost (Tonic's native protobuf) |
-| **slog** | Legacy structured logging. tracing is the modern standard with async-aware span tracking. | tracing |
-| **rocket** | Historically used its own runtime. Rocket 0.5+ supports Tokio but still uses its own abstractions that don't interop with Tower. | Axum |
+| **Embedded Grafana** | Requires running a Grafana server instance. Massive operational overhead for a simple admin panel. | Recharts via shadcn chart components |
+| **prometheus-query (npm)** | Requires a running Prometheus server with query API. The gateway exposes raw `/metrics`, not `/api/v1/query`. | Direct fetch of `/metrics` + custom text parser |
+| **react-admin** | Full admin framework with its own routing, data providers, auth. Conflicts with TanStack Router/Query and shadcn. | Build with shadcn components + TanStack stack |
+| **Redux / Redux Toolkit** | Massive boilerplate for one boolean + one string of client state. TanStack Query handles all server state. | zustand for the tiny amount of client state |
+| **Axios** | Unnecessary dependency. `fetch()` is native and TanStack Query is transport-agnostic. | Native `fetch()` with a thin wrapper |
+| **localStorage for auth** | Persists across sessions. If someone walks away, the token remains. Admin tokens should expire with the session. | sessionStorage via zustand persist middleware |
+| **SWR** | TanStack Query already selected. Query has more features (mutations, optimistic updates, better devtools). | TanStack Query |
+| **parse-prometheus-text-format** | Unmaintained for 7 years. The format is simple enough to parse in ~50 lines. | Custom TypeScript parser |
+| **moment.js** | Enormous bundle size (300KB+), mutable API, officially in maintenance mode. | date-fns |
 
-## Stack Patterns by Variant
+## Stack Patterns
 
-**If co-hosting gRPC + HTTP on the same port (recommended):**
-- Use Hyper as the underlying server, inspect `content-type: application/grpc` header to route to Tonic vs Axum
-- Both Axum and Tonic implement `tower::Service<http::Request<Body>>`, so a multiplexer service switches between them
-- This is a well-documented pattern: see `tonic` examples and `axum-tonic` crate
-- Single port simplifies deployment, TLS termination, and load balancer config
+### Development: Vite Proxy (Recommended)
 
-**If using separate ports for gRPC and HTTP:**
-- Simpler initial setup: two `tokio::spawn` calls, one for each listener
-- Separate TLS configs (mTLS on gRPC port, standard TLS on HTTP port)
-- Consider this if auth models diverge significantly between protocols
-- Downside: two ports to manage, two health check endpoints
+Avoids CORS issues entirely during development. Configure Vite's dev server to proxy API calls to the local gateway:
 
-**If Redis queue uses blocking pops (BRPOP) for node polling:**
-- Use a dedicated `MultiplexedConnection` for blocking operations
-- The main connection handles non-blocking commands (SET, GET, LPUSH)
-- BRPOP blocks the connection -- multiplexing still works but latency increases for other commands on the same connection
-- Alternative: use Redis pub/sub to notify nodes, then non-blocking LPOP to dequeue
+```typescript
+// vite.config.ts
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import { TanStackRouterVite } from '@tanstack/router-plugin/vite'
 
-**If targeting scratch Docker images (smallest possible):**
-- Build with `x86_64-unknown-linux-musl` target for fully static binary
-- Use `cross` crate for cross-compilation from macOS
-- Replace default musl allocator with `mimalloc` or `jemalloc` for better performance
-- Final image: `FROM scratch` + binary + TLS certs only (~15-25MB)
+export default defineConfig({
+  plugins: [TanStackRouterVite(), react()],
+  server: {
+    proxy: {
+      '/v1': 'http://localhost:8080',
+      '/metrics': 'http://localhost:8080',
+    }
+  }
+})
+```
+
+### Production Deployment Options
+
+**Option A -- Reverse proxy (recommended):**
+Nginx/Caddy serves the static SPA build and proxies `/v1/*` and `/metrics` to the gateway. Single domain, no CORS needed. Standard deployment pattern.
+
+**Option B -- Gateway serves static files:**
+Add an Axum static file handler (`tower-http::services::ServeDir`) for the built admin UI. Keeps single-process deployment. Adds ~2-5MB to the Docker image. Requires rebuilding the gateway image when the UI changes.
+
+**Option C -- Separate origin (CDN):**
+Deploy admin UI on CDN, add `CorsLayer` to gateway admin routes. Simplest deployment but requires CORS configuration. Use if admin UI and gateway are on different infrastructure.
+
+### Auth Guard Pattern with TanStack Router
+
+```typescript
+// src/routes/__root.tsx -- root layout with auth check
+// Use beforeLoad to redirect unauthenticated users to /login
+// Check zustand store for token presence
+// /login route is the only unprotected route
+```
+
+### Metrics Polling Pattern with TanStack Query
+
+```typescript
+// Poll /metrics every 10 seconds, accumulate history in component state
+// useQuery with refetchInterval: 10_000
+// On each fetch, parse text -> extract values -> append to history array
+// Cap history at 60 entries (10 min at 10s interval)
+// Pass history array to Recharts AreaChart for sparklines
+```
 
 ## Version Compatibility
 
 | Package | Compatible With | Notes |
 |---------|-----------------|-------|
-| tonic 0.14.x | prost 0.14.x, tonic-build 0.14.x | Tonic and Prost versions must match (same minor). Tonic 0.14 requires Prost 0.14. |
-| tonic 0.14.x | axum 0.8.x | Both built on hyper 1.x and tower 0.5.x. Co-hosting verified and documented. |
-| axum 0.8.x | tower 0.5.x, tower-http 0.6.x | Axum 0.8 requires tower 0.5+. tower-http 0.6.x targets tower 0.5. |
-| redis 1.0.x | tokio 1.x | Use `tokio-comp` feature flag. MultiplexedConnection requires tokio runtime. |
-| rustls 0.23.x | tokio-rustls 0.26.x | rustls 0.23 pairs with tokio-rustls 0.26. Do not mix with older tokio-rustls versions. |
-| tonic 0.14.x (TLS) | rustls 0.23.x | Tonic's `tls` feature uses rustls internally. Verify tonic's rustls version matches your direct rustls dependency. |
-| tokio 1.43+ | All above | LTS until March 2026. All crates in this stack target tokio 1.x. |
+| Vite 8.x | @tanstack/router-plugin | TanStack Router added Vite 8 support (rolldownOptions) in March 2026 releases |
+| shadcn CLI v4.x | TailwindCSS v4.x | shadcn v4 requires Tailwind v4. Uses CSS-first config, no tailwind.config.js |
+| shadcn chart | Recharts 3.x | shadcn chart components work with Recharts 3.8.x |
+| TanStack Router 1.168.x | TanStack Query 5.94.x | Designed for integration. Router loaders can prefetch queries. |
+| React 19.x | All above | All libraries verified compatible with React 19 |
+| TypeScript 5.x | All above | Required for TanStack Router type inference |
+
+## Gateway-Side Changes Required
+
+These are small Axum additions, not frontend stack items, but needed for the admin UI to function:
+
+| Change | Why | Effort |
+|--------|-----|--------|
+| **CORS layer on admin routes** | Admin UI in dev runs on different port (Vite 5173 vs gateway 8080) | Trivial -- `tower-http::CorsLayer` already a dependency |
+| **Task cancellation endpoint** | PROJECT.md requires task cancellation in v1.1. No endpoint exists yet. | New endpoint: `POST /v1/admin/tasks/{task_id}/cancel` |
+| **Task listing endpoint** | Need to browse/search tasks in the admin UI. No list endpoint exists. | New endpoint: `GET /v1/admin/tasks` with pagination + filters |
+| **Node listing endpoint** | Need to see all nodes across services. Currently only per-service via health. | New endpoint: `GET /v1/admin/nodes` or enhance existing health endpoint |
 
 ## Confidence Assessment
 
 | Area | Confidence | Reasoning |
 |------|------------|-----------|
-| Tokio + Axum + Tonic | HIGH | De facto Rust async web/gRPC stack. Official Tokio team projects. Verified versions via crates.io and official announcements. |
-| redis-rs 1.0 | HIGH | Verified 1.0.4 on crates.io. MultiplexedConnection documented in official docs. |
-| No deadpool needed | MEDIUM | redis-rs 1.0 MultiplexedConnection should suffice, but under heavy load (thousands of tasks/hour) real benchmarking needed. If connection becomes bottleneck, add a second MultiplexedConnection rather than a pool crate. |
-| rustls for mTLS | HIGH | Well-documented mTLS support. Tonic examples demonstrate rustls-based mTLS. |
-| Co-hosting pattern | HIGH | Multiple documented examples, dedicated crate (axum-tonic), and official tonic examples show this pattern. |
-| Static binary with musl | MEDIUM | Standard practice but rustls + musl sometimes has edge cases with certificate loading. Test early. |
+| Core stack versions | HIGH | All verified via npm registries and GitHub releases within days of this research |
+| Recharts via shadcn | HIGH | Documented integration, shadcn chart = Recharts wrapper, verified |
+| Auth pattern | HIGH | Exactly matches existing `admin_auth_middleware` (Bearer token, same header format) |
+| Prometheus metrics parsing | MEDIUM | Custom parser approach is sound and the format is well-specified, but untested at scale. The parser itself is trivial; the question is whether 10s polling + client-side accumulation provides enough dashboard resolution |
+| Production deployment | MEDIUM | Multiple viable patterns; choice depends on deployment environment preferences |
+| Gateway-side changes | HIGH | Identified from actual code review of `main.rs` and `admin.rs` |
 
 ## Sources
 
-- [tonic on crates.io](https://crates.io/crates/tonic) -- version 0.14.5 verified
-- [Axum 0.8.0 announcement](https://tokio.rs/blog/2025-01-01-announcing-axum-0-8-0) -- axum 0.8.x confirmed
-- [Tokio releases](https://crates.io/crates/tokio) -- LTS 1.43 (March 2026), 1.47 (Sep 2026)
-- [redis-rs on crates.io](https://crates.io/crates/redis) -- version 1.0.4 confirmed
-- [redis-rs guide (official Redis docs)](https://redis.io/docs/latest/develop/clients/rust/) -- MultiplexedConnection usage
-- [prost on crates.io](https://crates.io/crates/prost) -- version 0.14.2 confirmed
-- [rustls on docs.rs](https://docs.rs/crate/rustls/latest) -- version 0.23.36 confirmed
-- [rcgen releases](https://github.com/rustls/rcgen/releases) -- 0.13.x/0.14.x line confirmed
-- [clap on crates.io](https://crates.io/crates/clap) -- version 4.6.x confirmed
-- [HTTP+gRPC co-hosting](https://github.com/sunsided/http-grpc-cohosting) -- pattern reference
-- [Axum+Tonic integration guide](https://dev.to/generatecodedev/how-to-run-axum-and-tonic-on-the-same-port-with-routing-4okk) -- co-hosting implementation
-- [rust-musl-cross](https://github.com/rust-cross/rust-musl-cross) -- static binary compilation
-- [deadpool-redis compatibility issues](https://noos.blog/posts/redis-tls-deadpool-compatibility/) -- rationale for avoiding deadpool
+- [shadcn/ui Chart docs](https://ui.shadcn.com/docs/components/radix/chart) -- Recharts integration verified
+- [shadcn CLI v4 changelog](https://ui.shadcn.com/docs/changelog/2026-03-cli-v4) -- CLI v4.1.x confirmed
+- [TanStack Router releases](https://github.com/TanStack/router/releases) -- v1.168.x confirmed (March 2026)
+- [@tanstack/react-query npm](https://www.npmjs.com/package/@tanstack/react-query) -- v5.94.x confirmed
+- [Recharts npm](https://www.npmjs.com/package/recharts) -- v3.8.0 confirmed
+- [Vite releases](https://vite.dev/releases) -- v8.0.1 confirmed
+- [TailwindCSS releases](https://github.com/tailwindlabs/tailwindcss/releases) -- v4.2.2 confirmed
+- [Prometheus text exposition format](https://prometheus.io/docs/instrumenting/clientlibs/) -- format specification
+- [parse-prometheus-text-format npm](https://www.npmjs.com/package/parse-prometheus-text-format) -- evaluated and rejected (7yr unmaintained)
+- [shadcn/ui dashboard guide (2026)](https://designrevision.com/blog/shadcn-dashboard-tutorial) -- dashboard patterns
+- [TanStack ecosystem guide 2026](https://www.codewithseb.com/blog/tanstack-ecosystem-complete-guide-2026) -- Router + Query integration patterns
 
 ---
-*Stack research for: Rust pull-model task gateway*
-*Researched: 2026-03-21*
+*Stack research for: xgent-ai-gateway Admin Web UI (v1.1)*
+*Researched: 2026-03-22*
