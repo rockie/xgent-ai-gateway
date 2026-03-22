@@ -52,9 +52,9 @@
 
 ### Observability
 
-- [ ] **OBSV-01**: Gateway emits structured JSON logs with task ID, service, and node context in every log line
-- [ ] **OBSV-02**: Gateway exposes Prometheus metrics endpoint (queue depth, task latency, node counts, error rates)
-- [ ] **OBSV-03**: Node health dashboard data available via admin API (active nodes, last seen, in-flight tasks)
+- [x] **OBSV-01**: Gateway emits structured JSON logs with task ID, service, and node context in every log line
+- [x] **OBSV-02**: Gateway exposes Prometheus metrics endpoint (queue depth, task latency, node counts, error rates)
+- [x] **OBSV-03**: Node health dashboard data available via admin API (active nodes, last seen, in-flight tasks)
 
 ### Infrastructure
 
@@ -130,9 +130,9 @@
 | AUTH-01 | Phase 2 | Complete |
 | AUTH-02 | Phase 2 | Complete |
 | AUTH-03 | Phase 2 | Complete |
-| OBSV-01 | Phase 5 | Pending |
-| OBSV-02 | Phase 5 | Pending |
-| OBSV-03 | Phase 5 | Pending |
+| OBSV-01 | Phase 5 | Complete |
+| OBSV-02 | Phase 5 | Complete |
+| OBSV-03 | Phase 5 | Complete |
 | INFR-01 | Phase 1 | Complete |
 | INFR-02 | Phase 1 | Complete |
 | INFR-03 | Phase 5 | Pending |

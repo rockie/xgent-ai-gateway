@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 04-02-PLAN.md
-last_updated: "2026-03-22T02:23:30.067Z"
+stopped_at: Completed 05-01-PLAN.md
+last_updated: "2026-03-22T03:53:58.546Z"
 progress:
   total_phases: 5
   completed_phases: 4
-  total_plans: 11
-  completed_plans: 11
+  total_plans: 14
+  completed_plans: 12
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-21)
 
 **Core value:** Tasks submitted by clients reliably reach internal nodes and results reliably flow back, regardless of network topology
-**Current focus:** Phase 04 — task-reliability-and-callbacks
+**Current focus:** Phase 05 — observability-and-packaging
 
 ## Current Position
 
-Phase: 5
-Plan: Not started
+Phase: 05 (observability-and-packaging) — EXECUTING
+Plan: 2 of 3
 
 ## Performance Metrics
 
@@ -57,6 +57,7 @@ Plan: Not started
 | Phase 03 P03 | 5min | 2 tasks | 2 files |
 | Phase 04 P01 | 4min | 3 tasks | 8 files |
 | Phase 04 P02 | 5min | 2 tasks | 8 files |
+| Phase 05 P01 | 6min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -90,6 +91,8 @@ Recent decisions affecting current work:
 - [Phase 04]: Callback delivery is fire-and-forget (log-only on exhausted retries)
 - [Phase 04]: report_result returns Option<String> callback_url to keep queue layer decoupled from AppState
 - [Phase 04]: Callback URL resolved at submission time (per-task > per-key default) and stored in task hash
+- [Phase 05]: Four-branch match for tracing init to avoid type erasure with layered subscriber
+- [Phase 05]: Admin auth middleware applied to all admin routes including /metrics
 
 ### Pending Todos
 
@@ -103,6 +106,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-22T02:19:20.235Z
-Stopped at: Completed 04-02-PLAN.md
+Last session: 2026-03-22T03:53:58.543Z
+Stopped at: Completed 05-01-PLAN.md
 Resume file: None
