@@ -81,7 +81,7 @@ Plans:
 
 Plans:
 - [x] 04-01-PLAN.md -- Reaper module (XPENDING scan + mark-failed), callback delivery function, config/state/types foundation
-- [ ] 04-02-PLAN.md -- Callback URL plumbing (API keys, submit, PATCH endpoint), delivery triggers, integration tests
+- [x] 04-02-PLAN.md -- Callback URL plumbing (API keys, submit, PATCH endpoint), delivery triggers, integration tests
 
 ### Phase 5: Observability and Packaging
 **Goal**: The gateway emits structured logs, exposes Prometheus metrics, provides admin health data, and ships as a single static binary and Docker image ready for production deployment

@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 04-01-PLAN.md
-last_updated: "2026-03-22T02:11:00.801Z"
+stopped_at: Completed 04-02-PLAN.md
+last_updated: "2026-03-22T02:19:20.238Z"
 progress:
   total_phases: 5
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 11
-  completed_plans: 10
+  completed_plans: 11
 ---
 
 # Project State
@@ -56,6 +56,7 @@ Plan: 2 of 2
 | Phase 03 P02 | 2min | 2 tasks | 2 files |
 | Phase 03 P03 | 5min | 2 tasks | 2 files |
 | Phase 04 P01 | 4min | 3 tasks | 8 files |
+| Phase 04 P02 | 5min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -87,6 +88,8 @@ Recent decisions affecting current work:
 - [Phase 04]: Reaper skips first tick to avoid reaping at startup
 - [Phase 04]: Per-service failed_count counter via Redis INCR for metrics
 - [Phase 04]: Callback delivery is fire-and-forget (log-only on exhausted retries)
+- [Phase 04]: report_result returns Option<String> callback_url to keep queue layer decoupled from AppState
+- [Phase 04]: Callback URL resolved at submission time (per-task > per-key default) and stored in task hash
 
 ### Pending Todos
 
@@ -100,6 +103,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-22T02:11:00.797Z
-Stopped at: Completed 04-01-PLAN.md
+Last session: 2026-03-22T02:19:20.235Z
+Stopped at: Completed 04-02-PLAN.md
 Resume file: None

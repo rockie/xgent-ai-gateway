@@ -16,8 +16,8 @@
 
 - [x] **RSLT-01**: Client can poll task status and result by task ID via gRPC
 - [x] **RSLT-02**: Client can poll task status and result by task ID via HTTPS REST
-- [ ] **RSLT-03**: Client can optionally provide a callback URL at submission for result delivery
-- [ ] **RSLT-04**: Gateway delivers results to callback URL with exponential backoff retries on failure
+- [x] **RSLT-03**: Client can optionally provide a callback URL at submission for result delivery
+- [x] **RSLT-04**: Gateway delivers results to callback URL with exponential backoff retries on failure
 - [x] **RSLT-05**: Task results are stored in Redis with a configurable TTL
 
 ### Service Registry
@@ -109,8 +109,8 @@
 | TASK-04 | Phase 1 | Complete |
 | RSLT-01 | Phase 1 | Complete |
 | RSLT-02 | Phase 1 | Complete |
-| RSLT-03 | Phase 4 | Pending |
-| RSLT-04 | Phase 4 | Pending |
+| RSLT-03 | Phase 4 | Complete |
+| RSLT-04 | Phase 4 | Complete |
 | RSLT-05 | Phase 1 | Complete |
 | SRVC-01 | Phase 3 | Complete |
 | SRVC-02 | Phase 1 | Complete |
