@@ -1,0 +1,12 @@
+target/
+.git/
+.gitignore
+.planning/
+.claude/
+.agents/
+*.md
+!gateway.toml
+.env*
+*.log
+.vscode/
+.idea/
