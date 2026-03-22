@@ -114,7 +114,7 @@ Plans:
 
 Plans:
 - [x] 06-01-PLAN.md -- Tower auth layers (ApiKeyAuthLayer, NodeTokenAuthLayer), handler authz, poll_tasks refactor
-- [ ] 06-02-PLAN.md -- gRPC auth integration tests (positive and negative paths for all RPCs)
+- [x] 06-02-PLAN.md -- gRPC auth integration tests (positive and negative paths for all RPCs)
 
 ### Phase 7: Integration Fixes, Sample Service, and Cleanup
 **Goal**: Fix remaining integration issues from the v1.0 audit, provide a sample service binary for end-to-end testing, and clean up tech debt across all phases
