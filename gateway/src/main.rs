@@ -2,7 +2,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use clap::Parser;
+use tracing_subscriber::prelude::*;
 use xgent_gateway::{auth, config, grpc, http, queue, state, tls};
+use xgent_gateway::config::LoggingConfig;
 
 use xgent_proto::node_service_server::NodeServiceServer;
 use xgent_proto::task_service_server::TaskServiceServer;
@@ -15,19 +17,85 @@ struct Cli {
     config: Option<String>,
 }
 
+/// Initialize the tracing subscriber based on logging config.
+/// Returns an optional WorkerGuard that must be held for the lifetime of the process
+/// to ensure file logging flushes properly.
+fn init_tracing(config: &LoggingConfig) -> Option<tracing_appender::non_blocking::WorkerGuard> {
+    let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
+
+    let is_json = config.format == "json";
+
+    match (&config.file, is_json) {
+        (Some(file_path), true) => {
+            let file = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(file_path)
+                .expect("Failed to open log file");
+            let (non_blocking, guard) = tracing_appender::non_blocking(file);
+            let file_layer = tracing_subscriber::fmt::layer()
+                .json()
+                .with_target(true)
+                .with_writer(non_blocking);
+            let stdout_layer = tracing_subscriber::fmt::layer()
+                .json()
+                .with_target(true);
+            tracing_subscriber::registry()
+                .with(env_filter)
+                .with(stdout_layer)
+                .with(file_layer)
+                .init();
+            Some(guard)
+        }
+        (Some(file_path), false) => {
+            let file = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(file_path)
+                .expect("Failed to open log file");
+            let (non_blocking, guard) = tracing_appender::non_blocking(file);
+            let file_layer = tracing_subscriber::fmt::layer()
+                .json()
+                .with_target(true)
+                .with_writer(non_blocking);
+            let stdout_layer = tracing_subscriber::fmt::layer()
+                .with_target(true);
+            tracing_subscriber::registry()
+                .with(env_filter)
+                .with(stdout_layer)
+                .with(file_layer)
+                .init();
+            Some(guard)
+        }
+        (None, true) => {
+            let stdout_layer = tracing_subscriber::fmt::layer()
+                .json()
+                .with_target(true);
+            tracing_subscriber::registry()
+                .with(env_filter)
+                .with(stdout_layer)
+                .init();
+            None
+        }
+        (None, false) => {
+            let stdout_layer = tracing_subscriber::fmt::layer()
+                .with_target(true);
+            tracing_subscriber::registry()
+                .with(env_filter)
+                .with(stdout_layer)
+                .init();
+            None
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    // Initialize tracing
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
-        )
-        .init();
-
     let cli = Cli::parse();
 
     let config = config::load_config(cli.config.as_deref())?;
+    let _log_guard = init_tracing(&config.logging);
     tracing::info!("xgent-gateway starting");
 
     // Connect to Redis
@@ -114,7 +182,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                     auth::api_key::api_key_auth_middleware,
                 ));
 
-            // Admin routes -- unauthenticated in Phase 2 (admin auth deferred to Phase 3)
+            // Admin routes -- protected by admin.token if configured
             let admin_routes = axum::Router::new()
                 .route(
                     "/v1/admin/api-keys",
@@ -145,7 +213,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                     "/v1/admin/services/{name}",
                     axum::routing::get(http::admin::get_service_detail)
                         .delete(http::admin::deregister_service),
-                );
+                )
+                .route(
+                    "/v1/admin/health",
+                    axum::routing::get(http::admin::health_handler),
+                )
+                .route(
+                    "/metrics",
+                    axum::routing::get(http::admin::metrics_handler),
+                )
+                .layer(axum::middleware::from_fn_with_state(
+                    http_state.clone(),
+                    http::admin::admin_auth_middleware,
+                ));
 
             let app = axum::Router::new()
                 .merge(api_routes)

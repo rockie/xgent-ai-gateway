@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::auth::{api_key, node_token};
 use crate::error::GatewayError;
 use crate::registry;
-use crate::registry::node_health::{derive_health_state, ServiceConfig};
+use crate::registry::node_health::{derive_health_state, NodeHealthState, ServiceConfig};
 use crate::state::AppState;
 
 // --- API Key Management ---
@@ -387,4 +387,108 @@ pub async fn get_service_detail(
         service: ServiceResponse::from(&config),
         nodes,
     }))
+}
+
+// --- Metrics Endpoint ---
+
+/// GET /metrics - Returns Prometheus exposition format with all registered metrics.
+pub async fn metrics_handler(
+    State(state): State<Arc<AppState>>,
+) -> impl axum::response::IntoResponse {
+    let encoder = prometheus::TextEncoder::new();
+    let metric_families = state.metrics.registry.gather();
+    let mut buffer = Vec::new();
+    prometheus::Encoder::encode(&encoder, &metric_families, &mut buffer).unwrap();
+    (
+        [(
+            axum::http::header::CONTENT_TYPE,
+            "text/plain; version=0.0.4; charset=utf-8",
+        )],
+        buffer,
+    )
+}
+
+// --- Health Endpoint ---
+
+#[derive(Debug, Serialize)]
+pub struct HealthResponse {
+    pub services: Vec<ServiceHealthResponse>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ServiceHealthResponse {
+    pub name: String,
+    pub active_nodes: u32,
+    pub total_nodes: u32,
+    pub nodes: Vec<NodeStatusResponse>,
+}
+
+/// GET /v1/admin/health - Returns per-service node health overview.
+pub async fn health_handler(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<HealthResponse>, GatewayError> {
+    let services = registry::service::list_services(&mut state.auth_conn.clone()).await?;
+
+    let mut service_healths = Vec::new();
+    for svc in &services {
+        let nodes =
+            registry::node_health::get_nodes_for_service(
+                &mut state.auth_conn.clone(),
+                &svc.name,
+                svc.node_stale_after_secs,
+            )
+            .await?;
+
+        let active_nodes = nodes
+            .iter()
+            .filter(|n| n.health == NodeHealthState::Healthy)
+            .count() as u32;
+        let total_nodes = nodes.len() as u32;
+
+        let node_responses: Vec<NodeStatusResponse> = nodes
+            .iter()
+            .map(|n| NodeStatusResponse {
+                node_id: n.node_id.clone(),
+                health: format!("{:?}", n.health).to_lowercase(),
+                last_seen: n.last_seen.clone(),
+                in_flight_tasks: n.in_flight_tasks,
+                draining: n.draining,
+            })
+            .collect();
+
+        service_healths.push(ServiceHealthResponse {
+            name: svc.name.clone(),
+            active_nodes,
+            total_nodes,
+            nodes: node_responses,
+        });
+    }
+
+    Ok(Json(HealthResponse {
+        services: service_healths,
+    }))
+}
+
+// --- Admin Auth Middleware ---
+
+/// Middleware that checks admin.token if configured.
+/// If no admin.token is set, all requests pass through (dev mode).
+pub async fn admin_auth_middleware(
+    State(state): State<Arc<AppState>>,
+    req: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> Result<axum::response::Response, StatusCode> {
+    if let Some(ref expected_token) = state.config.admin.token {
+        let auth_header = req
+            .headers()
+            .get("authorization")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.strip_prefix("Bearer "));
+        match auth_header {
+            Some(token) if token == expected_token => Ok(next.run(req).await),
+            _ => Err(StatusCode::UNAUTHORIZED),
+        }
+    } else {
+        Ok(next.run(req).await)
+    }
 }
