@@ -89,45 +89,45 @@ Requirements for Admin Web UI milestone. Each maps to roadmap phases.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| AUTH-01 | — | Pending |
-| AUTH-02 | — | Pending |
-| AUTH-03 | — | Pending |
-| AUTH-04 | — | Pending |
-| DASH-01 | — | Pending |
-| DASH-02 | — | Pending |
-| DASH-03 | — | Pending |
-| SVC-01 | — | Pending |
-| SVC-02 | — | Pending |
-| SVC-03 | — | Pending |
-| SVC-04 | — | Pending |
-| NODE-01 | — | Pending |
-| NODE-02 | — | Pending |
-| TASK-01 | — | Pending |
-| TASK-02 | — | Pending |
-| TASK-03 | — | Pending |
-| CRED-01 | — | Pending |
-| CRED-02 | — | Pending |
-| CRED-03 | — | Pending |
-| CRED-04 | — | Pending |
-| CRED-05 | — | Pending |
-| CRED-06 | — | Pending |
-| UI-01 | — | Pending |
-| UI-02 | — | Pending |
-| UI-03 | — | Pending |
-| UI-04 | — | Pending |
-| UI-05 | — | Pending |
-| API-01 | — | Pending |
-| API-02 | — | Pending |
-| API-03 | — | Pending |
-| API-04 | — | Pending |
-| API-05 | — | Pending |
-| API-06 | — | Pending |
+| AUTH-01 | Phase 8 | Pending |
+| AUTH-02 | Phase 8 | Pending |
+| AUTH-03 | Phase 8 | Pending |
+| AUTH-04 | Phase 8 | Pending |
+| DASH-01 | Phase 12 | Pending |
+| DASH-02 | Phase 12 | Pending |
+| DASH-03 | Phase 12 | Pending |
+| SVC-01 | Phase 9 | Pending |
+| SVC-02 | Phase 9 | Pending |
+| SVC-03 | Phase 9 | Pending |
+| SVC-04 | Phase 9 | Pending |
+| NODE-01 | Phase 9 | Pending |
+| NODE-02 | Phase 9 | Pending |
+| TASK-01 | Phase 10 | Pending |
+| TASK-02 | Phase 10 | Pending |
+| TASK-03 | Phase 10 | Pending |
+| CRED-01 | Phase 11 | Pending |
+| CRED-02 | Phase 11 | Pending |
+| CRED-03 | Phase 11 | Pending |
+| CRED-04 | Phase 11 | Pending |
+| CRED-05 | Phase 11 | Pending |
+| CRED-06 | Phase 11 | Pending |
+| UI-01 | Phase 8 | Pending |
+| UI-02 | Phase 8 | Pending |
+| UI-03 | Phase 8 | Pending |
+| UI-04 | Phase 8 | Pending |
+| UI-05 | Phase 8 | Pending |
+| API-01 | Phase 8 | Pending |
+| API-02 | Phase 8 | Pending |
+| API-03 | Phase 11 | Pending |
+| API-04 | Phase 11 | Pending |
+| API-05 | Phase 10 | Pending |
+| API-06 | Phase 10 | Pending |
 
 **Coverage:**
 - v1.1 requirements: 33 total
-- Mapped to phases: 0
-- Unmapped: 33 ⚠️
+- Mapped to phases: 33
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-22*
-*Last updated: 2026-03-22 after initial definition*
+*Last updated: 2026-03-22 after roadmap creation*
