@@ -110,7 +110,11 @@ Plans:
   1. gRPC SubmitTask and GetTaskStatus reject requests without a valid API key
   2. gRPC ReportResult, Heartbeat, and DrainNode reject requests without a valid node token
   3. Integration tests verify both positive (valid auth) and negative (missing/invalid auth) paths
-**Plans**: TBD
+**Plans**: 2 plans
+
+Plans:
+- [ ] 06-01-PLAN.md -- Tower auth layers (ApiKeyAuthLayer, NodeTokenAuthLayer), handler authz, poll_tasks refactor
+- [ ] 06-02-PLAN.md -- gRPC auth integration tests (positive and negative paths for all RPCs)
 
 ### Phase 7: Integration Fixes, Sample Service, and Cleanup
 **Goal**: Fix remaining integration issues from the v1.0 audit, provide a sample service binary for end-to-end testing, and clean up tech debt across all phases
@@ -139,5 +143,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 | 3. Service Registry and Node Health | 0/3 | Not started | - |
 | 4. Task Reliability and Callbacks | 0/2 | Not started | - |
 | 5. Observability and Packaging | 0/3 | Not started | - |
-| 6. gRPC Auth Hardening | 0/0 | Not started | - |
+| 6. gRPC Auth Hardening | 0/2 | Not started | - |
 | 7. Integration Fixes, Sample Service, and Cleanup | 0/0 | Not started | - |
