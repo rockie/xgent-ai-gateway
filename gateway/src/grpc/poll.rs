@@ -203,8 +203,11 @@ impl NodeService for GrpcNodeService {
         request: Request<ReportResultRequest>,
     ) -> Result<Response<ReportResultResponse>, Status> {
         let req = request.into_inner();
+        let task_id_str = req.task_id.clone();
+        let was_success = req.success;
 
-        self.state
+        let callback_url = self
+            .state
             .queue
             .report_result(
                 &TaskId(req.task_id),
@@ -214,6 +217,23 @@ impl NodeService for GrpcNodeService {
             )
             .await
             .map_err(|e| -> Status { e.into() })?;
+
+        // Spawn callback delivery if task has a callback URL
+        if let Some(url) = callback_url {
+            let client = self.state.http_client.clone();
+            let cfg = &self.state.config.callback;
+            let max_retries = cfg.max_retries;
+            let initial_delay_ms = cfg.initial_delay_ms;
+            let state_str = if was_success { "completed" } else { "failed" };
+            tokio::spawn(crate::callback::deliver_callback(
+                client,
+                url,
+                task_id_str,
+                state_str.to_string(),
+                max_retries,
+                initial_delay_ms,
+            ));
+        }
 
         Ok(Response::new(ReportResultResponse {
             acknowledged: true,

@@ -137,6 +137,28 @@ async fn reap_service(state: &AppState, svc: &ServiceConfig) -> Result<u64, Gate
             .await
             .map_err(GatewayError::Redis)?;
 
+        // Check for callback URL on timed-out task and trigger delivery
+        let callback_url: Option<String> = redis::cmd("HGET")
+            .arg(&hash_key)
+            .arg("callback_url")
+            .query_async(&mut conn)
+            .await
+            .unwrap_or(None);
+
+        if let Some(url) = callback_url {
+            let client = state.http_client.clone();
+            let cfg = &state.config.callback;
+            let tid = task_id.clone();
+            tokio::spawn(crate::callback::deliver_callback(
+                client,
+                url,
+                tid,
+                "failed".to_string(),
+                cfg.max_retries,
+                cfg.initial_delay_ms,
+            ));
+        }
+
         tracing::info!(
             task_id = %task_id,
             service = %svc.name,

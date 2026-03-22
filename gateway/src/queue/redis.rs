@@ -213,13 +213,16 @@ impl RedisQueue {
     }
 
     /// Report a task result (success or failure). XACKs the stream entry.
+    ///
+    /// Returns the callback_url from the task hash (if set), so the caller can
+    /// spawn callback delivery.
     pub async fn report_result(
         &self,
         task_id: &TaskId,
         success: bool,
         result: Vec<u8>,
         error_message: String,
-    ) -> Result<(), GatewayError> {
+    ) -> Result<Option<String>, GatewayError> {
         let hash_key = format!("task:{}", task_id);
         let mut conn = self.conn.clone();
 
@@ -291,7 +294,13 @@ impl RedisQueue {
                 GatewayError::Redis(e)
             })?;
 
-        Ok(())
+        // Return callback_url if present in the task hash
+        let callback_url = fields
+            .get("callback_url")
+            .cloned()
+            .filter(|s| !s.is_empty());
+
+        Ok(callback_url)
     }
 
     /// Poll for the next task for a service. Returns None on timeout.
