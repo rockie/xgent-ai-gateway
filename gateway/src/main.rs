@@ -124,6 +124,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                     axum::routing::post(http::admin::revoke_api_key),
                 )
                 .route(
+                    "/v1/admin/api-keys/{key_hash}",
+                    axum::routing::patch(http::admin::update_api_key_callback),
+                )
+                .route(
                     "/v1/admin/node-tokens",
                     axum::routing::post(http::admin::create_node_token),
                 )

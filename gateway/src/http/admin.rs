@@ -16,6 +16,8 @@ use crate::state::AppState;
 #[derive(Debug, Deserialize)]
 pub struct CreateApiKeyRequest {
     pub service_names: Vec<String>,
+    /// Optional default callback URL for all tasks submitted with this API key.
+    pub callback_url: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -30,15 +32,23 @@ pub struct CreateApiKeyResponse {
 pub async fn create_api_key(
     State(state): State<Arc<AppState>>,
     Json(req): Json<CreateApiKeyRequest>,
-) -> Result<(StatusCode, Json<CreateApiKeyResponse>), StatusCode> {
+) -> Result<(StatusCode, Json<CreateApiKeyResponse>), GatewayError> {
+    // Validate callback URL if present
+    if let Some(ref url) = req.callback_url {
+        crate::callback::validate_callback_url(url)
+            .map_err(GatewayError::InvalidRequest)?;
+    }
+
     let (raw_key, key_hash) = api_key::generate_api_key();
 
-    api_key::store_api_key(&mut state.auth_conn.clone(), &key_hash, &req.service_names)
-        .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "Failed to store API key in Redis");
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
+    api_key::store_api_key(
+        &mut state.auth_conn.clone(),
+        &key_hash,
+        &req.service_names,
+        req.callback_url.as_deref(),
+    )
+    .await
+    .map_err(GatewayError::Redis)?;
 
     Ok((
         StatusCode::CREATED,
@@ -70,6 +80,44 @@ pub async fn revoke_api_key(
         Ok(StatusCode::OK)
     } else {
         Err(StatusCode::NOT_FOUND)
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateApiKeyCallbackRequest {
+    /// Set or clear the default callback URL for this API key.
+    /// Omit or set to null to remove.
+    pub callback_url: Option<String>,
+}
+
+/// PATCH /v1/admin/api-keys/{key_hash} - Update callback URL on an API key.
+pub async fn update_api_key_callback(
+    State(state): State<Arc<AppState>>,
+    Path(key_hash): Path<String>,
+    Json(req): Json<UpdateApiKeyCallbackRequest>,
+) -> Result<StatusCode, GatewayError> {
+    // Validate URL if present
+    if let Some(ref url) = req.callback_url {
+        crate::callback::validate_callback_url(url)
+            .map_err(GatewayError::InvalidRequest)?;
+    }
+
+    let updated = api_key::update_api_key_callback(
+        &mut state.auth_conn.clone(),
+        &key_hash,
+        req.callback_url.as_deref(),
+    )
+    .await
+    .map_err(GatewayError::Redis)?;
+
+    if updated {
+        Ok(StatusCode::OK)
+    } else {
+        // Key not found -- return 404 via TaskNotFound (reusing existing variant)
+        Err(GatewayError::TaskNotFound(format!(
+            "API key not found: {}",
+            key_hash
+        )))
     }
 }
 

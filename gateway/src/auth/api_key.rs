@@ -14,6 +14,7 @@ pub struct ClientMetadata {
     pub key_hash: String,
     pub service_names: Vec<String>,
     pub created_at: String,
+    pub callback_url: Option<String>,
 }
 
 /// Generate a new API key pair: (raw_key_hex, sha256_hash_hex).
@@ -34,22 +35,25 @@ pub fn hash_api_key(raw_key: &str) -> String {
     hex::encode(Sha256::digest(raw_key.as_bytes()))
 }
 
-/// Store an API key hash in Redis with associated service names.
+/// Store an API key hash in Redis with associated service names and optional callback URL.
 ///
-/// Redis key: `api_keys:<key_hash>` (hash type with fields: service_names, created_at)
+/// Redis key: `api_keys:<key_hash>` (hash type with fields: service_names, created_at, callback_url)
 pub async fn store_api_key(
     conn: &mut redis::aio::MultiplexedConnection,
     key_hash: &str,
     service_names: &[String],
+    callback_url: Option<&str>,
 ) -> Result<(), redis::RedisError> {
     let redis_key = format!("api_keys:{key_hash}");
     let now = chrono::Utc::now().to_rfc3339();
     let services_csv = service_names.join(",");
-    redis::pipe()
-        .hset(&redis_key, "service_names", &services_csv)
-        .hset(&redis_key, "created_at", &now)
-        .query_async(conn)
-        .await
+    let mut pipe = redis::pipe();
+    pipe.hset(&redis_key, "service_names", &services_csv)
+        .hset(&redis_key, "created_at", &now);
+    if let Some(url) = callback_url {
+        pipe.hset(&redis_key, "callback_url", url);
+    }
+    pipe.query_async(conn).await
 }
 
 /// Look up an API key by its hash. Returns None if the key does not exist.
@@ -74,10 +78,16 @@ pub async fn lookup_api_key(
         .cloned()
         .unwrap_or_default();
 
+    let callback_url = result
+        .get("callback_url")
+        .cloned()
+        .filter(|s| !s.is_empty());
+
     Ok(Some(ClientMetadata {
         key_hash: key_hash.to_string(),
         service_names,
         created_at,
+        callback_url,
     }))
 }
 
@@ -89,6 +99,39 @@ pub async fn revoke_api_key(
     let redis_key = format!("api_keys:{key_hash}");
     let deleted: i64 = conn.del(&redis_key).await?;
     Ok(deleted > 0)
+}
+
+/// Update the callback_url on an existing API key.
+///
+/// If `callback_url` is `Some`, sets the field. If `None`, removes the field.
+/// Returns `false` if the key does not exist.
+pub async fn update_api_key_callback(
+    conn: &mut redis::aio::MultiplexedConnection,
+    key_hash: &str,
+    callback_url: Option<&str>,
+) -> Result<bool, redis::RedisError> {
+    let redis_key = format!("api_keys:{key_hash}");
+    let exists: bool = redis::cmd("HEXISTS")
+        .arg(&redis_key)
+        .arg("service_names")
+        .query_async(conn)
+        .await?;
+    if !exists {
+        return Ok(false);
+    }
+    match callback_url {
+        Some(url) => {
+            let _: () = conn.hset(&redis_key, "callback_url", url).await?;
+        }
+        None => {
+            let _: () = redis::cmd("HDEL")
+                .arg(&redis_key)
+                .arg("callback_url")
+                .query_async(conn)
+                .await?;
+        }
+    }
+    Ok(true)
 }
 
 /// Extract an API key from request headers.

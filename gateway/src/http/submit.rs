@@ -18,6 +18,8 @@ pub struct SubmitTaskRequest {
     pub payload: String,
     #[serde(default)]
     pub metadata: HashMap<String, String>,
+    /// Optional callback URL for result delivery. Overrides per-key default.
+    pub callback_url: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -55,6 +57,17 @@ pub async fn submit_task(
         return Err(GatewayError::ServiceNotFound(req.service_name.clone()));
     }
 
+    // Resolve callback URL: per-task override > per-key default
+    let resolved_callback_url = req
+        .callback_url
+        .as_deref()
+        .or(client_meta.callback_url.as_deref());
+
+    // Validate callback URL if present
+    if let Some(url) = resolved_callback_url {
+        crate::callback::validate_callback_url(url).map_err(GatewayError::InvalidRequest)?;
+    }
+
     // Payload is treated as an opaque base64 string by the gateway.
     // Store it as bytes for consistency with gRPC (which uses bytes natively).
     let payload_bytes = base64::Engine::decode(
@@ -67,6 +80,15 @@ pub async fn submit_task(
         .queue
         .submit_task(&service, payload_bytes, req.metadata)
         .await?;
+
+    // Store resolved callback_url in task hash if present
+    if let Some(url) = resolved_callback_url {
+        let hash_key = format!("task:{}", task_id);
+        let mut conn = state.queue.conn().clone();
+        let _: () = redis::AsyncCommands::hset(&mut conn, &hash_key, "callback_url", url)
+            .await
+            .map_err(GatewayError::Redis)?;
+    }
 
     Ok(Json(SubmitTaskResponse {
         task_id: task_id.to_string(),
