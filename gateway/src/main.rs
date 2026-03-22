@@ -296,12 +296,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                     });
                 }
             } else {
-                // Plain HTTP mode (backward compatible with Phase 1)
-                tracing::info!(%http_addr, "HTTP server starting");
+                // Plain HTTP mode with keepalive (INFR-06 fix)
                 let listener = tokio::net::TcpListener::bind(&http_addr).await?;
-                axum::serve(listener, app)
-                    .await
-                    .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { e.into() })
+                tracing::info!(%http_addr, "HTTP server starting (plain, with keepalive)");
+                loop {
+                    let (tcp_stream, addr) = listener.accept().await?;
+                    let app = app.clone();
+                    tokio::spawn(async move {
+                        let io = hyper_util::rt::TokioIo::new(tcp_stream);
+                        let service = hyper_util::service::TowerToHyperService::new(app);
+                        let mut builder = hyper_util::server::conn::auto::Builder::new(
+                            hyper_util::rt::TokioExecutor::new(),
+                        );
+                        builder
+                            .http2()
+                            .keep_alive_interval(Some(Duration::from_secs(30)))
+                            .keep_alive_timeout(Duration::from_secs(10));
+                        if let Err(e) = builder.serve_connection(io, service).await {
+                            tracing::debug!(%addr, error=%e, "HTTP connection error");
+                        }
+                    });
+                }
             }
         }));
     }
