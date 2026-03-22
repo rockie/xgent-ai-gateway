@@ -44,12 +44,12 @@ Full details: `.planning/milestones/v1.0-ROADMAP.md`
   3. Admin can log out and is redirected to the login page with session cleaned up
   4. All pages display loading skeletons while fetching, error states with retry buttons on failure, and helpful empty states when no data exists
   5. App has dark mode toggle that persists preference, responsive layout at 1280px+, auto-refresh controls, and toast notifications on mutations
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 08-01: TBD
-- [ ] 08-02: TBD
-- [ ] 08-03: TBD
+- [ ] 08-01-PLAN.md — Backend session auth endpoints, config changes, CORS, middleware replacement
+- [ ] 08-02-PLAN.md — Frontend SPA scaffolding, routing, login page, API client, auth hooks
+- [ ] 08-03-PLAN.md — App shell (sidebar + header), dark mode, auto-refresh, UI pattern components
 
 ### Phase 9: Service and Node Management
 **Goal**: Admin can view, create, and manage services and inspect node health from the UI
@@ -122,7 +122,7 @@ Phases 9, 10, and 11 all depend only on Phase 8 and could execute in any order. 
 | 5. Observability and Packaging | v1.0 | 4/4 | Complete | 2026-03-22 |
 | 6. gRPC Auth Hardening | v1.0 | 2/2 | Complete | 2026-03-22 |
 | 7. Integration Fixes, Sample Service, and Cleanup | v1.0 | 3/3 | Complete | 2026-03-22 |
-| 8. Frontend Foundation and Backend Auth | v1.1 | 0/? | Not started | - |
+| 8. Frontend Foundation and Backend Auth | v1.1 | 0/3 | Planning | - |
 | 9. Service and Node Management | v1.1 | 0/? | Not started | - |
 | 10. Task Management and Data Endpoints | v1.1 | 0/? | Not started | - |
 | 11. Credential Management | v1.1 | 0/? | Not started | - |
