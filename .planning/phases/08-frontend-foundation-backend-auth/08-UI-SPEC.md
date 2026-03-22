@@ -50,7 +50,7 @@ Exceptions: Sidebar width expanded = 256px (16rem), sidebar width collapsed = 48
 | Role | Size | Weight | Line Height |
 |------|------|--------|-------------|
 | Body | 14px (0.875rem) | 400 (regular) | 1.5 |
-| Label | 12px (0.75rem) | 500 (medium) | 1.5 |
+| Label | 12px (0.75rem) | 400 (regular) | 1.5 |
 | Heading | 20px (1.25rem) | 600 (semibold) | 1.2 |
 | Display | 28px (1.75rem) | 600 (semibold) | 1.2 |
 
@@ -60,7 +60,7 @@ Exceptions: Sidebar width expanded = 256px (16rem), sidebar width collapsed = 48
 - Heading (20px): Page titles ("Dashboard", "Services", "Tasks", "Credentials"), card headings
 - Display (28px): Login page project name ("xgent gateway"), empty state headings on placeholder pages
 
-**Weight constraint:** Only 400 and 600 used. 500 is permitted exclusively for the Label role where shadcn/ui defaults expect it. No bold (700) anywhere.
+**Weight constraint:** Only 400 and 600 used. No bold (700) anywhere.
 
 ---
 
@@ -76,11 +76,11 @@ Uses shadcn/ui CSS variable system with Tailwind v4. Colors defined via `@theme`
 | Destructive | `--destructive: 0 62.8% 30.6%` (red-900) | `--destructive: 0 84.2% 60.2%` (red-500) | Logout button hover, future delete confirmations |
 
 Accent reserved for:
-- "Sign in" button on login page (primary CTA)
+- "Sign in to gateway" button on login page (primary CTA)
 - Active sidebar navigation item indicator
 - Auto-refresh active state indicator in header
 - Toast success icon color
-- "Retry" button in error states
+- "Retry request" button in error states
 
 **Not accent:** Sidebar icons (use `--muted-foreground`), form borders (use `--border`), body text (use `--foreground`).
 
@@ -92,13 +92,13 @@ Accent reserved for:
 
 | Element | Copy |
 |---------|------|
-| Login heading | Sign in |
+| Login heading | Sign in to gateway |
 | Login subheading | Enter your credentials to access the admin panel. |
 | Username label | Username |
 | Username placeholder | admin |
 | Password label | Password |
 | Password placeholder | (empty -- no placeholder for password fields) |
-| Primary CTA | Sign in |
+| Primary CTA | Sign in to gateway |
 | Login error (invalid credentials) | Invalid username or password. Check your credentials and try again. |
 | Login error (network failure) | Unable to reach the gateway. Verify the server is running and try again. |
 
@@ -127,7 +127,7 @@ Accent reserved for:
 |---------|------|
 | Error state heading | Something went wrong |
 | Error state body template | {error_message}. Check your connection and try again. |
-| Error state action | Retry |
+| Error state action | Retry request |
 | Loading state | (No copy -- skeleton placeholders only, no "Loading..." text) |
 | Toast: mutation success | {action} completed successfully |
 | Toast: mutation failure | Failed to {action}. {error_message} |
@@ -170,15 +170,17 @@ shadcn/ui components to install during scaffolding:
 
 ### Login Page (split layout per D-16)
 
+**Primary focal point:** The login form card on the right panel is the primary focal point. The user's eye should land on the "Sign in to gateway" heading and the username input first. The brand panel on the left is secondary context.
+
 ```
 +---------------------------+---------------------------+
 |                           |                           |
 |     [brand panel]         |     [login form]          |
 |                           |                           |
-|     xgent gateway         |     Sign in               |
+|     xgent gateway         |     Sign in to gateway    |
 |     (display 28px)        |     [username input]      |
 |                           |     [password input]      |
-|     project tagline       |     [sign in button]      |
+|     project tagline       |     [sign in to gateway]  |
 |     (body 14px, muted)    |                           |
 |                           |     [error alert]         |
 |                           |                           |
@@ -244,7 +246,7 @@ shadcn/ui components to install during scaffolding:
 
 ### Error State (inline)
 - **Layout:** Alert component within content area. Sidebar and header remain visible and functional.
-- **Content:** AlertCircle icon + heading "Something went wrong" + error message + "Retry" button
+- **Content:** AlertCircle icon + heading "Something went wrong" + error message + "Retry request" button
 - **Retry:** Button triggers query refetch. Shows loading state during retry.
 
 ### Empty State (placeholder pages)
