@@ -34,7 +34,7 @@ pub async fn run_reaper(state: Arc<AppState>) {
 
 /// Iterate all registered services and reap timed-out tasks from each.
 /// Errors on individual services are logged but do not abort the cycle.
-async fn reap_timed_out_tasks(state: &AppState) -> Result<u64, GatewayError> {
+pub async fn reap_timed_out_tasks(state: &AppState) -> Result<u64, GatewayError> {
     let services = list_services(&mut state.auth_conn.clone()).await?;
     let mut total_reaped = 0u64;
 

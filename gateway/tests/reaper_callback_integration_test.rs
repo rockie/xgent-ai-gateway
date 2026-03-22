@@ -248,6 +248,79 @@ async fn test_reaper_increments_failed_counter() {
 
 #[tokio::test]
 #[ignore]
+async fn test_reaper_full_loop_marks_timed_out_task_failed() {
+    let mut conn = test_conn().await;
+    let svc_name = "test-reaper-fullloop-07-02";
+    cleanup_keys(&mut conn, svc_name).await;
+
+    let config = load_config(None).unwrap();
+    let queue = RedisQueue::new(&config).await.unwrap();
+    let mut queue_conn = queue.conn().clone();
+
+    // Register service with 1-second timeout for fast test
+    register_test_service(&mut conn, &mut queue_conn, svc_name, 1).await;
+
+    // Submit a task
+    let service = ServiceName::new(svc_name).unwrap();
+    let task_id = queue
+        .submit_task(&service, b"fullloop-payload".to_vec(), HashMap::new())
+        .await
+        .unwrap();
+
+    // Claim the task via XREADGROUP (simulating a node poll)
+    let stream_key = format!("tasks:{}", svc_name);
+    let _: redis::Value = redis::cmd("XREADGROUP")
+        .arg("GROUP")
+        .arg("workers")
+        .arg("test-node")
+        .arg("COUNT")
+        .arg(1)
+        .arg("STREAMS")
+        .arg(&stream_key)
+        .arg(">")
+        .query_async(&mut conn)
+        .await
+        .unwrap();
+
+    // Mark as assigned
+    let hash_key = format!("task:{}", task_id);
+    let _: () = conn.hset(&hash_key, "state", "assigned").await.unwrap();
+
+    // Wait for the task to time out (1s timeout + buffer)
+    tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+
+    // Build AppState and call the reaper directly
+    let http_client = reqwest::Client::new();
+    let state = std::sync::Arc::new(xgent_gateway::state::AppState::new(
+        queue,
+        config,
+        conn.clone(),
+        http_client,
+        xgent_gateway::metrics::Metrics::new(),
+    ));
+
+    let reaped = xgent_gateway::reaper::reap_timed_out_tasks(&state).await.unwrap();
+    assert_eq!(reaped, 1, "should have reaped exactly one timed-out task");
+
+    // Verify task state changed to failed
+    let task_state: String = conn.hget(&hash_key, "state").await.unwrap();
+    assert_eq!(task_state, "failed", "task state should be 'failed' after reaping");
+
+    // Verify error_message contains "timed out"
+    let error_msg: String = conn.hget(&hash_key, "error_message").await.unwrap();
+    assert!(
+        error_msg.contains("timed out"),
+        "error_message should contain 'timed out', got: {}",
+        error_msg
+    );
+
+    // Clean up
+    let _: redis::RedisResult<()> = redis::cmd("DEL").arg(&hash_key).query_async(&mut conn).await;
+    cleanup_keys(&mut conn, svc_name).await;
+}
+
+#[tokio::test]
+#[ignore]
 async fn test_callback_url_stored_in_task_hash() {
     let mut conn = test_conn().await;
     let svc_name = "test-callback-store-04-02";
