@@ -134,6 +134,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     });
     tracing::info!("background reaper started (30s interval)");
 
+    // Spawn background gauge refresh for Prometheus metrics (queue_depth, nodes_active)
+    let gauge_state = state.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(Duration::from_secs(15));
+        interval.tick().await; // skip first immediate tick
+
+        loop {
+            interval.tick().await;
+            if let Err(e) = xgent_gateway::metrics::refresh_gauges(&gauge_state).await {
+                tracing::warn!(error = %e, "gauge refresh cycle failed");
+            }
+        }
+    });
+    tracing::info!("background gauge refresh started (15s interval)");
+
     let mut handles: Vec<tokio::task::JoinHandle<Result<(), Box<dyn std::error::Error + Send + Sync>>>> = Vec::new();
 
     // gRPC listener (D-07: separate tokio::spawn)
