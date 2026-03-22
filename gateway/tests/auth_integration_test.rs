@@ -130,6 +130,7 @@ async fn start_auth_test_gateway(_test_name: &str) -> AuthTestGateway {
                 },
                 client_ca_path: certs.ca_cert_path.to_str().unwrap().to_string(),
             }),
+            mtls_identity: Default::default(),
         },
         http: config::HttpConfig {
             enabled: true,
@@ -480,6 +481,7 @@ async fn test_grpc_no_client_cert() {
                     service_name: "test-svc".to_string(),
                     payload: b"test".to_vec(),
                     metadata: std::collections::HashMap::new(),
+                    callback_url: String::new(),
                 })
                 .await;
             assert!(result.is_err(), "gRPC without client cert should fail");

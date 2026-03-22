@@ -61,6 +61,7 @@ async fn start_test_grpc_server() -> TestGrpcServer {
             enabled: true,
             listen_addr: "127.0.0.1:0".to_string(),
             tls: None,
+            mtls_identity: Default::default(),
         },
         http: config::HttpConfig {
             enabled: false,
@@ -189,6 +190,7 @@ fn make_submit_request(service_name: &str) -> SubmitTaskRequest {
         service_name: service_name.to_string(),
         payload: b"test-payload".to_vec(),
         metadata: HashMap::new(),
+        callback_url: String::new(),
     }
 }
 
@@ -406,6 +408,8 @@ async fn test_grpc_report_no_token() {
         success: true,
         result: b"result".to_vec(),
         error_message: String::new(),
+        node_id: String::new(),
+        service_name: String::new(),
     });
     let result = client.report_result(request).await;
 
@@ -436,6 +440,8 @@ async fn test_grpc_report_valid() {
         success: true,
         result: b"test-result".to_vec(),
         error_message: String::new(),
+        node_id: String::new(),
+        service_name: String::new(),
     });
     report_req.metadata_mut().insert(
         "authorization",

@@ -54,6 +54,7 @@ async fn start_test_gateway(test_name: &str) -> TestGateway {
             enabled: true,
             listen_addr: grpc_addr_str.clone(),
             tls: None,
+            mtls_identity: Default::default(),
         },
         http: config::HttpConfig {
             enabled: true,
@@ -174,6 +175,7 @@ async fn test_submit_task_grpc() {
             service_name: "test-submit-grpc".to_string(),
             payload: b"hello".to_vec(),
             metadata: metadata.clone(),
+            callback_url: String::new(),
         })
         .await
         .unwrap()
@@ -283,6 +285,7 @@ async fn test_full_lifecycle_grpc() {
             service_name: "test-lifecycle".to_string(),
             payload: b"work-payload".to_vec(),
             metadata: HashMap::new(),
+            callback_url: String::new(),
         })
         .await
         .unwrap()
@@ -323,6 +326,8 @@ async fn test_full_lifecycle_grpc() {
                 success: true,
                 result: b"done-result".to_vec(),
                 error_message: String::new(),
+                node_id: String::new(),
+                service_name: String::new(),
             })
             .await
             .unwrap()
@@ -403,6 +408,7 @@ async fn test_node_disconnect_detection() {
             service_name: "test-disconnect".to_string(),
             payload: b"still-works".to_vec(),
             metadata: HashMap::new(),
+            callback_url: String::new(),
         })
         .await
         .unwrap()
@@ -443,6 +449,7 @@ async fn test_service_isolation() {
             service_name: "test-iso-svc-a".to_string(),
             payload: b"payload-a".to_vec(),
             metadata: HashMap::new(),
+            callback_url: String::new(),
         })
         .await
         .unwrap()
@@ -454,6 +461,7 @@ async fn test_service_isolation() {
             service_name: "test-iso-svc-b".to_string(),
             payload: b"payload-b".to_vec(),
             metadata: HashMap::new(),
+            callback_url: String::new(),
         })
         .await
         .unwrap()
