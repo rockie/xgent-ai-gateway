@@ -83,4 +83,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-22 — Phase 05 (observability-and-packaging) complete: Structured tracing with JSON format support, Prometheus metrics (8 families), /metrics and /v1/admin/health endpoints, jemalloc allocator, multi-stage Dockerfile, gateway.toml defaults. All 5 phases of v1.0 milestone complete.*
+*Last updated: 2026-03-22 — Phase 07 (integration-fixes-sample-service-cleanup) complete: Fixed proto field gaps (callback_url, node_id, service_name), in_flight counter decrement, HTTP keepalive, mTLS identity mapping, reaper integration test, and sample service binary. All 7 phases of v1.0 milestone complete.*
