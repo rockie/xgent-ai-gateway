@@ -1,152 +1,34 @@
 # Roadmap: xgent-ai-gateway
 
-## Overview
+## Milestones
 
-Build a Rust pull-model task gateway from storage layer up through core queue loop, authentication, service/node management, task reliability, and finally observability and packaging. Each phase delivers a coherent, testable capability. The first phase establishes the complete submit-poll-execute-return loop without auth (for testability); subsequent phases layer security, fleet management, reliability guarantees, and operational maturity on top.
+- ✅ **v1.0 MVP** — Phases 1-7 (shipped 2026-03-22)
 
 ## Phases
 
-**Phase Numbering:**
-- Integer phases (1, 2, 3): Planned milestone work
-- Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
+<details>
+<summary>✅ v1.0 MVP (Phases 1-7) — SHIPPED 2026-03-22</summary>
 
-Decimal phases appear between their surrounding integers in numeric order.
+- [x] Phase 1: Core Queue Loop (3/3 plans) — completed 2026-03-21
+- [x] Phase 2: Authentication and TLS (3/3 plans) — completed 2026-03-21
+- [x] Phase 3: Service Registry and Node Health (3/3 plans) — completed 2026-03-22
+- [x] Phase 4: Task Reliability and Callbacks (2/2 plans) — completed 2026-03-22
+- [x] Phase 5: Observability and Packaging (4/4 plans) — completed 2026-03-22
+- [x] Phase 6: gRPC Auth Hardening (2/2 plans) — completed 2026-03-22
+- [x] Phase 7: Integration Fixes, Sample Service, and Cleanup (3/3 plans) — completed 2026-03-22
 
-- [ ] **Phase 1: Core Queue Loop** - Redis storage, task state machine, reliable queue, dual-protocol submit and poll, node reverse-polling
-- [ ] **Phase 2: Authentication and TLS** - API key, mTLS, and node token auth with TLS termination and keepalive
-- [ ] **Phase 3: Service Registry and Node Health** - Service CRUD, node heartbeat tracking, graceful drain
-- [ ] **Phase 4: Task Reliability and Callbacks** - Timeout detection, callback delivery (retries and DLQ descoped)
-- [ ] **Phase 5: Observability and Packaging** - Structured logging, Prometheus metrics, admin health API, static binary and Docker image
-- [ ] **Phase 6: gRPC Auth Hardening** - API key interceptor on gRPC TaskService, node token auth on ReportResult/Heartbeat/DrainNode
-- [ ] **Phase 7: Integration Fixes, Sample Service, and Cleanup** - in_flight_tasks counter fix, proto callback_url field, route fixes, sample service binary, tech debt
+Full details: `.planning/milestones/v1.0-ROADMAP.md`
 
-## Phase Details
-
-### Phase 1: Core Queue Loop
-**Goal**: A client can submit a task via gRPC or HTTPS, an internal node can poll and claim that task via gRPC server-streaming, execute it, report the result via unary RPC, and the client can retrieve the result by polling -- all backed by Redis Streams with consumer group semantics for reliable delivery
-**Depends on**: Nothing (first phase)
-**Requirements**: TASK-01, TASK-02, TASK-03, TASK-04, RSLT-01, RSLT-02, RSLT-05, NODE-01, NODE-02, NODE-04, LIFE-01, LIFE-02, SRVC-02, INFR-01, INFR-02
-**Success Criteria** (what must be TRUE):
-  1. Client can submit a task with opaque payload and metadata via both gRPC and HTTPS and receive a unique task ID
-  2. Internal node can reverse-poll the gateway and receive a queued task for its service
-  3. Node can report task completion (success or failure) with a result payload back to the gateway
-  4. Client can poll by task ID via both gRPC and HTTPS and retrieve the task status and result
-  5. Tasks are persisted in Redis using reliable queue pattern (BLMOVE to processing list) so no task is lost if the gateway restarts mid-operation
-**Plans**: 3 plans
-
-Plans:
-- [x] 01-01-PLAN.md -- Cargo workspace, proto codegen, types, config, Redis Streams queue layer
-- [x] 01-02-PLAN.md -- gRPC services (TaskService + NodeService), HTTP REST handlers, dual-port server startup
-- [x] 01-03-PLAN.md -- Runner agent binary, integration tests, end-to-end verification
-
-### Phase 2: Authentication and TLS
-**Goal**: All connections to the gateway are authenticated and encrypted -- HTTPS clients use API keys, gRPC clients use mTLS, internal nodes use per-service tokens, and all traffic runs over TLS with HTTP/2 keepalive
-**Depends on**: Phase 1
-**Requirements**: AUTH-01, AUTH-02, AUTH-03, INFR-05, INFR-06
-**Success Criteria** (what must be TRUE):
-  1. HTTPS client requests without a valid API key are rejected with 401
-  2. gRPC client connections without a valid client certificate are rejected at the TLS handshake
-  3. Node poll requests with an invalid or wrong-service token are rejected
-  4. Gateway serves all traffic over TLS and maintains HTTP/2 keepalive pings to prevent silent connection death
-**Plans**: 3 plans
-
-Plans:
-- [x] 02-01-PLAN.md -- Auth module foundation: API key + node token CRUD, TLS config builders, extended config/state/error
-- [x] 02-02-PLAN.md -- Wire TLS, auth middleware, admin endpoints, keepalive into server startup
-- [x] 02-03-PLAN.md -- Auth integration tests with rcgen certs, runner agent auth support
-
-### Phase 3: Service Registry and Node Health
-**Goal**: Admins can register and manage services, and the gateway tracks node health per service so it knows which nodes are alive and can gracefully handle node departures
-**Depends on**: Phase 2
-**Requirements**: SRVC-01, SRVC-03, SRVC-04, NODE-03, NODE-05, NODE-06
-**Success Criteria** (what must be TRUE):
-  1. Admin can register a new service with its configuration and node auth tokens, and that service gets its own task queue
-  2. Admin can deregister a service, draining its queue and cleaning up config
-  3. Service configuration survives gateway restarts (persisted in Redis)
-  4. Gateway detects stale nodes via heartbeat (last poll time) and marks them unhealthy
-  5. A node can signal graceful drain, after which it receives no new tasks but completes in-flight work
-**Plans**: 3 plans
-
-Plans:
-- [x] 03-01-PLAN.md -- Registry module, service CRUD, cleanup, proto extensions, admin endpoints, submit_task gating
-- [x] 03-02-PLAN.md -- Node health CRUD, Heartbeat/DrainNode RPCs, drain-aware poll loop
-- [x] 03-03-PLAN.md -- Integration tests for registry and node health, runner agent SIGTERM handler
-
-### Phase 4: Task Reliability and Callbacks
-**Goal**: Timed-out tasks (node died) are detected by a background reaper and marked as failed, and clients can optionally receive results via callback URL instead of polling
-**Depends on**: Phase 3
-**Requirements**: LIFE-03, RSLT-03, RSLT-04
-**Success Criteria** (what must be TRUE):
-  1. A task assigned to an unresponsive node is detected by the background reaper and marked as failed
-  2. Client can provide a callback URL at submission and receive the result delivered to that URL with exponential backoff retries on failure
-**Plans**: 2 plans
-
-Plans:
-- [x] 04-01-PLAN.md -- Reaper module (XPENDING scan + mark-failed), callback delivery function, config/state/types foundation
-- [x] 04-02-PLAN.md -- Callback URL plumbing (API keys, submit, PATCH endpoint), delivery triggers, integration tests
-
-### Phase 5: Observability and Packaging
-**Goal**: The gateway emits structured logs, exposes Prometheus metrics, provides admin health data, and ships as a single static binary and Docker image ready for production deployment
-**Depends on**: Phase 4
-**Requirements**: OBSV-01, OBSV-02, OBSV-03, INFR-03, INFR-04
-**Success Criteria** (what must be TRUE):
-  1. Every log line is structured JSON with task ID, service name, and node context where applicable
-  2. Prometheus metrics endpoint exposes queue depth, task latency, node counts, and error rates
-  3. Admin API endpoint returns node health data (active nodes per service, last seen time, in-flight task counts)
-  4. Gateway compiles to a single static binary (musl target) and ships as a Docker image
-**Plans**: 3 plans
-
-Plans:
-- [x] 05-01-PLAN.md -- Logging config, Metrics struct, tracing subscriber upgrade, /metrics and /v1/admin/health endpoints
-- [x] 05-02-PLAN.md -- Instrument all code paths with Prometheus metric recording, background gauge refresh
-- [x] 05-03-PLAN.md -- jemalloc allocator, default gateway.toml, multi-stage Dockerfile, .dockerignore
-
-### Phase 6: gRPC Auth Hardening
-**Goal**: All gRPC RPCs enforce the same authentication as their HTTP counterparts — API key auth on client-facing RPCs (SubmitTask, GetTaskStatus) and node token auth on node-facing RPCs (ReportResult, Heartbeat, DrainNode)
-**Depends on**: Phase 5
-**Requirements**: AUTH-01, AUTH-03, TASK-01, RSLT-01, NODE-03, NODE-04, NODE-06
-**Gap Closure**: Closes critical integration gaps and gRPC auth flow break from v1.0 audit
-**Success Criteria** (what must be TRUE):
-  1. gRPC SubmitTask and GetTaskStatus reject requests without a valid API key
-  2. gRPC ReportResult, Heartbeat, and DrainNode reject requests without a valid node token
-  3. Integration tests verify both positive (valid auth) and negative (missing/invalid auth) paths
-**Plans**: 2 plans
-
-Plans:
-- [x] 06-01-PLAN.md -- Tower auth layers (ApiKeyAuthLayer, NodeTokenAuthLayer), handler authz, poll_tasks refactor
-- [x] 06-02-PLAN.md -- gRPC auth integration tests (positive and negative paths for all RPCs)
-
-### Phase 7: Integration Fixes, Sample Service, and Cleanup
-**Goal**: Fix remaining integration issues from the v1.0 audit, provide a sample service binary for end-to-end testing, and clean up tech debt across all phases
-**Depends on**: Phase 6
-**Requirements**: NODE-05, OBSV-03, RSLT-03, INFR-06
-**Gap Closure**: Closes significant/minor integration gaps, broken health counter flow, and all tech debt from v1.0 audit
-**Success Criteria** (what must be TRUE):
-  1. `in_flight_tasks` counter is decremented when a node reports task completion
-  2. gRPC SubmitTaskRequest proto includes `callback_url` field
-  3. Revoke routes use REST-style DELETE instead of POST
-  4. Plain HTTP mode configures keepalive
-  5. A sample service binary exists that can receive tasks from the runner agent and return results
-  6. NODE-02 marked as deferred (not complete) in REQUIREMENTS.md
-  7. All 9 tech debt items from the audit are resolved
-**Plans**: 3 plans
-
-Plans:
-- [x] 07-01-PLAN.md -- Proto changes (callback_url, node_id), in_flight_tasks decrement, gRPC callback_url handling, plain HTTP keepalive
-- [x] 07-02-PLAN.md -- mTLS identity mapping via gateway.toml config, reaper full-loop integration test
-- [x] 07-03-PLAN.md -- Sample service echo binary, tech debt verification and cleanup
+</details>
 
 ## Progress
 
-**Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
-
-| Phase | Plans Complete | Status | Completed |
-|-------|----------------|--------|-----------|
-| 1. Core Queue Loop | 3/3 | Complete | 2026-03-21 |
-| 2. Authentication and TLS | 0/3 | Not started | - |
-| 3. Service Registry and Node Health | 0/3 | Not started | - |
-| 4. Task Reliability and Callbacks | 0/2 | Not started | - |
-| 5. Observability and Packaging | 0/3 | Not started | - |
-| 6. gRPC Auth Hardening | 0/2 | Not started | - |
-| 7. Integration Fixes, Sample Service, and Cleanup | 0/3 | Not started | - |
+| Phase | Milestone | Plans Complete | Status | Completed |
+|-------|-----------|----------------|--------|-----------|
+| 1. Core Queue Loop | v1.0 | 3/3 | Complete | 2026-03-21 |
+| 2. Authentication and TLS | v1.0 | 3/3 | Complete | 2026-03-21 |
+| 3. Service Registry and Node Health | v1.0 | 3/3 | Complete | 2026-03-22 |
+| 4. Task Reliability and Callbacks | v1.0 | 2/2 | Complete | 2026-03-22 |
+| 5. Observability and Packaging | v1.0 | 4/4 | Complete | 2026-03-22 |
+| 6. gRPC Auth Hardening | v1.0 | 2/2 | Complete | 2026-03-22 |
+| 7. Integration Fixes, Sample Service, and Cleanup | v1.0 | 3/3 | Complete | 2026-03-22 |

@@ -2,7 +2,7 @@
 
 ## What This Is
 
-A Rust-based pull-model task gateway that sits on the public internet and brokers work between external clients and internal compute nodes. Clients submit tasks via gRPC or HTTPS and receive a task ID immediately. Internal nodes — running behind NAT/firewalls — reverse-poll the gateway to pick up tasks from their service's queue. Each registered service maintains its own node pool, making it a queue-based alternative to traditional load balancers where nodes pull work rather than having it pushed to them.
+A Rust-based pull-model task gateway that sits on the public internet and brokers work between external clients and internal compute nodes. Clients submit tasks via gRPC or HTTPS and receive a task ID immediately. Internal nodes — running behind NAT/firewalls — reverse-poll the gateway to pick up tasks from their service's queue. Each registered service maintains its own node pool with health tracking, making it a queue-based alternative to traditional load balancers where nodes pull work rather than having it pushed to them.
 
 ## Core Value
 
@@ -12,40 +12,62 @@ Tasks submitted by clients reliably reach internal nodes and results reliably fl
 
 ### Validated
 
-- [x] Nodes authenticate with pre-shared tokens scoped to a service — Validated in Phase 2: Authentication and TLS
-- [x] Client authentication via API key (HTTPS) and mTLS (gRPC) — Validated in Phase 2: Authentication and TLS
-- [x] Services can be registered with the gateway, each with its own task queue — Validated in Phase 3: Service Registry & Node Health
-- [x] Service-level node pool management (register, deregister, health status) — Validated in Phase 3: Service Registry & Node Health
+- ✓ Client task submission via gRPC and HTTPS with opaque payload — v1.0
+- ✓ Task status/result polling by task ID via gRPC and HTTPS — v1.0
+- ✓ Arbitrary key-value metadata/labels attached at submission — v1.0
+- ✓ Opaque payload treatment (gateway doesn't interpret content) — v1.0
+- ✓ Optional callback URL for result delivery with exponential backoff — v1.0
+- ✓ Task results stored in Redis with configurable TTL — v1.0
+- ✓ Service registration with isolated task queues per service — v1.0
+- ✓ Service deregistration with queue drain and config cleanup — v1.0
+- ✓ Service configuration persisted in Redis across restarts — v1.0
+- ✓ Internal nodes reverse-poll via gRPC server-streaming — v1.0
+- ✓ Node authentication with pre-shared tokens scoped to service — v1.0
+- ✓ Node task completion reporting (success/failure) with result payload — v1.0
+- ✓ Node health tracking via heartbeat (last poll time, stale detection) — v1.0
+- ✓ Graceful node drain (no new tasks, complete in-flight work) — v1.0
+- ✓ Task state machine: pending → assigned → running → completed/failed — v1.0
+- ✓ Reliable queue pattern (atomic move to processing list) — v1.0
+- ✓ Background reaper detects timed-out tasks and marks as failed — v1.0
+- ✓ API key auth for HTTPS clients — v1.0
+- ✓ mTLS auth for gRPC clients with cert fingerprint-to-service mapping — v1.0
+- ✓ Node token auth validated on every poll — v1.0
+- ✓ Structured JSON logging with task/service/node context — v1.0
+- ✓ Prometheus metrics (queue depth, latency, node counts, error rates) — v1.0
+- ✓ Admin health API (active nodes, last seen, in-flight tasks) — v1.0
+- ✓ Redis/Valkey for all persistent state — v1.0
+- ✓ Configurable via env vars with optional TOML config file — v1.0
+- ✓ Single static binary (musl target) — v1.0
+- ✓ Docker image — v1.0
+- ✓ TLS termination for HTTPS and gRPC — v1.0
+- ✓ HTTP/2 keepalive pings on all connection modes — v1.0
+- ✓ gRPC auth hardening (API key on client RPCs, node token on node RPCs) — v1.0
 
 ### Active
 
-- [ ] Clients can submit tasks via gRPC and receive a task ID
-- [ ] Clients can submit tasks via HTTPS and receive a task ID
-- [ ] Clients can poll task status/result by task ID (gRPC and HTTPS)
-- [x] Clients can optionally provide a callback URL for result delivery — Validated in Phase 4: Task Reliability and Callbacks
-- [ ] Internal nodes reverse-poll the gateway to pick up tasks for their service
-- [ ] Task queue state persisted in Redis/Valkey for durability across restarts
-- [ ] Nodes report task results back through the gateway
-- [x] Gateway delivers results to polling clients and fires optional callbacks — Validated in Phase 4: Task Reliability and Callbacks
-- [ ] Task lifecycle tracking (pending → assigned → running → completed/failed)
-- [x] Task timeout and retry handling for unresponsive nodes — Validated in Phase 4: Task Reliability and Callbacks
+(None — fresh for next milestone)
 
 ### Out of Scope
 
-- Web UI dashboard — CLI and API are sufficient for v1
-- Multi-region/federation — single gateway instance (behind LB) for v1
-- Task priority queues — FIFO per service for v1
-- Streaming/websocket result delivery — poll + callback covers v1 needs
-- Rate limiting per client — defer to v2
-- Task scheduling (cron/delayed) — v1 is immediate dispatch only
+- Web UI dashboard — CLI and API are sufficient; Prometheus + Grafana provides better observability
+- Multi-region/federation — run independent instances per region; cross-region is caller's problem
+- Task priority queues — use separate services per priority tier; simpler, no starvation risk
+- Streaming/WebSocket results — poll + callback covers all practical use cases
+- Rate limiting per client — defer to API gateway (nginx/Envoy) in front
+- Task scheduling (cron/delayed) — different product; use external schedulers that submit to gateway
+- Workflow orchestration / DAGs — turns gateway into workflow engine (Temporal territory)
+- Dynamic service loading (.so/.dylib) — opaque payloads with universal API is simpler and more secure
+- Payload encryption at rest — callers encrypt before submission; gateway treats payloads as opaque bytes
+- Task retry with exponential backoff — descoped v1; clients resubmit on failure (D-07)
+- Dead letter queues — descoped v1; failed state is terminal (D-08/D-09)
+- HTTP node polling — deferred; runner agent proxy unifies node protocol to gRPC (D-13)
 
 ## Context
 
-- **Workload types:** AI inference (LLM, image gen), agent job execution, CI pipelines — tasks run seconds to minutes
-- **Network topology:** Gateway on public internet, nodes on private networks behind NAT. Nodes cannot receive inbound connections — the pull model solves this.
-- **Scale target (v1):** ~100 concurrent nodes, thousands of tasks/hour
-- **Deployment:** Single binary for development, Docker/K8s for production
-- **Similar systems:** Conceptually like Celery (Python) or Bull (Node.js) but protocol-native (gRPC/HTTP), language-agnostic, and designed for cross-network-boundary operation
+Shipped v1.0 with 8,429 LOC Rust across 3 crates (gateway, proto, runner-agent) + sample service.
+Tech stack: Rust, Tokio, Tonic (gRPC), Axum (HTTP), Redis Streams, rustls (TLS/mTLS).
+20 plans across 7 phases completed in 2 days.
+34 integration tests cover auth, registry, health, reaper, and gRPC auth flows.
 
 ## Constraints
 
@@ -59,11 +81,18 @@ Tasks submitted by clients reliably reach internal nodes and results reliably fl
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Pull model over push | Nodes behind NAT can't receive inbound connections; pull inverts the connection direction | — Pending |
-| Rust over Go/Node | Performance-critical gateway with gRPC; Rust's tonic crate provides excellent gRPC support | — Pending |
-| Redis/Valkey over PostgreSQL | Queue operations need low latency; Redis pub/sub can notify nodes of new tasks | — Pending |
-| Async-first task model | AI/CI tasks take seconds-minutes; blocking callers is impractical | — Pending |
-| API key + mTLS dual auth | Different security postures for HTTP (simpler) vs gRPC (stronger) clients | Validated Phase 2 |
+| Pull model over push | Nodes behind NAT can't receive inbound connections; pull inverts the connection direction | ✓ Good — core architecture validated |
+| Rust over Go/Node | Performance-critical gateway with gRPC; Rust's tonic crate provides excellent gRPC support | ✓ Good — 8.4k LOC, static binary |
+| Redis Streams over BLMOVE | Consumer group semantics give reliable delivery, XPENDING for timeout detection | ✓ Good — reaper uses XPENDING IDLE |
+| Async-first task model | AI/CI tasks take seconds-minutes; blocking callers is impractical | ✓ Good — validated |
+| API key + mTLS dual auth | Different security postures for HTTP (simpler) vs gRPC (stronger) clients | ✓ Good — validated Phase 2 |
+| Dual-port HTTP + gRPC | Separate TLS configs needed; simpler than co-hosting on single port | ✓ Good — clean separation |
+| Tower auth wrappers for gRPC | NamedService delegation pattern for per-RPC auth enforcement | ✓ Good — Phase 6 |
+| Manual TLS accept loop | hyper-util for per-connection HTTP/2 keepalive control | ✓ Good — keepalive parity |
+| Descope retries/DLQ (v1) | Clients can resubmit; keeps gateway simple and predictable | ✓ Good — simplicity preserved |
+| Defer HTTP node polling | Runner agent proxy unifies all nodes to gRPC; avoids duplicate protocol | ✓ Good — single protocol path |
+| Config-based mTLS identity | HashMap<fingerprint, Vec<service>> in gateway.toml, empty=disabled | ✓ Good — Phase 7 |
+| jemalloc for musl binary | Default musl allocator has poor performance; jemalloc fixes this | ✓ Good — Phase 5 |
 
 ## Evolution
 
@@ -83,4 +112,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-22 — Phase 07 (integration-fixes-sample-service-cleanup) complete: Fixed proto field gaps (callback_url, node_id, service_name), in_flight counter decrement, HTTP keepalive, mTLS identity mapping, reaper integration test, and sample service binary. All 7 phases of v1.0 milestone complete.*
+*Last updated: 2026-03-22 after v1.0 milestone*
