@@ -39,8 +39,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let auth_conn = auth_client.get_multiplexed_async_connection().await?;
     tracing::info!("auth Redis connection established");
 
+    // Build HTTP client for callback delivery
+    let http_client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(config.callback.timeout_secs))
+        .connect_timeout(std::time::Duration::from_secs(5))
+        .pool_max_idle_per_host(10)
+        .pool_idle_timeout(std::time::Duration::from_secs(90))
+        .build()
+        .expect("Failed to build HTTP client for callbacks");
+
     // Build shared state
-    let state = Arc::new(state::AppState::new(queue, config.clone(), auth_conn));
+    let state = Arc::new(state::AppState::new(queue, config.clone(), auth_conn, http_client));
 
     let mut handles: Vec<tokio::task::JoinHandle<Result<(), Box<dyn std::error::Error + Send + Sync>>>> = Vec::new();
 

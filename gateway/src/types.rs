@@ -68,6 +68,7 @@ impl TaskState {
             (self, to),
             (TaskState::Pending, TaskState::Assigned)
                 | (TaskState::Assigned, TaskState::Running)
+                | (TaskState::Assigned, TaskState::Failed)
                 | (TaskState::Running, TaskState::Completed)
                 | (TaskState::Running, TaskState::Failed)
         );
@@ -210,6 +211,12 @@ mod tests {
         assert!(TaskState::Completed.try_transition(TaskState::Assigned).is_err());
         assert!(TaskState::Completed.try_transition(TaskState::Running).is_err());
         assert!(TaskState::Completed.try_transition(TaskState::Failed).is_err());
+    }
+
+    #[test]
+    fn transition_assigned_to_failed_ok() {
+        let result = TaskState::Assigned.try_transition(TaskState::Failed);
+        assert_eq!(result.unwrap(), TaskState::Failed);
     }
 
     #[test]

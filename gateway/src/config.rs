@@ -14,6 +14,8 @@ pub struct GatewayConfig {
     pub admin: AdminConfig,
     #[serde(default)]
     pub service_defaults: ServiceDefaultsConfig,
+    #[serde(default)]
+    pub callback: CallbackConfig,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -88,6 +90,30 @@ impl Default for ServiceDefaultsConfig {
         }
     }
 }
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct CallbackConfig {
+    #[serde(default = "default_callback_max_retries")]
+    pub max_retries: u32,
+    #[serde(default = "default_callback_initial_delay_ms")]
+    pub initial_delay_ms: u64,
+    #[serde(default = "default_callback_timeout_secs")]
+    pub timeout_secs: u64,
+}
+
+impl Default for CallbackConfig {
+    fn default() -> Self {
+        Self {
+            max_retries: default_callback_max_retries(),
+            initial_delay_ms: default_callback_initial_delay_ms(),
+            timeout_secs: default_callback_timeout_secs(),
+        }
+    }
+}
+
+fn default_callback_max_retries() -> u32 { 3 }
+fn default_callback_initial_delay_ms() -> u64 { 1000 }
+fn default_callback_timeout_secs() -> u64 { 10 }
 
 fn default_node_stale_after_secs() -> u64 {
     60
@@ -199,7 +225,10 @@ pub fn load_config(config_path: Option<&str>) -> Result<GatewayConfig, config::C
         .set_default("service_defaults.node_stale_after_secs", 60_i64)?
         .set_default("service_defaults.drain_timeout_secs", 300_i64)?
         .set_default("service_defaults.task_timeout_secs", 300_i64)?
-        .set_default("service_defaults.max_retries", 3_i64)?;
+        .set_default("service_defaults.max_retries", 3_i64)?
+        .set_default("callback.max_retries", 3_i64)?
+        .set_default("callback.initial_delay_ms", 1000_i64)?
+        .set_default("callback.timeout_secs", 10_i64)?;
 
     // TOML file override
     if let Some(path) = config_path {
