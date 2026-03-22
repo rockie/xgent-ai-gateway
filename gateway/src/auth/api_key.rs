@@ -171,6 +171,9 @@ pub async fn api_key_auth_middleware(
         Some(key) => key,
         None => {
             tracing::debug!("API key missing from request");
+            state.metrics.errors_total
+                .with_label_values(&["unknown", "auth_api_key"])
+                .inc();
             return Err(StatusCode::UNAUTHORIZED);
         }
     };
@@ -185,6 +188,9 @@ pub async fn api_key_auth_middleware(
         }
         Ok(None) => {
             tracing::debug!("API key not found in store");
+            state.metrics.errors_total
+                .with_label_values(&["unknown", "auth_api_key"])
+                .inc();
             Err(StatusCode::UNAUTHORIZED)
         }
         Err(e) => {
