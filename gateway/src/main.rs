@@ -51,6 +51,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // Build shared state
     let state = Arc::new(state::AppState::new(queue, config.clone(), auth_conn, http_client));
 
+    // Spawn background reaper for timed-out tasks
+    let reaper_state = state.clone();
+    tokio::spawn(async move {
+        xgent_gateway::reaper::run_reaper(reaper_state).await;
+    });
+    tracing::info!("background reaper started (30s interval)");
+
     let mut handles: Vec<tokio::task::JoinHandle<Result<(), Box<dyn std::error::Error + Send + Sync>>>> = Vec::new();
 
     // gRPC listener (D-07: separate tokio::spawn)
