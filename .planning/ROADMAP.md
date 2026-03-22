@@ -96,7 +96,7 @@ Plans:
 
 Plans:
 - [x] 05-01-PLAN.md -- Logging config, Metrics struct, tracing subscriber upgrade, /metrics and /v1/admin/health endpoints
-- [ ] 05-02-PLAN.md -- Instrument all code paths with Prometheus metric recording, background gauge refresh
+- [x] 05-02-PLAN.md -- Instrument all code paths with Prometheus metric recording, background gauge refresh
 - [x] 05-03-PLAN.md -- jemalloc allocator, default gateway.toml, multi-stage Dockerfile, .dockerignore
 
 ## Progress

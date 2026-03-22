@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 05-03-PLAN.md
-last_updated: "2026-03-22T04:00:33.810Z"
+stopped_at: Completed 05-02-PLAN.md
+last_updated: "2026-03-22T04:04:16.505Z"
 progress:
   total_phases: 5
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 14
-  completed_plans: 13
+  completed_plans: 14
 ---
 
 # Project State
@@ -59,6 +59,7 @@ Plan: 3 of 3
 | Phase 04 P02 | 5min | 2 tasks | 8 files |
 | Phase 05 P01 | 6min | 2 tasks | 7 files |
 | Phase 05 P03 | 4min | 2 tasks | 9 files |
+| Phase 05 P02 | 7min | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -95,6 +96,9 @@ Recent decisions affecting current work:
 - [Phase 05]: Four-branch match for tracing init to avoid type erasure with layered subscriber
 - [Phase 05]: Admin auth middleware applied to all admin routes including /metrics
 - [Phase 05]: Proto files at proto/src/ not proto/proto/ -- adjusted Dockerfile COPY accordingly
+- [Phase 05]: Option B for task completion metrics: record in gRPC handler caller rather than modifying RedisQueue
+- [Phase 05]: Optional CounterVec parameter on deliver_callback for decoupled metric recording
+- [Phase 05]: refresh_gauges in metrics.rs for testability, spawned as 15s interval task in main.rs
 
 ### Pending Todos
 
@@ -108,6 +112,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-22T04:00:33.807Z
-Stopped at: Completed 05-03-PLAN.md
+Last session: 2026-03-22T04:04:16.503Z
+Stopped at: Completed 05-02-PLAN.md
 Resume file: None
