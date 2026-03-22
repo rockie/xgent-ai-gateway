@@ -27,9 +27,25 @@ impl TaskService for GrpcTaskService {
         &self,
         request: Request<SubmitTaskRequest>,
     ) -> Result<Response<SubmitTaskResponse>, Status> {
+        let client_meta = request
+            .extensions()
+            .get::<crate::auth::api_key::ClientMetadata>()
+            .cloned()
+            .ok_or_else(|| Status::internal("auth metadata missing"))?;
         let req = request.into_inner();
 
         let service = ServiceName::new(&req.service_name).map_err(|e| -> Status { e.into() })?;
+
+        // D-07: Per-service authorization check
+        if !client_meta.service_names.contains(&req.service_name) {
+            tracing::debug!(
+                key_hash=%client_meta.key_hash,
+                requested_service=%req.service_name,
+                authorized_services=?client_meta.service_names,
+                "gRPC API key not authorized for requested service"
+            );
+            return Err(Status::permission_denied("unauthorized"));
+        }
 
         // Check service is registered before accepting the task
         let exists = crate::registry::service::service_exists(
@@ -70,6 +86,11 @@ impl TaskService for GrpcTaskService {
         &self,
         request: Request<GetTaskStatusRequest>,
     ) -> Result<Response<GetTaskStatusResponse>, Status> {
+        let client_meta = request
+            .extensions()
+            .get::<crate::auth::api_key::ClientMetadata>()
+            .cloned()
+            .ok_or_else(|| Status::internal("auth metadata missing"))?;
         let req = request.into_inner();
 
         let status = self
@@ -78,6 +99,17 @@ impl TaskService for GrpcTaskService {
             .get_task_status(&TaskId(req.task_id))
             .await
             .map_err(|e| -> Status { e.into() })?;
+
+        // D-08: Verify API key is authorized for the task's service
+        if !client_meta.service_names.contains(&status.service) {
+            tracing::debug!(
+                key_hash=%client_meta.key_hash,
+                task_service=%status.service,
+                authorized_services=?client_meta.service_names,
+                "gRPC API key not authorized for task's service"
+            );
+            return Err(Status::permission_denied("unauthorized"));
+        }
 
         let state_i32: i32 = status.state.into();
 

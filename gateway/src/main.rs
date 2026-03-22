@@ -173,13 +173,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 tracing::info!("gRPC mTLS enabled");
             }
 
+            let task_svc = TaskServiceServer::new(
+                grpc::GrpcTaskService::new(grpc_state.clone()),
+            );
+            let node_svc = NodeServiceServer::new(
+                grpc::GrpcNodeService::new(grpc_state.clone()),
+            );
+
             grpc_builder
-                .add_service(TaskServiceServer::new(
-                    grpc::GrpcTaskService::new(grpc_state.clone()),
-                ))
-                .add_service(NodeServiceServer::new(
-                    grpc::GrpcNodeService::new(grpc_state),
-                ))
+                .add_service(grpc::ApiKeyAuthLayer::new(task_svc, grpc_state.clone()))
+                .add_service(grpc::NodeTokenAuthLayer::new(node_svc, grpc_state))
                 .serve(grpc_addr)
                 .await
                 .map_err(|e| e.into())

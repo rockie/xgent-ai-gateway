@@ -47,42 +47,22 @@ impl NodeService for GrpcNodeService {
         &self,
         request: Request<PollTasksRequest>,
     ) -> Result<Response<Self::PollTasksStream>, Status> {
-        // Extract auth token from metadata BEFORE consuming the request
-        let raw_token = request
-            .metadata()
-            .get("authorization")
-            .and_then(|v| v.to_str().ok())
-            .and_then(|v| v.strip_prefix("Bearer "))
-            .map(|s| s.to_string())
-            .ok_or_else(|| {
-                tracing::debug!("Node poll rejected: missing auth token");
-                Status::unauthenticated("unauthorized")
-            })?;
+        // D-04: Auth handled by NodeTokenAuthLayer; extract validated metadata
+        let validated = request
+            .extensions()
+            .get::<crate::grpc::auth::ValidatedNodeAuth>()
+            .cloned()
+            .ok_or_else(|| Status::internal("auth metadata missing"))?;
 
         let req = request.into_inner();
 
+        // Verify the requested service matches the token's scoped service
+        if req.service_name != validated.service_name {
+            return Err(Status::permission_denied("unauthorized"));
+        }
+
         let service =
             ServiceName::new(&req.service_name).map_err(|e| -> Status { e.into() })?;
-
-        // Validate token against Redis for this service
-        let token_valid = crate::auth::node_token::validate_node_token(
-            &mut self.state.auth_conn.clone(),
-            &req.service_name,
-            &raw_token,
-        )
-        .await
-        .map_err(|e| {
-            tracing::error!("Redis error during node auth: {}", e);
-            Status::internal("internal error")
-        })?;
-
-        if !token_valid {
-            tracing::debug!(service=%req.service_name, "Node poll rejected: invalid token");
-            self.state.metrics.errors_total
-                .with_label_values(&[req.service_name.as_str(), "auth_node_token"])
-                .inc();
-            return Err(Status::unauthenticated("unauthorized"));
-        }
 
         if req.node_id.is_empty() {
             return Err(Status::invalid_argument("node_id must not be empty"));
@@ -235,6 +215,13 @@ impl NodeService for GrpcNodeService {
         &self,
         request: Request<ReportResultRequest>,
     ) -> Result<Response<ReportResultResponse>, Status> {
+        // D-09: Auth handled by NodeTokenAuthLayer
+        let _validated = request
+            .extensions()
+            .get::<crate::grpc::auth::ValidatedNodeAuth>()
+            .cloned()
+            .ok_or_else(|| Status::internal("auth metadata missing"))?;
+
         let req = request.into_inner();
         let task_id_str = req.task_id.clone();
         let was_success = req.success;
@@ -299,7 +286,19 @@ impl NodeService for GrpcNodeService {
         &self,
         request: Request<HeartbeatRequest>,
     ) -> Result<Response<HeartbeatResponse>, Status> {
+        // D-10: Auth handled by NodeTokenAuthLayer
+        let validated = request
+            .extensions()
+            .get::<crate::grpc::auth::ValidatedNodeAuth>()
+            .cloned()
+            .ok_or_else(|| Status::internal("auth metadata missing"))?;
+
         let req = request.into_inner();
+
+        // Verify service_name matches token scope
+        if req.service_name != validated.service_name {
+            return Err(Status::permission_denied("unauthorized"));
+        }
 
         // Validate service exists
         let exists = crate::registry::service::service_exists(
@@ -334,7 +333,19 @@ impl NodeService for GrpcNodeService {
         &self,
         request: Request<DrainNodeRequest>,
     ) -> Result<Response<DrainNodeResponse>, Status> {
+        // D-10: Auth handled by NodeTokenAuthLayer
+        let validated = request
+            .extensions()
+            .get::<crate::grpc::auth::ValidatedNodeAuth>()
+            .cloned()
+            .ok_or_else(|| Status::internal("auth metadata missing"))?;
+
         let req = request.into_inner();
+
+        // Verify service_name matches token scope
+        if req.service_name != validated.service_name {
+            return Err(Status::permission_denied("unauthorized"));
+        }
 
         // Validate service exists
         let exists = crate::registry::service::service_exists(
