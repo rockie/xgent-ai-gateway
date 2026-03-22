@@ -60,8 +60,8 @@
 
 - [x] **INFR-01**: Gateway connects to Redis/Valkey for all persistent state (queues, results, config)
 - [x] **INFR-02**: Gateway is configurable via environment variables with optional TOML config file override
-- [ ] **INFR-03**: Gateway builds as a single static binary (musl target)
-- [ ] **INFR-04**: Gateway ships as a Docker image
+- [x] **INFR-03**: Gateway builds as a single static binary (musl target)
+- [x] **INFR-04**: Gateway ships as a Docker image
 - [x] **INFR-05**: Gateway supports TLS termination for HTTPS and gRPC
 - [x] **INFR-06**: Gateway configures HTTP/2 keepalive pings to prevent silent connection death through NAT/LB
 
@@ -135,8 +135,8 @@
 | OBSV-03 | Phase 5 | Complete |
 | INFR-01 | Phase 1 | Complete |
 | INFR-02 | Phase 1 | Complete |
-| INFR-03 | Phase 5 | Pending |
-| INFR-04 | Phase 5 | Pending |
+| INFR-03 | Phase 5 | Complete |
+| INFR-04 | Phase 5 | Complete |
 | INFR-05 | Phase 2 | Complete |
 | INFR-06 | Phase 2 | Complete |
 
