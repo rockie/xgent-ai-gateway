@@ -113,7 +113,7 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 06-01-PLAN.md -- Tower auth layers (ApiKeyAuthLayer, NodeTokenAuthLayer), handler authz, poll_tasks refactor
+- [x] 06-01-PLAN.md -- Tower auth layers (ApiKeyAuthLayer, NodeTokenAuthLayer), handler authz, poll_tasks refactor
 - [ ] 06-02-PLAN.md -- gRPC auth integration tests (positive and negative paths for all RPCs)
 
 ### Phase 7: Integration Fixes, Sample Service, and Cleanup
