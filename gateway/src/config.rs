@@ -16,6 +16,8 @@ pub struct GatewayConfig {
     pub service_defaults: ServiceDefaultsConfig,
     #[serde(default)]
     pub callback: CallbackConfig,
+    #[serde(default)]
+    pub logging: LoggingConfig,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -109,6 +111,26 @@ impl Default for CallbackConfig {
             timeout_secs: default_callback_timeout_secs(),
         }
     }
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct LoggingConfig {
+    #[serde(default = "default_log_format")]
+    pub format: String,
+    pub file: Option<String>,
+}
+
+impl Default for LoggingConfig {
+    fn default() -> Self {
+        Self {
+            format: default_log_format(),
+            file: None,
+        }
+    }
+}
+
+fn default_log_format() -> String {
+    "text".to_string()
 }
 
 fn default_callback_max_retries() -> u32 { 3 }
@@ -228,7 +250,8 @@ pub fn load_config(config_path: Option<&str>) -> Result<GatewayConfig, config::C
         .set_default("service_defaults.max_retries", 3_i64)?
         .set_default("callback.max_retries", 3_i64)?
         .set_default("callback.initial_delay_ms", 1000_i64)?
-        .set_default("callback.timeout_secs", 10_i64)?;
+        .set_default("callback.timeout_secs", 10_i64)?
+        .set_default("logging.format", "text")?;
 
     // TOML file override
     if let Some(path) = config_path {
@@ -320,5 +343,45 @@ result_ttl_secs = 3600
         // Verify other defaults are untouched
         assert_eq!(cfg.grpc.listen_addr, "0.0.0.0:50051");
         std::env::remove_var("GATEWAY__QUEUE__BLOCK_TIMEOUT_MS");
+    }
+
+    #[test]
+    fn logging_config_defaults() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        for (key, _) in std::env::vars() {
+            if key.starts_with("GATEWAY__") {
+                std::env::remove_var(&key);
+            }
+        }
+        let cfg = load_config(None).unwrap();
+        assert_eq!(cfg.logging.format, "text");
+        assert!(cfg.logging.file.is_none());
+    }
+
+    #[test]
+    fn logging_config_toml_override() {
+        use std::io::Write;
+        let _guard = ENV_LOCK.lock().unwrap();
+        for (key, _) in std::env::vars() {
+            if key.starts_with("GATEWAY__") {
+                std::env::remove_var(&key);
+            }
+        }
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("logging_test.toml");
+        let mut f = std::fs::File::create(&path).unwrap();
+        writeln!(
+            f,
+            r#"
+[logging]
+format = "json"
+file = "/var/log/gateway.log"
+"#
+        )
+        .unwrap();
+
+        let cfg = load_config(Some(path.to_str().unwrap())).unwrap();
+        assert_eq!(cfg.logging.format, "json");
+        assert_eq!(cfg.logging.file.as_deref(), Some("/var/log/gateway.log"));
     }
 }

@@ -1,4 +1,5 @@
 use crate::config::GatewayConfig;
+use crate::metrics::Metrics;
 use crate::queue::RedisQueue;
 use redis::aio::MultiplexedConnection;
 
@@ -10,15 +11,18 @@ pub struct AppState {
     pub auth_conn: MultiplexedConnection,
     /// HTTP client for callback delivery.
     pub http_client: reqwest::Client,
+    /// Prometheus metrics registry and metric handles.
+    pub metrics: Metrics,
 }
 
 impl AppState {
-    pub fn new(queue: RedisQueue, config: GatewayConfig, auth_conn: MultiplexedConnection, http_client: reqwest::Client) -> Self {
+    pub fn new(queue: RedisQueue, config: GatewayConfig, auth_conn: MultiplexedConnection, http_client: reqwest::Client, metrics: Metrics) -> Self {
         Self {
             queue,
             config,
             auth_conn,
             http_client,
+            metrics,
         }
     }
 }

@@ -4,6 +4,7 @@ pub mod config;
 pub mod error;
 pub mod grpc;
 pub mod http;
+pub mod metrics;
 pub mod queue;
 pub mod reaper;
 pub mod registry;

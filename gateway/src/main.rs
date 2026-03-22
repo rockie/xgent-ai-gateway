@@ -48,8 +48,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .build()
         .expect("Failed to build HTTP client for callbacks");
 
-    // Build shared state
-    let state = Arc::new(state::AppState::new(queue, config.clone(), auth_conn, http_client));
+    // Build metrics and shared state
+    let metrics = xgent_gateway::metrics::Metrics::new();
+    let state = Arc::new(state::AppState::new(queue, config.clone(), auth_conn, http_client, metrics));
 
     // Spawn background reaper for timed-out tasks
     let reaper_state = state.clone();
