@@ -17,6 +17,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [ ] **Phase 3: Service Registry and Node Health** - Service CRUD, node heartbeat tracking, graceful drain
 - [ ] **Phase 4: Task Reliability and Callbacks** - Timeout detection, callback delivery (retries and DLQ descoped)
 - [ ] **Phase 5: Observability and Packaging** - Structured logging, Prometheus metrics, admin health API, static binary and Docker image
+- [ ] **Phase 6: gRPC Auth Hardening** - API key interceptor on gRPC TaskService, node token auth on ReportResult/Heartbeat/DrainNode
+- [ ] **Phase 7: Integration Fixes, Sample Service, and Cleanup** - in_flight_tasks counter fix, proto callback_url field, route fixes, sample service binary, tech debt
 
 ## Phase Details
 
@@ -99,10 +101,36 @@ Plans:
 - [x] 05-02-PLAN.md -- Instrument all code paths with Prometheus metric recording, background gauge refresh
 - [x] 05-03-PLAN.md -- jemalloc allocator, default gateway.toml, multi-stage Dockerfile, .dockerignore
 
+### Phase 6: gRPC Auth Hardening
+**Goal**: All gRPC RPCs enforce the same authentication as their HTTP counterparts — API key auth on client-facing RPCs (SubmitTask, GetTaskStatus) and node token auth on node-facing RPCs (ReportResult, Heartbeat, DrainNode)
+**Depends on**: Phase 5
+**Requirements**: AUTH-01, AUTH-03, TASK-01, RSLT-01, NODE-03, NODE-04, NODE-06
+**Gap Closure**: Closes critical integration gaps and gRPC auth flow break from v1.0 audit
+**Success Criteria** (what must be TRUE):
+  1. gRPC SubmitTask and GetTaskStatus reject requests without a valid API key
+  2. gRPC ReportResult, Heartbeat, and DrainNode reject requests without a valid node token
+  3. Integration tests verify both positive (valid auth) and negative (missing/invalid auth) paths
+**Plans**: TBD
+
+### Phase 7: Integration Fixes, Sample Service, and Cleanup
+**Goal**: Fix remaining integration issues from the v1.0 audit, provide a sample service binary for end-to-end testing, and clean up tech debt across all phases
+**Depends on**: Phase 6
+**Requirements**: NODE-05, OBSV-03, RSLT-03, INFR-06
+**Gap Closure**: Closes significant/minor integration gaps, broken health counter flow, and all tech debt from v1.0 audit
+**Success Criteria** (what must be TRUE):
+  1. `in_flight_tasks` counter is decremented when a node reports task completion
+  2. gRPC SubmitTaskRequest proto includes `callback_url` field
+  3. Revoke routes use REST-style DELETE instead of POST
+  4. Plain HTTP mode configures keepalive
+  5. A sample service binary exists that can receive tasks from the runner agent and return results
+  6. NODE-02 marked as deferred (not complete) in REQUIREMENTS.md
+  7. All 9 tech debt items from the audit are resolved
+**Plans**: TBD
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -111,3 +139,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 | 3. Service Registry and Node Health | 0/3 | Not started | - |
 | 4. Task Reliability and Callbacks | 0/2 | Not started | - |
 | 5. Observability and Packaging | 0/3 | Not started | - |
+| 6. gRPC Auth Hardening | 0/0 | Not started | - |
+| 7. Integration Fixes, Sample Service, and Cleanup | 0/0 | Not started | - |

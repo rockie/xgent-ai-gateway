@@ -30,7 +30,7 @@
 ### Node Management
 
 - [x] **NODE-01**: Internal nodes can reverse-poll the gateway via gRPC to pick up tasks for their service
-- [x] **NODE-02**: Internal nodes can reverse-poll the gateway via HTTPS to pick up tasks for their service
+- [~] **NODE-02**: Internal nodes can reverse-poll the gateway via HTTPS to pick up tasks for their service — Deferred (D-13: runner agent proxy replaces HTTP polling)
 - [x] **NODE-03**: Nodes authenticate with pre-shared tokens scoped to their service
 - [x] **NODE-04**: Nodes report task completion (success or failure) with result payload back to the gateway
 - [x] **NODE-05**: Gateway tracks node health via heartbeat (last poll time, stale detection)
@@ -41,8 +41,8 @@
 - [x] **LIFE-01**: Tasks follow a state machine: pending → assigned → running → completed/failed
 - [x] **LIFE-02**: Gateway uses reliable queue pattern (atomic move to processing list) to prevent task loss
 - [x] **LIFE-03**: Background reaper detects timed-out tasks (node died) and re-queues them
-- [ ] **LIFE-04**: Failed tasks retry with configurable max retries and exponential backoff
-- [ ] **LIFE-05**: Tasks exhausting retries move to a per-service dead letter queue
+- [~] **LIFE-04**: ~~Failed tasks retry with configurable max retries and exponential backoff~~ — Descoped v1 (D-07: clients resubmit)
+- [~] **LIFE-05**: ~~Tasks exhausting retries move to a per-service dead letter queue~~ — Descoped v1 (D-08/D-09: failed state is terminal)
 
 ### Authentication
 
@@ -117,7 +117,7 @@
 | SRVC-03 | Phase 3 | Complete |
 | SRVC-04 | Phase 3 | Complete |
 | NODE-01 | Phase 1 | Complete |
-| NODE-02 | Phase 1 | Complete |
+| NODE-02 | Phase 1 | Deferred (D-13) |
 | NODE-03 | Phase 3 | Complete |
 | NODE-04 | Phase 1 | Complete |
 | NODE-05 | Phase 3 | Complete |
@@ -125,8 +125,8 @@
 | LIFE-01 | Phase 1 | Complete |
 | LIFE-02 | Phase 1 | Complete |
 | LIFE-03 | Phase 4 | Complete |
-| LIFE-04 | Phase 4 | Pending |
-| LIFE-05 | Phase 4 | Pending |
+| LIFE-04 | Phase 4 | Descoped v1 (D-07) |
+| LIFE-05 | Phase 4 | Descoped v1 (D-08/D-09) |
 | AUTH-01 | Phase 2 | Complete |
 | AUTH-02 | Phase 2 | Complete |
 | AUTH-03 | Phase 2 | Complete |
@@ -143,6 +143,9 @@
 **Coverage:**
 - v1 requirements: 36 total
 - Mapped to phases: 36
+- Complete: 33
+- Deferred: 1 (NODE-02, D-13)
+- Descoped: 2 (LIFE-04, LIFE-05)
 - Unmapped: 0
 
 ---
