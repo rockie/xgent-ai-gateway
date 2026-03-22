@@ -22,13 +22,13 @@ Tasks submitted by clients reliably reach internal nodes and results reliably fl
 - [ ] Clients can submit tasks via gRPC and receive a task ID
 - [ ] Clients can submit tasks via HTTPS and receive a task ID
 - [ ] Clients can poll task status/result by task ID (gRPC and HTTPS)
-- [ ] Clients can optionally provide a callback URL for result delivery
+- [x] Clients can optionally provide a callback URL for result delivery — Validated in Phase 4: Task Reliability and Callbacks
 - [ ] Internal nodes reverse-poll the gateway to pick up tasks for their service
 - [ ] Task queue state persisted in Redis/Valkey for durability across restarts
 - [ ] Nodes report task results back through the gateway
-- [ ] Gateway delivers results to polling clients and fires optional callbacks
+- [x] Gateway delivers results to polling clients and fires optional callbacks — Validated in Phase 4: Task Reliability and Callbacks
 - [ ] Task lifecycle tracking (pending → assigned → running → completed/failed)
-- [ ] Task timeout and retry handling for unresponsive nodes
+- [x] Task timeout and retry handling for unresponsive nodes — Validated in Phase 4: Task Reliability and Callbacks
 
 ### Out of Scope
 
