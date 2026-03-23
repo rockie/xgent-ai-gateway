@@ -51,6 +51,7 @@ Tasks submitted by clients reliably reach internal nodes and results reliably fl
 - [ ] Dashboard with Prometheus metrics visualization
 - [x] Service registration and management — Phase 9
 - [x] Node agents management — Phase 9
+- [x] Credential management (list, create, revoke API keys and node tokens) — Phase 11
 - [ ] Tasks management (view status/details, cancel tasks)
 
 ## Current Milestone: v1.1 Admin Web UI
@@ -131,4 +132,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-23 after Phase 10 (Task Management & Data Endpoints) complete*
+*Last updated: 2026-03-23 after Phase 11 (Credential Management) complete*
