@@ -192,29 +192,38 @@ pub async fn logout(
 pub async fn refresh(
     State(state): State<Arc<AppState>>,
     jar: CookieJar,
-) -> Result<StatusCode, StatusCode> {
-    let session_cookie = jar.get("session").ok_or(StatusCode::UNAUTHORIZED)?;
+) -> Result<Json<LoginResponse>, (StatusCode, Json<ErrorResponse>)> {
+    let session_cookie = jar.get("session").ok_or((
+        StatusCode::UNAUTHORIZED,
+        Json(ErrorResponse { error: "No session".to_string() }),
+    ))?;
     let session_key = format!("admin_session:{}", session_cookie.value());
 
     let mut conn = state.auth_conn.clone();
-    let exists: bool = conn.exists(&session_key).await.map_err(|e| {
-        tracing::error!(error = %e, "failed to check session in Redis");
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
+    let username: Option<String> = redis::cmd("HGET")
+        .arg(&session_key)
+        .arg("username")
+        .query_async(&mut conn)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "failed to check session in Redis");
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse { error: "Internal error".to_string() }))
+        })?;
 
-    if !exists {
-        return Err(StatusCode::UNAUTHORIZED);
-    }
+    let username = username.ok_or((
+        StatusCode::UNAUTHORIZED,
+        Json(ErrorResponse { error: "Session expired".to_string() }),
+    ))?;
 
     let _: () = conn
         .expire(&session_key, state.config.admin.session_ttl_secs as i64)
         .await
         .map_err(|e| {
             tracing::error!(error = %e, "failed to refresh session TTL");
-            StatusCode::INTERNAL_SERVER_ERROR
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse { error: "Internal error".to_string() }))
         })?;
 
-    Ok(StatusCode::OK)
+    Ok(Json(LoginResponse { username }))
 }
 
 /// Session-based auth middleware for admin endpoints.
