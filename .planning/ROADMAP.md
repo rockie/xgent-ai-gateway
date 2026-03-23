@@ -88,11 +88,11 @@ Plans:
   1. Admin can list API keys showing masked hashes and associated services, and list node tokens per service showing masked hashes and labels
   2. Admin can create a new API key or node token and sees the secret value exactly once with a copy-to-clipboard button
   3. Admin can revoke an API key or node token with a confirmation dialog
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 11-01: TBD
-- [ ] 11-02: TBD
+- [ ] 11-01-PLAN.md — Backend list endpoints for API keys and node tokens, extend storage with label/expiry, auth expiry enforcement
+- [ ] 11-02-PLAN.md — Frontend credential data layer, tabbed page with tables, create/reveal/revoke dialogs
 
 ### Phase 12: Dashboard and Metrics Visualization
 **Goal**: Admin sees a live operational dashboard with metrics charts and service health indicators on first login
@@ -126,5 +126,5 @@ Phases 9, 10, and 11 all depend only on Phase 8 and could execute in any order. 
 | 8. Frontend Foundation and Backend Auth | v1.1 | 0/3 | Planning | - |
 | 9. Service and Node Management | v1.1 | 0/2 | Planning | - |
 | 10. Task Management and Data Endpoints | v1.1 | 3/3 | Complete    | 2026-03-23 |
-| 11. Credential Management | v1.1 | 0/? | Not started | - |
+| 11. Credential Management | v1.1 | 0/2 | Planned | - |
 | 12. Dashboard and Metrics Visualization | v1.1 | 0/? | Not started | - |
