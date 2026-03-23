@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Admin Web UI
-status: Ready to execute
-stopped_at: Completed 11-01-PLAN.md
-last_updated: "2026-03-23T07:37:31.398Z"
+status: Phase complete — ready for verification
+stopped_at: "Completed 11-02-PLAN.md (checkpoint:human-verify pending)"
+last_updated: "2026-03-23T07:47:35.296Z"
 progress:
   total_phases: 5
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 10
-  completed_plans: 9
+  completed_plans: 10
 ---
 
 # Project State
@@ -58,6 +58,7 @@ v1.1 key context from research:
 - [Phase 10]: TaskSummary omits payload/result for lightweight list responses
 - [Phase 10-02]: Followed services.ts hook pattern exactly for task data layer consistency
 - [Phase 11]: Expired credentials shown in list endpoints but rejected at auth time
+- [Phase 11-credential-management]: Used base-ui Dialog disablePointerDismissal + onOpenChange reason filtering for forced-dismissal secret reveal (adapted to shadcn v4 API)
 
 ### Pending Todos
 
@@ -70,6 +71,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-23T07:37:31.395Z
-Stopped at: Completed 11-01-PLAN.md
+Last session: 2026-03-23T07:47:35.294Z
+Stopped at: Completed 11-02-PLAN.md (checkpoint:human-verify pending)
 Resume file: None

@@ -41,11 +41,11 @@ Requirements for Admin Web UI milestone. Each maps to roadmap phases.
 ### Credential Management
 
 - [x] **CRED-01**: Admin can list API keys (masked hash, associated services)
-- [ ] **CRED-02**: Admin can create API key (shown once with copy-to-clipboard)
-- [ ] **CRED-03**: Admin can revoke API key with confirmation
+- [x] **CRED-02**: Admin can create API key (shown once with copy-to-clipboard)
+- [x] **CRED-03**: Admin can revoke API key with confirmation
 - [x] **CRED-04**: Admin can list node tokens per service (masked hash, label)
-- [ ] **CRED-05**: Admin can create node token (shown once with copy-to-clipboard)
-- [ ] **CRED-06**: Admin can revoke node token with confirmation
+- [x] **CRED-05**: Admin can create node token (shown once with copy-to-clipboard)
+- [x] **CRED-06**: Admin can revoke node token with confirmation
 
 ### Frontend Foundation
 
@@ -106,11 +106,11 @@ Requirements for Admin Web UI milestone. Each maps to roadmap phases.
 | TASK-02 | Phase 10 | Complete |
 | TASK-03 | Phase 10 | Complete |
 | CRED-01 | Phase 11 | Complete |
-| CRED-02 | Phase 11 | Pending |
-| CRED-03 | Phase 11 | Pending |
+| CRED-02 | Phase 11 | Complete |
+| CRED-03 | Phase 11 | Complete |
 | CRED-04 | Phase 11 | Complete |
-| CRED-05 | Phase 11 | Pending |
-| CRED-06 | Phase 11 | Pending |
+| CRED-05 | Phase 11 | Complete |
+| CRED-06 | Phase 11 | Complete |
 | UI-01 | Phase 8 | Pending |
 | UI-02 | Phase 8 | Pending |
 | UI-03 | Phase 8 | Pending |
