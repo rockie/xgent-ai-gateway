@@ -63,7 +63,7 @@ Plans:
 
 Plans:
 - [x] 09-01-PLAN.md — Service API hooks/types, health badge, service list page with card grid and registration dialog
-- [ ] 09-02-PLAN.md — Service detail page with config, node health table, breadcrumbs, and deregister flow
+- [x] 09-02-PLAN.md — Service detail page with config, node health table, breadcrumbs, and deregister flow
 
 ### Phase 10: Task Management and Data Endpoints
 **Goal**: Admin can browse, inspect, and cancel tasks through the UI backed by new paginated backend endpoints
