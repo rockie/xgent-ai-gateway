@@ -492,6 +492,85 @@ pub async fn metrics_handler(
     )
 }
 
+// --- Dashboard Metrics Endpoints ---
+
+/// GET /v1/admin/metrics/summary - Returns dashboard overview data (per D-01).
+pub async fn metrics_summary_handler(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<crate::metrics_history::MetricsSummaryResponse>, GatewayError> {
+    let services = registry::service::list_services(&mut state.auth_conn.clone()).await?;
+
+    let mut service_summaries = Vec::new();
+    let mut total_active_nodes: u32 = 0;
+    let mut total_queue_depth: u64 = 0;
+
+    for svc in &services {
+        let nodes = registry::node_health::get_nodes_for_service(
+            &mut state.auth_conn.clone(),
+            &svc.name,
+            svc.node_stale_after_secs,
+        )
+        .await?;
+
+        let active_nodes = nodes
+            .iter()
+            .filter(|n| n.health == NodeHealthState::Healthy && !n.draining)
+            .count() as u32;
+        let total_nodes = nodes.len() as u32;
+        let queue_depth = state
+            .metrics
+            .queue_depth
+            .with_label_values(&[&svc.name])
+            .get() as u64;
+
+        let health = crate::metrics_history::derive_service_health(&nodes).to_string();
+
+        total_active_nodes += active_nodes;
+        total_queue_depth += queue_depth;
+
+        service_summaries.push(crate::metrics_history::ServiceHealthSummary {
+            name: svc.name.clone(),
+            health,
+            active_nodes,
+            total_nodes,
+            queue_depth,
+        });
+    }
+
+    let (submitted_per_min, completed_per_min) = state
+        .metrics_history
+        .lock()
+        .map(|h| h.compute_throughput())
+        .unwrap_or((0.0, 0.0));
+
+    Ok(Json(crate::metrics_history::MetricsSummaryResponse {
+        service_count: services.len() as u32,
+        active_nodes: total_active_nodes,
+        total_queue_depth,
+        throughput: crate::metrics_history::ThroughputResponse {
+            submitted_per_min,
+            completed_per_min,
+        },
+        services: service_summaries,
+    }))
+}
+
+/// GET /v1/admin/metrics/history - Returns time-series ring buffer data (per D-02).
+pub async fn metrics_history_handler(
+    State(state): State<Arc<AppState>>,
+) -> Json<crate::metrics_history::MetricsHistoryResponse> {
+    let points = state
+        .metrics_history
+        .lock()
+        .map(|h| h.get_all())
+        .unwrap_or_default();
+
+    Json(crate::metrics_history::MetricsHistoryResponse {
+        interval_secs: 10,
+        points,
+    })
+}
+
 // --- Health Endpoint ---
 
 #[derive(Debug, Serialize)]

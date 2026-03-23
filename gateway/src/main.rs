@@ -125,7 +125,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     // Build metrics and shared state
     let metrics = xgent_gateway::metrics::Metrics::new();
-    let state = Arc::new(state::AppState::new(queue, config.clone(), auth_conn, http_client, metrics));
+    let metrics_history = Arc::new(std::sync::Mutex::new(
+        xgent_gateway::metrics_history::MetricsHistory::new(),
+    ));
+    let state = Arc::new(state::AppState::new(queue, config.clone(), auth_conn, http_client, metrics, metrics_history));
 
     // Spawn background reaper for timed-out tasks
     let reaper_state = state.clone();
@@ -148,6 +151,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         }
     });
     tracing::info!("background gauge refresh started (15s interval)");
+
+    // Spawn background metrics snapshot capture (10s interval, per D-03)
+    let snapshot_state = state.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(Duration::from_secs(10));
+        interval.tick().await; // skip first immediate tick
+
+        loop {
+            interval.tick().await;
+            // Refresh gauges first to ensure fresh values (per pitfall 5 from research)
+            if let Err(e) = xgent_gateway::metrics::refresh_gauges(&snapshot_state).await {
+                tracing::warn!(error = %e, "gauge refresh before snapshot failed");
+                continue;
+            }
+            let snapshot = xgent_gateway::metrics_history::capture_snapshot(&snapshot_state.metrics);
+            if let Ok(mut history) = snapshot_state.metrics_history.lock() {
+                history.push_snapshot(snapshot);
+            }
+        }
+    });
+    tracing::info!("background metrics snapshot started (10s interval)");
 
     let mut handles: Vec<tokio::task::JoinHandle<Result<(), Box<dyn std::error::Error + Send + Sync>>>> = Vec::new();
 
@@ -275,6 +299,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 .route(
                     "/metrics",
                     axum::routing::get(http::admin::metrics_handler),
+                )
+                .route(
+                    "/v1/admin/metrics/summary",
+                    axum::routing::get(http::admin::metrics_summary_handler),
+                )
+                .route(
+                    "/v1/admin/metrics/history",
+                    axum::routing::get(http::admin::metrics_history_handler),
                 )
                 .layer(axum::middleware::from_fn_with_state(
                     http_state.clone(),
