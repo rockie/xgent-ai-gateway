@@ -62,7 +62,7 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 09-01-PLAN.md — Service API hooks/types, health badge, service list page with card grid and registration dialog
+- [x] 09-01-PLAN.md — Service API hooks/types, health badge, service list page with card grid and registration dialog
 - [ ] 09-02-PLAN.md — Service detail page with config, node health table, breadcrumbs, and deregister flow
 
 ### Phase 10: Task Management and Data Endpoints

@@ -22,10 +22,10 @@ Requirements for Admin Web UI milestone. Each maps to roadmap phases.
 
 ### Service Management
 
-- [ ] **SVC-01**: Admin can view list of all registered services
+- [x] **SVC-01**: Admin can view list of all registered services
 - [ ] **SVC-02**: Admin can view service detail (config, connected nodes, queue depth)
-- [ ] **SVC-03**: Admin can register a new service via form
-- [ ] **SVC-04**: Admin can deregister a service with confirmation dialog
+- [x] **SVC-03**: Admin can register a new service via form
+- [x] **SVC-04**: Admin can deregister a service with confirmation dialog
 
 ### Node Management
 
@@ -96,10 +96,10 @@ Requirements for Admin Web UI milestone. Each maps to roadmap phases.
 | DASH-01 | Phase 12 | Pending |
 | DASH-02 | Phase 12 | Pending |
 | DASH-03 | Phase 12 | Pending |
-| SVC-01 | Phase 9 | Pending |
+| SVC-01 | Phase 9 | Complete |
 | SVC-02 | Phase 9 | Pending |
-| SVC-03 | Phase 9 | Pending |
-| SVC-04 | Phase 9 | Pending |
+| SVC-03 | Phase 9 | Complete |
+| SVC-04 | Phase 9 | Complete |
 | NODE-01 | Phase 9 | Pending |
 | NODE-02 | Phase 9 | Pending |
 | TASK-01 | Phase 10 | Pending |
