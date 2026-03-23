@@ -15,9 +15,14 @@ export const Route = createFileRoute('/_authenticated')({
   component: AuthenticatedLayout,
 })
 
+function getSidebarDefault() {
+  const match = document.cookie.match(/(?:^|;\s*)sidebar_state=(\w+)/)
+  return match ? match[1] === 'true' : true
+}
+
 function AuthenticatedLayout() {
   return (
-    <SidebarProvider>
+    <SidebarProvider defaultOpen={getSidebarDefault()}>
       <AppSidebar />
       <SidebarInset>
         <AppHeader />

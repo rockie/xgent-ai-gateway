@@ -44,6 +44,13 @@ function InnerApp() {
     })
   }, [isAuthenticated])
 
+  // Wait for auth check to resolve before rendering routes.
+  // Without this, beforeLoad guards see isAuthenticated=false and
+  // redirect to /login before the session refresh completes.
+  if (auth.isLoading) {
+    return null
+  }
+
   return <RouterProvider router={router} />
 }
 
