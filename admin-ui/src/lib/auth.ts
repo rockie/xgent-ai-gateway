@@ -23,16 +23,12 @@ export function useAuth() {
 }
 
 export function useLogin() {
-  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (data: LoginRequest) =>
       apiClient<LoginResponse>('/v1/admin/auth/login', {
         method: 'POST',
         body: JSON.stringify(data),
       }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['auth'] })
-    },
   })
 }
 

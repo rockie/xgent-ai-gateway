@@ -74,11 +74,25 @@ pub async fn login(
 ) -> Result<(CookieJar, Json<LoginResponse>), (StatusCode, Json<ErrorResponse>)> {
     let admin = &state.config.admin;
 
-    // Both username and password_hash must be configured
-    let (expected_username, expected_hash) = match (&admin.username, &admin.password_hash) {
-        (Some(u), Some(h)) => (u.as_str(), h.as_str()),
-        _ => {
-            tracing::warn!("login attempt but admin credentials not configured");
+    // Both username and password_hash must be configured for production auth.
+    // In dev mode (neither set), accept any credentials.
+    let dev_mode = admin.username.is_none() && admin.password_hash.is_none();
+    if !dev_mode {
+        let (expected_username, expected_hash) = match (&admin.username, &admin.password_hash) {
+            (Some(u), Some(h)) => (u.as_str(), h.as_str()),
+            _ => {
+                tracing::warn!("login attempt but admin credentials partially configured");
+                return Err((
+                    StatusCode::UNAUTHORIZED,
+                    Json(ErrorResponse {
+                        error: "Invalid username or password".to_string(),
+                    }),
+                ));
+            }
+        };
+
+        // Verify username
+        if req.username != expected_username {
             return Err((
                 StatusCode::UNAUTHORIZED,
                 Json(ErrorResponse {
@@ -86,26 +100,18 @@ pub async fn login(
                 }),
             ));
         }
-    };
 
-    // Verify username
-    if req.username != expected_username {
-        return Err((
-            StatusCode::UNAUTHORIZED,
-            Json(ErrorResponse {
-                error: "Invalid username or password".to_string(),
-            }),
-        ));
-    }
-
-    // Verify password
-    if !verify_password(&req.password, expected_hash) {
-        return Err((
-            StatusCode::UNAUTHORIZED,
-            Json(ErrorResponse {
-                error: "Invalid username or password".to_string(),
-            }),
-        ));
+        // Verify password
+        if !verify_password(&req.password, expected_hash) {
+            return Err((
+                StatusCode::UNAUTHORIZED,
+                Json(ErrorResponse {
+                    error: "Invalid username or password".to_string(),
+                }),
+            ));
+        }
+    } else {
+        tracing::info!("dev mode: accepting login for '{}'", req.username);
     }
 
     // Create session in Redis

@@ -285,8 +285,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                     .allow_headers([CONTENT_TYPE, COOKIE])
                     .allow_credentials(true)
             } else {
-                // Dev mode: permissive CORS
-                tower_http::cors::CorsLayer::permissive()
+                // Dev mode: mirror the request Origin so credentials work
+                use tower_http::cors::{CorsLayer, AllowOrigin};
+                use axum::http::{Method, header::{CONTENT_TYPE, COOKIE}};
+                CorsLayer::new()
+                    .allow_origin(AllowOrigin::mirror_request())
+                    .allow_methods([
+                        Method::GET,
+                        Method::POST,
+                        Method::PATCH,
+                        Method::DELETE,
+                        Method::OPTIONS,
+                    ])
+                    .allow_headers([CONTENT_TYPE, COOKIE])
+                    .allow_credentials(true)
             };
 
             let app = axum::Router::new()

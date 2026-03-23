@@ -1,5 +1,6 @@
-import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router'
+import { createFileRoute, useNavigate, useRouter, useSearch } from '@tanstack/react-router'
 import { useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useLogin } from '@/lib/auth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -17,7 +18,9 @@ export const Route = createFileRoute('/login')({
 
 function LoginPage() {
   const navigate = useNavigate()
+  const router = useRouter()
   const { redirect } = useSearch({ from: '/login' })
+  const queryClient = useQueryClient()
   const login = useLogin()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -27,8 +30,17 @@ function LoginPage() {
     login.mutate(
       { username, password },
       {
-        onSuccess: () => {
+        onSuccess: async () => {
           toast.success('Signed in successfully.')
+          await queryClient.invalidateQueries({ queryKey: ['auth'] })
+          // Update router context directly so beforeLoad sees isAuthenticated
+          router.update({
+            context: {
+              ...router.options.context,
+              auth: { isAuthenticated: true },
+            },
+          })
+          await router.invalidate()
           navigate({ to: redirect || '/' })
         },
       },
