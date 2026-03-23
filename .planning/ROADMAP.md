@@ -73,11 +73,12 @@ Plans:
   1. Admin can view a paginated task list filterable by service and status
   2. Admin can click a task to view its full detail including metadata, timestamps, assigned node, and result payload
   3. Admin can cancel a pending or running task with a confirmation dialog, and the task is marked failed for the client
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 10-01: TBD
-- [ ] 10-02: TBD
+- [ ] 10-01-PLAN.md — Backend task endpoints: list (SCAN + pagination), detail, cancel with state machine fix
+- [ ] 10-02-PLAN.md — Frontend task types/hooks, TaskStatusBadge, JsonViewer utility components
+- [ ] 10-03-PLAN.md — Task list page with filters, data table, detail sheet, cancel dialog
 
 ### Phase 11: Credential Management
 **Goal**: Admin can manage API keys and node tokens for all services through the UI
@@ -124,6 +125,6 @@ Phases 9, 10, and 11 all depend only on Phase 8 and could execute in any order. 
 | 7. Integration Fixes, Sample Service, and Cleanup | v1.0 | 3/3 | Complete | 2026-03-22 |
 | 8. Frontend Foundation and Backend Auth | v1.1 | 0/3 | Planning | - |
 | 9. Service and Node Management | v1.1 | 0/2 | Planning | - |
-| 10. Task Management and Data Endpoints | v1.1 | 0/? | Not started | - |
+| 10. Task Management and Data Endpoints | v1.1 | 0/3 | Planning | - |
 | 11. Credential Management | v1.1 | 0/? | Not started | - |
 | 12. Dashboard and Metrics Visualization | v1.1 | 0/? | Not started | - |
