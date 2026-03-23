@@ -59,11 +59,11 @@ Plans:
   1. Admin can view a list of all registered services and click through to service detail showing config, connected nodes, and queue depth
   2. Admin can register a new service via a form and deregister an existing service with a confirmation dialog
   3. Admin can view per-service node list with health status indicators and see node details including in-flight tasks, drain status, and last seen time
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 09-01: TBD
-- [ ] 09-02: TBD
+- [ ] 09-01-PLAN.md — Service API hooks/types, health badge, service list page with card grid and registration dialog
+- [ ] 09-02-PLAN.md — Service detail page with config, node health table, breadcrumbs, and deregister flow
 
 ### Phase 10: Task Management and Data Endpoints
 **Goal**: Admin can browse, inspect, and cancel tasks through the UI backed by new paginated backend endpoints
@@ -123,7 +123,7 @@ Phases 9, 10, and 11 all depend only on Phase 8 and could execute in any order. 
 | 6. gRPC Auth Hardening | v1.0 | 2/2 | Complete | 2026-03-22 |
 | 7. Integration Fixes, Sample Service, and Cleanup | v1.0 | 3/3 | Complete | 2026-03-22 |
 | 8. Frontend Foundation and Backend Auth | v1.1 | 0/3 | Planning | - |
-| 9. Service and Node Management | v1.1 | 0/? | Not started | - |
+| 9. Service and Node Management | v1.1 | 0/2 | Planning | - |
 | 10. Task Management and Data Endpoints | v1.1 | 0/? | Not started | - |
 | 11. Credential Management | v1.1 | 0/? | Not started | - |
 | 12. Dashboard and Metrics Visualization | v1.1 | 0/? | Not started | - |
