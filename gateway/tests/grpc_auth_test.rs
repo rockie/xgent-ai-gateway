@@ -76,7 +76,7 @@ async fn start_test_grpc_server() -> TestGrpcServer {
             stream_maxlen: 1000,
             block_timeout_ms: 2000,
         },
-        admin: config::AdminConfig { token: None },
+        admin: config::AdminConfig::default(),
         service_defaults: config::ServiceDefaultsConfig::default(),
         callback: config::CallbackConfig::default(),
         logging: config::LoggingConfig::default(),

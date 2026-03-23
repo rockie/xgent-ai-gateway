@@ -207,6 +207,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                     auth::api_key::api_key_auth_middleware,
                 ));
 
+            // Auth routes -- no authentication required (login must be unauthenticated)
+            let auth_routes = axum::Router::new()
+                .route(
+                    "/v1/admin/auth/login",
+                    axum::routing::post(http::auth::login),
+                )
+                .route(
+                    "/v1/admin/auth/logout",
+                    axum::routing::post(http::auth::logout),
+                )
+                .route(
+                    "/v1/admin/auth/refresh",
+                    axum::routing::post(http::auth::refresh),
+                );
+
             // Admin routes -- protected by session cookie if configured
             let admin_routes = axum::Router::new()
                 .route(
@@ -252,9 +267,33 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                     http::auth::session_auth_middleware,
                 ));
 
+            // CORS layer -- must be outermost (outside auth middleware)
+            let cors = if let Some(ref origin) = http_state.config.admin.cors_origin {
+                use tower_http::cors::{CorsLayer, AllowOrigin};
+                use axum::http::{Method, header::{CONTENT_TYPE, COOKIE}};
+                CorsLayer::new()
+                    .allow_origin(AllowOrigin::exact(
+                        origin.parse().expect("invalid cors_origin"),
+                    ))
+                    .allow_methods([
+                        Method::GET,
+                        Method::POST,
+                        Method::PATCH,
+                        Method::DELETE,
+                        Method::OPTIONS,
+                    ])
+                    .allow_headers([CONTENT_TYPE, COOKIE])
+                    .allow_credentials(true)
+            } else {
+                // Dev mode: permissive CORS
+                tower_http::cors::CorsLayer::permissive()
+            };
+
             let app = axum::Router::new()
                 .merge(api_routes)
+                .merge(auth_routes)
                 .merge(admin_routes)
+                .layer(cors)
                 .with_state(http_state);
 
             if let Some(ref tls_cfg) = http_tls {

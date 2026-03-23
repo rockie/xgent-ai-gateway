@@ -148,7 +148,7 @@ async fn start_auth_test_gateway(_test_name: &str) -> AuthTestGateway {
             stream_maxlen: 1000,
             block_timeout_ms: 2000,
         },
-        admin: config::AdminConfig { token: None },
+        admin: config::AdminConfig::default(),
         service_defaults: config::ServiceDefaultsConfig::default(),
         callback: config::CallbackConfig::default(),
         logging: config::LoggingConfig::default(),
