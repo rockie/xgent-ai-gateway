@@ -16,9 +16,9 @@ Requirements for Admin Web UI milestone. Each maps to roadmap phases.
 
 ### Dashboard
 
-- [ ] **DASH-01**: Admin sees overview cards (service count, active nodes, queue depth, task throughput)
-- [ ] **DASH-02**: Admin sees live time-series charts for throughput and queue depth (polling every 10-15s)
-- [ ] **DASH-03**: Admin sees color-coded service health badges (green/yellow/red)
+- [x] **DASH-01**: Admin sees overview cards (service count, active nodes, queue depth, task throughput)
+- [x] **DASH-02**: Admin sees live time-series charts for throughput and queue depth (polling every 10-15s)
+- [x] **DASH-03**: Admin sees color-coded service health badges (green/yellow/red)
 
 ### Service Management
 
@@ -93,9 +93,9 @@ Requirements for Admin Web UI milestone. Each maps to roadmap phases.
 | AUTH-02 | Phase 8 | Complete |
 | AUTH-03 | Phase 8 | Complete |
 | AUTH-04 | Phase 8 | Complete |
-| DASH-01 | Phase 12 | Pending |
-| DASH-02 | Phase 12 | Pending |
-| DASH-03 | Phase 12 | Pending |
+| DASH-01 | Phase 12 | Complete |
+| DASH-02 | Phase 12 | Complete |
+| DASH-03 | Phase 12 | Complete |
 | SVC-01 | Phase 9 | Complete |
 | SVC-02 | Phase 9 | Complete |
 | SVC-03 | Phase 9 | Complete |

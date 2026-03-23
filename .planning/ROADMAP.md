@@ -105,7 +105,7 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 12-01-PLAN.md — Backend ring buffer, metrics snapshot task, summary and history API endpoints
+- [x] 12-01-PLAN.md — Backend ring buffer, metrics snapshot task, summary and history API endpoints
 - [ ] 12-02-PLAN.md — Frontend dashboard page with overview cards, Recharts charts, and service health list
 
 ## Progress
@@ -127,4 +127,4 @@ Phases 9, 10, and 11 all depend only on Phase 8 and could execute in any order. 
 | 9. Service and Node Management | v1.1 | 0/2 | Planning | - |
 | 10. Task Management and Data Endpoints | v1.1 | 3/3 | Complete    | 2026-03-23 |
 | 11. Credential Management | v1.1 | 2/2 | Complete    | 2026-03-23 |
-| 12. Dashboard and Metrics Visualization | v1.1 | 0/2 | Planning | - |
+| 12. Dashboard and Metrics Visualization | v1.1 | 1/2 | In Progress|  |

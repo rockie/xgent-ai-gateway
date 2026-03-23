@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Admin Web UI
-status: Ready to plan
-stopped_at: Phase 12 context gathered
-last_updated: "2026-03-23T08:46:14.501Z"
+status: Ready to execute
+stopped_at: Completed 12-01-PLAN.md
+last_updated: "2026-03-23T09:24:26.442Z"
 progress:
   total_phases: 5
   completed_phases: 4
-  total_plans: 10
-  completed_plans: 10
+  total_plans: 12
+  completed_plans: 11
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-22)
 
 **Core value:** Tasks submitted by clients reliably reach internal nodes and results reliably flow back, regardless of network topology
-**Current focus:** Phase 11 — credential-management
+**Current focus:** Phase 12 — dashboard-and-metrics-visualization
 
 ## Current Position
 
-Phase: 12
-Plan: Not started
+Phase: 12 (dashboard-and-metrics-visualization) — EXECUTING
+Plan: 2 of 2
 
 ## Performance Metrics
 
@@ -59,6 +59,8 @@ v1.1 key context from research:
 - [Phase 10-02]: Followed services.ts hook pattern exactly for task data layer consistency
 - [Phase 11]: Expired credentials shown in list endpoints but rejected at auth time
 - [Phase 11-credential-management]: Used base-ui Dialog disablePointerDismissal + onOpenChange reason filtering for forced-dismissal secret reveal (adapted to shadcn v4 API)
+- [Phase 12]: Used std::sync::Mutex for ring buffer (not tokio::sync::Mutex) - lock held microseconds with no async inside
+- [Phase 12]: Background snapshot task refreshes gauges independently before capture for fresh data
 
 ### Pending Todos
 
@@ -71,6 +73,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-23T08:46:14.497Z
-Stopped at: Phase 12 context gathered
-Resume file: .planning/phases/12-dashboard-and-metrics-visualization/12-CONTEXT.md
+Last session: 2026-03-23T09:24:26.439Z
+Stopped at: Completed 12-01-PLAN.md
+Resume file: None
