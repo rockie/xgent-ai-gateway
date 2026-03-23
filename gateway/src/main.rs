@@ -226,7 +226,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             let admin_routes = axum::Router::new()
                 .route(
                     "/v1/admin/api-keys",
-                    axum::routing::post(http::admin::create_api_key),
+                    axum::routing::post(http::admin::create_api_key)
+                        .get(http::admin::list_api_keys),
                 )
                 .route(
                     "/v1/admin/api-keys/revoke",
@@ -238,7 +239,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 )
                 .route(
                     "/v1/admin/node-tokens",
-                    axum::routing::post(http::admin::create_node_token),
+                    axum::routing::post(http::admin::create_node_token)
+                        .get(http::admin::list_node_tokens),
                 )
                 .route(
                     "/v1/admin/node-tokens/revoke",

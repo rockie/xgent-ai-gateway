@@ -19,6 +19,10 @@ pub struct CreateApiKeyRequest {
     pub service_names: Vec<String>,
     /// Optional default callback URL for all tasks submitted with this API key.
     pub callback_url: Option<String>,
+    /// Optional human-readable label for this API key.
+    pub label: Option<String>,
+    /// Optional expiration timestamp in ISO 8601 / RFC 3339 format.
+    pub expires_at: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -47,6 +51,8 @@ pub async fn create_api_key(
         &key_hash,
         &req.service_names,
         req.callback_url.as_deref(),
+        req.label.as_deref(),
+        req.expires_at.as_deref(),
     )
     .await
     .map_err(GatewayError::Redis)?;
@@ -122,12 +128,52 @@ pub async fn update_api_key_callback(
     }
 }
 
+// --- API Key Listing ---
+
+#[derive(Debug, Serialize)]
+pub struct ApiKeyListItem {
+    pub key_hash: String,
+    pub service_names: Vec<String>,
+    pub label: Option<String>,
+    pub created_at: String,
+    pub expires_at: Option<String>,
+    pub callback_url: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ListApiKeysResponse {
+    pub api_keys: Vec<ApiKeyListItem>,
+}
+
+/// GET /v1/admin/api-keys - List all API keys with metadata.
+pub async fn list_api_keys(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<ListApiKeysResponse>, GatewayError> {
+    let keys = api_key::list_api_keys(&mut state.auth_conn.clone())
+        .await
+        .map_err(GatewayError::Redis)?;
+    let items: Vec<ApiKeyListItem> = keys
+        .into_iter()
+        .map(|k| ApiKeyListItem {
+            key_hash: k.key_hash,
+            service_names: k.service_names,
+            label: k.label,
+            created_at: k.created_at,
+            expires_at: k.expires_at,
+            callback_url: k.callback_url,
+        })
+        .collect();
+    Ok(Json(ListApiKeysResponse { api_keys: items }))
+}
+
 // --- Node Token Management ---
 
 #[derive(Debug, Deserialize)]
 pub struct CreateNodeTokenRequest {
     pub service_name: String,
     pub node_label: Option<String>,
+    /// Optional expiration timestamp in ISO 8601 / RFC 3339 format.
+    pub expires_at: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -151,6 +197,7 @@ pub async fn create_node_token(
         &req.service_name,
         &token_hash,
         req.node_label.as_deref(),
+        req.expires_at.as_deref(),
     )
     .await
     .map_err(|e| {
@@ -195,6 +242,42 @@ pub async fn revoke_node_token(
     } else {
         Err(StatusCode::NOT_FOUND)
     }
+}
+
+// --- Node Token Listing ---
+
+#[derive(Debug, Serialize)]
+pub struct NodeTokenListItem {
+    pub token_hash: String,
+    pub service_name: String,
+    pub label: Option<String>,
+    pub created_at: String,
+    pub expires_at: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ListNodeTokensResponse {
+    pub node_tokens: Vec<NodeTokenListItem>,
+}
+
+/// GET /v1/admin/node-tokens - List all node tokens with metadata.
+pub async fn list_node_tokens(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<ListNodeTokensResponse>, GatewayError> {
+    let tokens = node_token::list_node_tokens(&mut state.auth_conn.clone())
+        .await
+        .map_err(GatewayError::Redis)?;
+    let items: Vec<NodeTokenListItem> = tokens
+        .into_iter()
+        .map(|t| NodeTokenListItem {
+            token_hash: t.token_hash,
+            service_name: t.service_name,
+            label: t.node_label,
+            created_at: t.created_at,
+            expires_at: t.expires_at,
+        })
+        .collect();
+    Ok(Json(ListNodeTokensResponse { node_tokens: items }))
 }
 
 // --- Service Management ---
