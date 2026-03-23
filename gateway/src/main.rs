@@ -259,6 +259,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                     axum::routing::get(http::admin::health_handler),
                 )
                 .route(
+                    "/v1/admin/tasks",
+                    axum::routing::get(http::admin::list_tasks_handler),
+                )
+                .route(
+                    "/v1/admin/tasks/{task_id}",
+                    axum::routing::get(http::admin::get_task_detail_handler),
+                )
+                .route(
+                    "/v1/admin/tasks/{task_id}/cancel",
+                    axum::routing::post(http::admin::cancel_task_handler),
+                )
+                .route(
                     "/metrics",
                     axum::routing::get(http::admin::metrics_handler),
                 )

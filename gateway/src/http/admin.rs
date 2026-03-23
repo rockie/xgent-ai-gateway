@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::Json;
+use base64::Engine as _;
 use serde::{Deserialize, Serialize};
 
 use crate::auth::{api_key, node_token};
@@ -467,5 +468,105 @@ pub async fn health_handler(
     Ok(Json(HealthResponse {
         services: service_healths,
     }))
+}
+
+// --- Task Management ---
+
+#[derive(Debug, Deserialize)]
+pub struct ListTasksParams {
+    pub cursor: Option<String>,
+    pub page_size: Option<usize>,
+    pub service: Option<String>,
+    pub status: Option<String>,  // comma-separated: "pending,running"
+    pub task_id: Option<String>, // direct lookup by ID
+}
+
+#[derive(Debug, Serialize)]
+pub struct ListTasksResponse {
+    pub tasks: Vec<crate::queue::redis::TaskSummary>,
+    pub cursor: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct TaskDetailResponse {
+    pub task_id: String,
+    pub state: String,
+    pub service: String,
+    pub payload: String,  // base64-encoded
+    pub result: String,   // base64-encoded
+    pub error_message: String,
+    pub metadata: std::collections::HashMap<String, String>,
+    pub created_at: String,
+    pub completed_at: String,
+    pub stream_id: String,
+}
+
+/// GET /v1/admin/tasks - List tasks with pagination and filters
+pub async fn list_tasks_handler(
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<ListTasksParams>,
+) -> Result<Json<ListTasksResponse>, GatewayError> {
+    let page_size = params.page_size.unwrap_or(25).min(50).max(1);
+    let status_filter: Vec<crate::types::TaskState> = params
+        .status
+        .as_deref()
+        .map(|s| {
+            s.split(',')
+                .filter_map(|v| crate::types::TaskState::from_str(v.trim()).ok())
+                .collect()
+        })
+        .unwrap_or_default();
+
+    let (tasks, cursor) = state
+        .queue
+        .list_tasks(
+            params.cursor.as_deref(),
+            page_size,
+            params.service.as_deref(),
+            &status_filter,
+            params.task_id.as_deref(),
+        )
+        .await?;
+
+    Ok(Json(ListTasksResponse { tasks, cursor }))
+}
+
+/// GET /v1/admin/tasks/{task_id} - Get full task detail
+pub async fn get_task_detail_handler(
+    State(state): State<Arc<AppState>>,
+    Path(task_id): Path<String>,
+) -> Result<Json<TaskDetailResponse>, GatewayError> {
+    let tid = crate::types::TaskId::from(task_id);
+    let status = state.queue.get_task_status(&tid).await?;
+
+    let payload_b64 = base64::engine::general_purpose::STANDARD.encode(&status.payload);
+    let result_b64 = if status.result.is_empty() {
+        String::new()
+    } else {
+        base64::engine::general_purpose::STANDARD.encode(&status.result)
+    };
+
+    Ok(Json(TaskDetailResponse {
+        task_id: status.task_id.0,
+        state: status.state.as_str().to_string(),
+        service: status.service,
+        payload: payload_b64,
+        result: result_b64,
+        error_message: status.error_message,
+        metadata: status.metadata,
+        created_at: status.created_at,
+        completed_at: status.completed_at,
+        stream_id: status.stream_id,
+    }))
+}
+
+/// POST /v1/admin/tasks/{task_id}/cancel - Cancel a pending or running task
+pub async fn cancel_task_handler(
+    State(state): State<Arc<AppState>>,
+    Path(task_id): Path<String>,
+) -> Result<StatusCode, GatewayError> {
+    let tid = crate::types::TaskId::from(task_id);
+    state.queue.cancel_task(&tid).await?;
+    Ok(StatusCode::OK)
 }
 
