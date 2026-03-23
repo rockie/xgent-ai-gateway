@@ -71,8 +71,13 @@ None.
 - Auth cookie vs Bearer token decision must be resolved at start of Phase 8
 - Redis SCAN performance for key listing — confirm data structure approach in Phase 11
 
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 260323-sgb | Fix canCancel to include assigned state and check off stale UI checkboxes | 2026-03-23 | pending | [260323-sgb-fix-cancancel-to-include-assigned-state-](./quick/260323-sgb-fix-cancancel-to-include-assigned-state-/) |
+
 ## Session Continuity
 
-Last session: 2026-03-23T09:24:26.439Z
-Stopped at: Completed 12-01-PLAN.md
+Last activity: 2026-03-23 - Completed quick task 260323-sgb: Fix canCancel to include assigned state and check off stale UI checkboxes
 Resume file: None

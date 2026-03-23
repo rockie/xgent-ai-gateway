@@ -49,10 +49,10 @@ Requirements for Admin Web UI milestone. Each maps to roadmap phases.
 
 ### Frontend Foundation
 
-- [ ] **UI-01**: All pages show loading skeletons, error states with retry, and empty state guidance
-- [ ] **UI-02**: Toast notifications for success/failure on all mutations
-- [ ] **UI-03**: Dark mode toggle with persisted preference
-- [ ] **UI-04**: Auto-refresh with configurable interval (5s/15s/30s/off) and pause toggle
+- [x] **UI-01**: All pages show loading skeletons, error states with retry, and empty state guidance
+- [x] **UI-02**: Toast notifications for success/failure on all mutations
+- [x] **UI-03**: Dark mode toggle with persisted preference
+- [x] **UI-04**: Auto-refresh with configurable interval (5s/15s/30s/off) and pause toggle
 - [x] **UI-05**: Responsive layout for 1280px+ screens
 
 ### Backend API
@@ -111,10 +111,10 @@ Requirements for Admin Web UI milestone. Each maps to roadmap phases.
 | CRED-04 | Phase 11 | Complete |
 | CRED-05 | Phase 11 | Complete |
 | CRED-06 | Phase 11 | Complete |
-| UI-01 | Phase 8 | Pending |
-| UI-02 | Phase 8 | Pending |
-| UI-03 | Phase 8 | Pending |
-| UI-04 | Phase 8 | Pending |
+| UI-01 | Phase 8 | Complete |
+| UI-02 | Phase 8 | Complete |
+| UI-03 | Phase 8 | Complete |
+| UI-04 | Phase 8 | Complete |
 | UI-05 | Phase 8 | Complete |
 | API-01 | Phase 8 | Complete |
 | API-02 | Phase 8 | Complete |
