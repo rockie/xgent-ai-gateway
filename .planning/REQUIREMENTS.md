@@ -53,7 +53,7 @@ Requirements for Admin Web UI milestone. Each maps to roadmap phases.
 - [ ] **UI-02**: Toast notifications for success/failure on all mutations
 - [ ] **UI-03**: Dark mode toggle with persisted preference
 - [ ] **UI-04**: Auto-refresh with configurable interval (5s/15s/30s/off) and pause toggle
-- [ ] **UI-05**: Responsive layout for 1280px+ screens
+- [x] **UI-05**: Responsive layout for 1280px+ screens
 
 ### Backend API
 
@@ -115,7 +115,7 @@ Requirements for Admin Web UI milestone. Each maps to roadmap phases.
 | UI-02 | Phase 8 | Pending |
 | UI-03 | Phase 8 | Pending |
 | UI-04 | Phase 8 | Pending |
-| UI-05 | Phase 8 | Pending |
+| UI-05 | Phase 8 | Complete |
 | API-01 | Phase 8 | Complete |
 | API-02 | Phase 8 | Complete |
 | API-03 | Phase 11 | Pending |

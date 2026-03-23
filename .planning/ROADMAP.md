@@ -48,7 +48,7 @@ Full details: `.planning/milestones/v1.0-ROADMAP.md`
 
 Plans:
 - [x] 08-01-PLAN.md — Backend session auth endpoints, config changes, CORS, middleware replacement
-- [ ] 08-02-PLAN.md — Frontend SPA scaffolding, routing, login page, API client, auth hooks
+- [x] 08-02-PLAN.md — Frontend SPA scaffolding, routing, login page, API client, auth hooks
 - [ ] 08-03-PLAN.md — App shell (sidebar + header), dark mode, auto-refresh, UI pattern components
 
 ### Phase 9: Service and Node Management
