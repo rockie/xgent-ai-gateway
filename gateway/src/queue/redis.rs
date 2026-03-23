@@ -1,6 +1,7 @@
 use crate::config::GatewayConfig;
 use crate::error::GatewayError;
 use crate::types::{ServiceName, TaskId, TaskState};
+use serde::Serialize;
 use std::collections::HashMap;
 
 /// Full task status retrieved from Redis.
@@ -24,6 +25,16 @@ pub struct TaskAssignmentData {
     pub task_id: TaskId,
     pub payload: Vec<u8>,
     pub metadata: HashMap<String, String>,
+}
+
+/// Lightweight task summary for list responses (omits payload/result).
+#[derive(Debug, Clone, Serialize)]
+pub struct TaskSummary {
+    pub task_id: String,
+    pub state: String,
+    pub service: String,
+    pub created_at: String,
+    pub completed_at: String,
 }
 
 /// Redis Streams-backed task queue.
@@ -368,6 +379,158 @@ impl RedisQueue {
         }
 
         Ok(None)
+    }
+
+    /// List tasks using Redis SCAN with optional service/status filters.
+    /// Returns (tasks, next_cursor). next_cursor is None when keyspace exhausted.
+    pub async fn list_tasks(
+        &self,
+        cursor: Option<&str>,
+        page_size: usize,
+        service_filter: Option<&str>,
+        status_filter: &[TaskState],
+        task_id_search: Option<&str>,
+    ) -> Result<(Vec<TaskSummary>, Option<String>), GatewayError> {
+        // Direct lookup mode (D-09)
+        if let Some(search_id) = task_id_search {
+            let task_id = TaskId::from(search_id.to_string());
+            return match self.get_task_status(&task_id).await {
+                Ok(status) => Ok((
+                    vec![TaskSummary {
+                        task_id: status.task_id.0,
+                        state: status.state.as_str().to_string(),
+                        service: status.service,
+                        created_at: status.created_at,
+                        completed_at: status.completed_at,
+                    }],
+                    None,
+                )),
+                Err(GatewayError::TaskNotFound(_)) => Ok((vec![], None)),
+                Err(e) => Err(e),
+            };
+        }
+
+        let mut conn = self.conn.clone();
+        let mut redis_cursor: u64 = cursor.and_then(|c| c.parse().ok()).unwrap_or(0);
+        let mut results = Vec::new();
+        let mut iterations = 0;
+        let max_iterations: usize = 200;
+
+        while results.len() < page_size && iterations < max_iterations {
+            iterations += 1;
+            let (next_cursor, keys): (u64, Vec<String>) = ::redis::cmd("SCAN")
+                .arg(redis_cursor)
+                .arg("MATCH")
+                .arg("task:*")
+                .arg("COUNT")
+                .arg(page_size * 2)
+                .query_async(&mut conn)
+                .await
+                .map_err(GatewayError::Redis)?;
+
+            for key in &keys {
+                if results.len() >= page_size {
+                    break;
+                }
+                let task_id_str = match key.strip_prefix("task:") {
+                    Some(id) => id,
+                    None => continue,
+                };
+                let task_id = TaskId::from(task_id_str.to_string());
+                match self.get_task_status(&task_id).await {
+                    Ok(status) => {
+                        // Apply service filter
+                        if let Some(svc) = service_filter {
+                            if status.service != svc {
+                                continue;
+                            }
+                        }
+                        // Apply status filter
+                        if !status_filter.is_empty() && !status_filter.contains(&status.state) {
+                            continue;
+                        }
+                        results.push(TaskSummary {
+                            task_id: status.task_id.0,
+                            state: status.state.as_str().to_string(),
+                            service: status.service,
+                            created_at: status.created_at,
+                            completed_at: status.completed_at,
+                        });
+                    }
+                    Err(_) => continue, // key expired between SCAN and HGETALL
+                }
+            }
+
+            redis_cursor = next_cursor;
+            if redis_cursor == 0 {
+                break;
+            }
+        }
+
+        // Sort by task_id descending (UUID v7 = newest first)
+        results.sort_by(|a, b| b.task_id.cmp(&a.task_id));
+
+        let next_cursor = if redis_cursor == 0 {
+            None
+        } else {
+            Some(redis_cursor.to_string())
+        };
+
+        Ok((results, next_cursor))
+    }
+
+    /// Cancel a task (admin action). Sets state to Failed with cancellation message.
+    /// XACKs the stream entry if present.
+    pub async fn cancel_task(&self, task_id: &TaskId) -> Result<(), GatewayError> {
+        let hash_key = format!("task:{}", task_id);
+        let mut conn = self.conn.clone();
+
+        let fields: HashMap<String, String> = ::redis::cmd("HGETALL")
+            .arg(&hash_key)
+            .query_async(&mut conn)
+            .await
+            .map_err(GatewayError::Redis)?;
+
+        if fields.is_empty() {
+            return Err(GatewayError::TaskNotFound(task_id.0.clone()));
+        }
+
+        let current_state =
+            TaskState::from_str(fields.get("state").map(|s| s.as_str()).unwrap_or(""))?;
+
+        // Validate: only Pending or Running can be cancelled
+        current_state.try_transition(TaskState::Failed)?;
+
+        let completed_at = chrono::Utc::now().to_rfc3339();
+        let service = fields.get("service").cloned().unwrap_or_default();
+        let stream_id = fields.get("stream_id").cloned().unwrap_or_default();
+
+        let mut pipe = ::redis::pipe();
+        pipe.cmd("HSET")
+            .arg(&hash_key)
+            .arg("state")
+            .arg(TaskState::Failed.as_str())
+            .arg("error_message")
+            .arg("Cancelled by administrator")
+            .arg("completed_at")
+            .arg(&completed_at)
+            .ignore();
+
+        if !stream_id.is_empty() {
+            let stream_key = format!("tasks:{}", service);
+            pipe.cmd("XACK")
+                .arg(&stream_key)
+                .arg("workers")
+                .arg(&stream_id)
+                .ignore();
+        }
+
+        let _: () = pipe
+            .query_async(&mut conn)
+            .await
+            .map_err(GatewayError::Redis)?;
+
+        Ok(())
     }
 }
 

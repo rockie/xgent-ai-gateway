@@ -67,6 +67,7 @@ impl TaskState {
         let valid = matches!(
             (self, to),
             (TaskState::Pending, TaskState::Assigned)
+                | (TaskState::Pending, TaskState::Failed) // Admin cancel
                 | (TaskState::Assigned, TaskState::Running)
                 | (TaskState::Assigned, TaskState::Failed)
                 | (TaskState::Running, TaskState::Completed)
@@ -179,6 +180,12 @@ mod tests {
     fn transition_pending_to_assigned_ok() {
         let result = TaskState::Pending.try_transition(TaskState::Assigned);
         assert_eq!(result.unwrap(), TaskState::Assigned);
+    }
+
+    #[test]
+    fn transition_pending_to_failed_ok() {
+        let result = TaskState::Pending.try_transition(TaskState::Failed);
+        assert_eq!(result.unwrap(), TaskState::Failed);
     }
 
     #[test]
