@@ -38,10 +38,15 @@ export async function apiClient<T>(
     throw new ApiError(response.status, text || `Request failed with status ${response.status}`)
   }
 
-  // Handle 204 No Content and 202 Accepted (no body)
+  // Handle empty responses (204 No Content, 202 Accepted, or empty body)
   if (response.status === 204 || response.status === 202) {
     return undefined as T
   }
 
-  return response.json()
+  const text = await response.text()
+  if (!text) {
+    return undefined as T
+  }
+
+  return JSON.parse(text)
 }
