@@ -31,7 +31,7 @@ block_timeout_ms = 5000
 # password_hash = "$argon2id$v=19$m=65536,t=3,p=4$..."
 # cors_origin = "https://admin.example.com"
 session_ttl_secs = 86400
-cookie_secure = true
+cookie_secure = false  # Set to true in production (HTTPS). false required for HTTP localhost.
 
 [service_defaults]
 node_stale_after_secs = 60

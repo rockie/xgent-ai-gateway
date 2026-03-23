@@ -53,11 +53,13 @@ fn verify_password(password: &str, stored_hash: &str) -> bool {
 
 /// Build a session cookie with the given value and TTL.
 fn build_session_cookie(session_id: &str, ttl_secs: u64, secure: bool) -> Cookie<'static> {
+    // SameSite::None requires Secure flag; use Lax for HTTP (localhost dev)
+    let same_site = if secure { SameSite::None } else { SameSite::Lax };
     let mut cookie = Cookie::build(("session", session_id.to_string()))
         .path("/")
         .http_only(true)
         .secure(secure)
-        .same_site(SameSite::None)
+        .same_site(same_site)
         .build();
     cookie.set_max_age(Some(time::Duration::seconds(ttl_secs as i64)));
     cookie
