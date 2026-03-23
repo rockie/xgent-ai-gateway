@@ -108,7 +108,7 @@ export function decodePayload(
 }
 
 export function canCancel(state: string): boolean {
-  return state === 'pending' || state === 'running'
+  return state === 'pending' || state === 'running' || state === 'assigned'
 }
 
 export function taskStateLabel(state: string): string {
