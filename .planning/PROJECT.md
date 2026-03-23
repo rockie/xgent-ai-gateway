@@ -43,31 +43,19 @@ Tasks submitted by clients reliably reach internal nodes and results reliably fl
 - ✓ HTTP/2 keepalive pings on all connection modes — v1.0
 - ✓ gRPC auth hardening (API key on client RPCs, node token on node RPCs) — v1.0
 
+- ✓ Admin authentication with Argon2 password hashing and HttpOnly cookie sessions — v1.1
+- ✓ Admin dashboard with Prometheus metrics visualization (overview cards, time-series charts, service health) — v1.1
+- ✓ Service registration and management UI (list, detail, create, deregister) — v1.1
+- ✓ Node health monitoring UI (per-service node list, detail, health badges) — v1.1
+- ✓ Task management UI (paginated list, filters, detail, cancel) — v1.1
+- ✓ Credential management UI (API keys and node tokens: list, create, revoke) — v1.1
+
 ### Active
 
-<!-- Milestone v1.1: Admin Web UI -->
-
-- [ ] Admin authentication (login with admin account)
-- [ ] Dashboard with Prometheus metrics visualization
-- [x] Service registration and management — Phase 9
-- [x] Node agents management — Phase 9
-- [x] Credential management (list, create, revoke API keys and node tokens) — Phase 11
-- [ ] Tasks management (view status/details, cancel tasks)
-
-## Current Milestone: v1.1 Admin Web UI
-
-**Goal:** Add an admin web UI as a separate frontend app for managing and monitoring the gateway.
-
-**Target features:**
-- Admin login/authentication
-- Dashboard with Prometheus metrics (integrate existing Prometheus UI lib if available)
-- Service registration and CRUD management
-- Node agents management
-- Task viewing, status details, and cancellation (returns failed result to client)
+(No active requirements — define next milestone with `/gsd:new-milestone`)
 
 ### Out of Scope
 
-- ~~Web UI dashboard~~ — now building custom admin UI in v1.1
 - Multi-region/federation — run independent instances per region; cross-region is caller's problem
 - Task priority queues — use separate services per priority tier; simpler, no starvation risk
 - Streaming/WebSocket results — poll + callback covers all practical use cases
@@ -83,11 +71,11 @@ Tasks submitted by clients reliably reach internal nodes and results reliably fl
 
 ## Context
 
-Shipped v1.0 with 8,429 LOC Rust across 3 crates (gateway, proto, runner-agent) + sample service.
-Tech stack: Rust, Tokio, Tonic (gRPC), Axum (HTTP), Redis Streams, rustls (TLS/mTLS).
-20 plans across 7 phases completed in 2 days.
+Shipped v1.1 with ~6,600 LOC Rust (gateway) + ~6,600 LOC TypeScript/TSX (admin-ui).
+Tech stack: Rust (Tokio, Tonic, Axum, Redis Streams, rustls) + Vite + React 19 + TailwindCSS v4 + shadcn/ui + TanStack Router & Query + Recharts 3.x.
+32 plans across 12 phases completed in 2 days (v1.0 + v1.1).
 34 integration tests cover auth, registry, health, reaper, and gRPC auth flows.
-v1.1 adds a separate frontend app: Vite + React + TailwindCSS + shadcn/ui + TanStack Router & Query.
+Admin UI serves as a single-page app with session-based auth, dark mode, auto-refresh, and full CRUD for services, nodes, tasks, and credentials.
 
 ## Constraints
 
@@ -113,6 +101,13 @@ v1.1 adds a separate frontend app: Vite + React + TailwindCSS + shadcn/ui + TanS
 | Defer HTTP node polling | Runner agent proxy unifies all nodes to gRPC; avoids duplicate protocol | ✓ Good — single protocol path |
 | Config-based mTLS identity | HashMap<fingerprint, Vec<service>> in gateway.toml, empty=disabled | ✓ Good — Phase 7 |
 | jemalloc for musl binary | Default musl allocator has poor performance; jemalloc fixes this | ✓ Good — Phase 5 |
+| Argon2id + HttpOnly cookie sessions | Industry-standard password hashing; cookies avoid XSS token theft | ✓ Good — Phase 8 |
+| SameSite=None + Secure cookies | Required for cross-origin SPA session delivery during dev | ✓ Good — Phase 8 |
+| Vite + React 19 + TanStack | Modern SPA stack with file-based routing and query caching | ✓ Good — Phase 8 |
+| shadcn/ui v4 with oklch defaults | Accepted framework defaults over custom zinc HSL from UI-SPEC | ✓ Good — consistent theming |
+| SCAN-based pagination | App-layer filtering with Redis SCAN; simple, works for admin scale | ✓ Good — Phase 10 |
+| In-memory ring buffer for metrics | std::sync::Mutex with microsecond locks; captures Prometheus snapshots every 10s | ✓ Good — Phase 12 |
+| Forced-dismissal secret dialog | Prevents accidental dismiss of one-time secret reveal | ✓ Good — Phase 11 |
 
 ## Evolution
 
@@ -132,4 +127,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-23 after Phase 11 (Credential Management) complete*
+*Last updated: 2026-03-23 after v1.1 milestone complete*

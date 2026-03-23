@@ -48,13 +48,61 @@
 
 ---
 
+## Milestone: v1.1 — Admin Web UI
+
+**Shipped:** 2026-03-23
+**Phases:** 5 | **Plans:** 12 | **Tasks:** 28
+
+### What Was Built
+- Session-based admin auth with Argon2id password hashing and HttpOnly cookie sessions
+- Vite + React 19 SPA with TanStack Router/Query, shadcn/ui, dark mode, auto-refresh
+- Service and node management pages with card grid, health badges, detail views, CRUD dialogs
+- Task management with SCAN-based pagination, filters, detail sheet, cancel flow
+- Credential management with tabbed API keys/node tokens, one-time secret reveal, optimistic revoke
+- Live dashboard with Recharts area charts, overview cards with trend arrows, service health list
+
+### What Worked
+- TanStack Router + Query combination gave type-safe routing with excellent data caching
+- shadcn/ui v4 defaults (oklch colors, Geist font) looked good without custom theming
+- Consistent hook pattern across all data layers (services.ts, tasks.ts, credentials.ts, metrics.ts) made each page predictable
+- SCAN-based pagination kept Redis usage simple — sufficient for admin-scale workloads
+- In-memory ring buffer for metrics avoided new Redis dependencies for time-series data
+
+### What Was Inefficient
+- Phase 8/9 ROADMAP checkboxes not updated during execution (showed unchecked despite completion)
+- UI-01 through UI-04 requirement checkboxes went stale — caught only at audit time
+- 14 human verification items accumulated across phases without browser testing
+
+### Patterns Established
+- HttpOnly cookie sessions with SameSite=None for cross-origin SPA
+- Forced-dismissal dialog pattern for one-time secret reveals
+- Per-card detail fetch (N+1) acceptable for admin UI scale
+- Background snapshot task refreshing Prometheus gauges before ring buffer capture
+
+### Key Lessons
+1. Run milestone audit before completion — catches stale checkboxes and minor integration gaps early
+2. shadcn/ui defaults are good enough — custom theming effort better spent elsewhere
+3. SCAN-based pagination works for admin but would need cursor-based approach at scale
+
+### Cost Observations
+- All 5 phases completed in a single day
+- ~6,600 LOC TypeScript/TSX shipped
+- Consistent hook/component patterns from Phase 8 accelerated Phases 9-12
+
+---
+
 ## Cross-Milestone Trends
 
-| Metric | v1.0 |
-|--------|------|
-| Phases | 7 |
-| Plans | 20 |
-| Tasks | 41 |
-| Avg plan duration | ~5 min |
-| LOC shipped | 8,429 |
-| Calendar days | 2 |
+| Metric | v1.0 | v1.1 |
+|--------|------|------|
+| Phases | 7 | 5 |
+| Plans | 20 | 12 |
+| Tasks | 41 | 28 |
+| LOC shipped | 8,429 Rust | ~6,600 TS/TSX |
+| Calendar days | 2 | 1 |
+
+### Top Lessons (Verified Across Milestones)
+
+1. Consistent patterns across similar components dramatically accelerate development (Tower middleware in v1.0, TanStack Query hooks in v1.1)
+2. Milestone audits catch what manual tracking misses — run before completion every time
+3. ROADMAP.md progress table drifts during execution — needs automated sync or post-phase update discipline

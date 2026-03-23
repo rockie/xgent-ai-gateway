@@ -1,5 +1,26 @@
 # Milestones
 
+## v1.1 Admin Web UI (Shipped: 2026-03-23)
+
+**Phases completed:** 5 phases, 12 plans, 28 tasks
+
+**Key accomplishments:**
+
+- Argon2 password-verified session auth with Redis-backed HttpOnly cookies, CORS, and login/logout/refresh endpoints replacing Bearer token admin middleware
+- Vite + React 19 SPA with TanStack Router auth guards, shadcn/ui components, API client with HttpOnly cookie auth, and split-layout login page
+- Collapsible sidebar navigation, dark/light theme, auto-refresh controls, and reusable UI pattern components (ErrorAlert, EmptyState, PageSkeleton)
+- Service list page with card grid showing per-card health badges and node counts, registration dialog with all config fields, and shared hooks/types for service management
+- Service detail page with config card, node health table, breadcrumb navigation, and deregister confirmation dialog
+- Admin task list/detail/cancel endpoints with SCAN-based pagination, service/status filters, and state-validated cancel with XACK
+- TanStack Query hooks for task CRUD with base64 payload decoder and colored status badges
+- Task list page with filterable data table, slide-out detail sheet with payload viewer, and cancel confirmation dialog
+- Backend list endpoints for API keys and node tokens with label/expiry fields and auth-time expiry enforcement
+- Tabbed credential management page with API key/node token CRUD, one-time secret reveal dialog, and optimistic revoke
+- In-memory ring buffer capturing Prometheus snapshots every 10s with two JSON endpoints for dashboard overview cards and time-series charts
+- Operational dashboard with Recharts 3.x area charts, overview cards with trend arrows, and service health list replacing EmptyState stub
+
+---
+
 ## v1.0 MVP (Shipped: 2026-03-22)
 
 **Phases completed:** 7 phases, 20 plans, 41 tasks
