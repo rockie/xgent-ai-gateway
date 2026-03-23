@@ -76,7 +76,7 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 10-01-PLAN.md — Backend task endpoints: list (SCAN + pagination), detail, cancel with state machine fix
+- [x] 10-01-PLAN.md — Backend task endpoints: list (SCAN + pagination), detail, cancel with state machine fix
 - [ ] 10-02-PLAN.md — Frontend task types/hooks, TaskStatusBadge, JsonViewer utility components
 - [ ] 10-03-PLAN.md — Task list page with filters, data table, detail sheet, cancel dialog
 
@@ -125,6 +125,6 @@ Phases 9, 10, and 11 all depend only on Phase 8 and could execute in any order. 
 | 7. Integration Fixes, Sample Service, and Cleanup | v1.0 | 3/3 | Complete | 2026-03-22 |
 | 8. Frontend Foundation and Backend Auth | v1.1 | 0/3 | Planning | - |
 | 9. Service and Node Management | v1.1 | 0/2 | Planning | - |
-| 10. Task Management and Data Endpoints | v1.1 | 0/3 | Planning | - |
+| 10. Task Management and Data Endpoints | v1.1 | 1/3 | In Progress|  |
 | 11. Credential Management | v1.1 | 0/? | Not started | - |
 | 12. Dashboard and Metrics Visualization | v1.1 | 0/? | Not started | - |

@@ -36,7 +36,7 @@ Requirements for Admin Web UI milestone. Each maps to roadmap phases.
 
 - [ ] **TASK-01**: Admin can view paginated task list filtered by service and status
 - [ ] **TASK-02**: Admin can view task detail (metadata, timestamps, assigned node, result)
-- [ ] **TASK-03**: Admin can cancel a pending or running task (returns failed to client)
+- [x] **TASK-03**: Admin can cancel a pending or running task (returns failed to client)
 
 ### Credential Management
 
@@ -61,8 +61,8 @@ Requirements for Admin Web UI milestone. Each maps to roadmap phases.
 - [x] **API-02**: POST /v1/admin/auth/refresh endpoint (extends session)
 - [ ] **API-03**: GET /v1/admin/api-keys list endpoint
 - [ ] **API-04**: GET /v1/admin/node-tokens list endpoint
-- [ ] **API-05**: GET /v1/admin/tasks with pagination and service/status filters
-- [ ] **API-06**: POST /v1/admin/tasks/{task_id}/cancel endpoint
+- [x] **API-05**: GET /v1/admin/tasks with pagination and service/status filters
+- [x] **API-06**: POST /v1/admin/tasks/{task_id}/cancel endpoint
 
 ## Future Requirements
 
@@ -104,7 +104,7 @@ Requirements for Admin Web UI milestone. Each maps to roadmap phases.
 | NODE-02 | Phase 9 | Complete |
 | TASK-01 | Phase 10 | Pending |
 | TASK-02 | Phase 10 | Pending |
-| TASK-03 | Phase 10 | Pending |
+| TASK-03 | Phase 10 | Complete |
 | CRED-01 | Phase 11 | Pending |
 | CRED-02 | Phase 11 | Pending |
 | CRED-03 | Phase 11 | Pending |
@@ -120,8 +120,8 @@ Requirements for Admin Web UI milestone. Each maps to roadmap phases.
 | API-02 | Phase 8 | Complete |
 | API-03 | Phase 11 | Pending |
 | API-04 | Phase 11 | Pending |
-| API-05 | Phase 10 | Pending |
-| API-06 | Phase 10 | Pending |
+| API-05 | Phase 10 | Complete |
+| API-06 | Phase 10 | Complete |
 
 **Coverage:**
 - v1.1 requirements: 33 total
