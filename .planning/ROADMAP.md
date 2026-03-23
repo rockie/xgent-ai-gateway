@@ -28,7 +28,7 @@ Full details: `.planning/milestones/v1.0-ROADMAP.md`
 
 - [ ] **Phase 8: Frontend Foundation and Backend Auth** - Scaffold Vite+React app, implement auth endpoints and login flow, establish UI patterns
 - [ ] **Phase 9: Service and Node Management** - Service CRUD pages and node health pages using existing backend endpoints
-- [ ] **Phase 10: Task Management and Data Endpoints** - New backend task endpoints, task list/detail/cancel pages
+- [x] **Phase 10: Task Management and Data Endpoints** - New backend task endpoints, task list/detail/cancel pages (completed 2026-03-23)
 - [ ] **Phase 11: Credential Management** - API key and node token list endpoints, credential CRUD pages
 - [ ] **Phase 12: Dashboard and Metrics Visualization** - Dashboard overview cards, live charts, service health badges
 
@@ -78,7 +78,7 @@ Plans:
 Plans:
 - [x] 10-01-PLAN.md — Backend task endpoints: list (SCAN + pagination), detail, cancel with state machine fix
 - [x] 10-02-PLAN.md — Frontend task types/hooks, TaskStatusBadge, JsonViewer utility components
-- [ ] 10-03-PLAN.md — Task list page with filters, data table, detail sheet, cancel dialog
+- [x] 10-03-PLAN.md — Task list page with filters, data table, detail sheet, cancel dialog
 
 ### Phase 11: Credential Management
 **Goal**: Admin can manage API keys and node tokens for all services through the UI
@@ -125,6 +125,6 @@ Phases 9, 10, and 11 all depend only on Phase 8 and could execute in any order. 
 | 7. Integration Fixes, Sample Service, and Cleanup | v1.0 | 3/3 | Complete | 2026-03-22 |
 | 8. Frontend Foundation and Backend Auth | v1.1 | 0/3 | Planning | - |
 | 9. Service and Node Management | v1.1 | 0/2 | Planning | - |
-| 10. Task Management and Data Endpoints | v1.1 | 2/3 | In Progress|  |
+| 10. Task Management and Data Endpoints | v1.1 | 3/3 | Complete   | 2026-03-23 |
 | 11. Credential Management | v1.1 | 0/? | Not started | - |
 | 12. Dashboard and Metrics Visualization | v1.1 | 0/? | Not started | - |
