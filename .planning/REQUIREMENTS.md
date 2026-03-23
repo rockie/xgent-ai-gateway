@@ -34,8 +34,8 @@ Requirements for Admin Web UI milestone. Each maps to roadmap phases.
 
 ### Task Management
 
-- [ ] **TASK-01**: Admin can view paginated task list filtered by service and status
-- [ ] **TASK-02**: Admin can view task detail (metadata, timestamps, assigned node, result)
+- [x] **TASK-01**: Admin can view paginated task list filtered by service and status
+- [x] **TASK-02**: Admin can view task detail (metadata, timestamps, assigned node, result)
 - [x] **TASK-03**: Admin can cancel a pending or running task (returns failed to client)
 
 ### Credential Management
@@ -102,8 +102,8 @@ Requirements for Admin Web UI milestone. Each maps to roadmap phases.
 | SVC-04 | Phase 9 | Complete |
 | NODE-01 | Phase 9 | Complete |
 | NODE-02 | Phase 9 | Complete |
-| TASK-01 | Phase 10 | Pending |
-| TASK-02 | Phase 10 | Pending |
+| TASK-01 | Phase 10 | Complete |
+| TASK-02 | Phase 10 | Complete |
 | TASK-03 | Phase 10 | Complete |
 | CRED-01 | Phase 11 | Pending |
 | CRED-02 | Phase 11 | Pending |
