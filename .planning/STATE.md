@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Admin Web UI
-status: Ready to plan
-stopped_at: Phase 11 context gathered
-last_updated: "2026-03-23T06:55:46.228Z"
+status: Ready to execute
+stopped_at: Completed 11-01-PLAN.md
+last_updated: "2026-03-23T07:37:31.398Z"
 progress:
   total_phases: 5
   completed_phases: 3
-  total_plans: 8
-  completed_plans: 8
+  total_plans: 10
+  completed_plans: 9
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-22)
 
 **Core value:** Tasks submitted by clients reliably reach internal nodes and results reliably flow back, regardless of network topology
-**Current focus:** Phase 10 — task-management-and-data-endpoints
+**Current focus:** Phase 11 — credential-management
 
 ## Current Position
 
-Phase: 11
-Plan: Not started
+Phase: 11 (credential-management) — EXECUTING
+Plan: 2 of 2
 
 ## Performance Metrics
 
@@ -57,6 +57,7 @@ v1.1 key context from research:
 - [Phase 10]: SCAN-based pagination with app-layer filtering for task listing
 - [Phase 10]: TaskSummary omits payload/result for lightweight list responses
 - [Phase 10-02]: Followed services.ts hook pattern exactly for task data layer consistency
+- [Phase 11]: Expired credentials shown in list endpoints but rejected at auth time
 
 ### Pending Todos
 
@@ -69,6 +70,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-23T06:55:46.225Z
-Stopped at: Phase 11 context gathered
-Resume file: .planning/phases/11-credential-management/11-CONTEXT.md
+Last session: 2026-03-23T07:37:31.395Z
+Stopped at: Completed 11-01-PLAN.md
+Resume file: None
