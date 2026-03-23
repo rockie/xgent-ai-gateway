@@ -105,12 +105,14 @@ async fn test_reaper_marks_timed_out_task_as_failed() {
 
     // Build AppState for the reaper
     let http_client = reqwest::Client::new();
+    let metrics_history = std::sync::Arc::new(std::sync::Mutex::new(xgent_gateway::metrics_history::MetricsHistory::new()));
     let _state = std::sync::Arc::new(xgent_gateway::state::AppState::new(
         queue,
         config,
         conn.clone(),
         http_client,
         xgent_gateway::metrics::Metrics::new(),
+        metrics_history,
     ));
 
     // Call the reaper (it's pub via the module)
@@ -291,12 +293,14 @@ async fn test_reaper_full_loop_marks_timed_out_task_failed() {
 
     // Build AppState and call the reaper directly
     let http_client = reqwest::Client::new();
+    let metrics_history = std::sync::Arc::new(std::sync::Mutex::new(xgent_gateway::metrics_history::MetricsHistory::new()));
     let state = std::sync::Arc::new(xgent_gateway::state::AppState::new(
         queue,
         config,
         conn.clone(),
         http_client,
         xgent_gateway::metrics::Metrics::new(),
+        metrics_history,
     ));
 
     let reaped = xgent_gateway::reaper::reap_timed_out_tasks(&state).await.unwrap();

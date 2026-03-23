@@ -86,7 +86,8 @@ async fn start_test_gateway(test_name: &str) -> TestGateway {
     let auth_client = redis::Client::open(redis_url.as_str()).unwrap();
     let auth_conn = auth_client.get_multiplexed_async_connection().await.unwrap();
 
-    let app_state = Arc::new(state::AppState::new(redis_queue, cfg.clone(), auth_conn, reqwest::Client::new(), Metrics::new()));
+    let metrics_history = Arc::new(std::sync::Mutex::new(xgent_gateway::metrics_history::MetricsHistory::new()));
+    let app_state = Arc::new(state::AppState::new(redis_queue, cfg.clone(), auth_conn, reqwest::Client::new(), Metrics::new(), metrics_history));
 
     let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
 
