@@ -9,10 +9,10 @@ Requirements for Admin Web UI milestone. Each maps to roadmap phases.
 
 ### Authentication
 
-- [ ] **AUTH-01**: Admin can log in with username and password
-- [ ] **AUTH-02**: Admin session persists via secure HttpOnly cookie
-- [ ] **AUTH-03**: Admin session auto-refreshes before expiry
-- [ ] **AUTH-04**: Admin can log out with session cleanup
+- [x] **AUTH-01**: Admin can log in with username and password
+- [x] **AUTH-02**: Admin session persists via secure HttpOnly cookie
+- [x] **AUTH-03**: Admin session auto-refreshes before expiry
+- [x] **AUTH-04**: Admin can log out with session cleanup
 
 ### Dashboard
 
@@ -57,8 +57,8 @@ Requirements for Admin Web UI milestone. Each maps to roadmap phases.
 
 ### Backend API
 
-- [ ] **API-01**: POST /v1/admin/auth/login endpoint (returns session token)
-- [ ] **API-02**: POST /v1/admin/auth/refresh endpoint (extends session)
+- [x] **API-01**: POST /v1/admin/auth/login endpoint (returns session token)
+- [x] **API-02**: POST /v1/admin/auth/refresh endpoint (extends session)
 - [ ] **API-03**: GET /v1/admin/api-keys list endpoint
 - [ ] **API-04**: GET /v1/admin/node-tokens list endpoint
 - [ ] **API-05**: GET /v1/admin/tasks with pagination and service/status filters
@@ -89,10 +89,10 @@ Requirements for Admin Web UI milestone. Each maps to roadmap phases.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| AUTH-01 | Phase 8 | Pending |
-| AUTH-02 | Phase 8 | Pending |
-| AUTH-03 | Phase 8 | Pending |
-| AUTH-04 | Phase 8 | Pending |
+| AUTH-01 | Phase 8 | Complete |
+| AUTH-02 | Phase 8 | Complete |
+| AUTH-03 | Phase 8 | Complete |
+| AUTH-04 | Phase 8 | Complete |
 | DASH-01 | Phase 12 | Pending |
 | DASH-02 | Phase 12 | Pending |
 | DASH-03 | Phase 12 | Pending |
@@ -116,8 +116,8 @@ Requirements for Admin Web UI milestone. Each maps to roadmap phases.
 | UI-03 | Phase 8 | Pending |
 | UI-04 | Phase 8 | Pending |
 | UI-05 | Phase 8 | Pending |
-| API-01 | Phase 8 | Pending |
-| API-02 | Phase 8 | Pending |
+| API-01 | Phase 8 | Complete |
+| API-02 | Phase 8 | Complete |
 | API-03 | Phase 11 | Pending |
 | API-04 | Phase 11 | Pending |
 | API-05 | Phase 10 | Pending |
