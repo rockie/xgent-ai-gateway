@@ -104,16 +104,16 @@ export function TaskTable({ tasks, onRowClick }: TaskTableProps) {
               </TableCell>
               <TableCell>
                 <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
+                  <DropdownMenuTrigger
+                    render={<Button
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8"
                       onClick={(e) => e.stopPropagation()}
-                    >
-                      <MoreHorizontal className="h-4 w-4" />
-                      <span className="sr-only">Open menu</span>
-                    </Button>
+                    />}
+                  >
+                    <MoreHorizontal className="h-4 w-4" />
+                    <span className="sr-only">Open menu</span>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem
