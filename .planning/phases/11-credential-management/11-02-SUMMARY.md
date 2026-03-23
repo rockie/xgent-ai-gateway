@@ -37,6 +37,7 @@ key-files:
     - admin-ui/src/components/ui/tabs.tsx
   modified:
     - admin-ui/src/routes/_authenticated/credentials.tsx
+    - admin-ui/src/lib/api.ts
 
 key-decisions:
   - "Used base-ui Dialog disablePointerDismissal + onOpenChange reason filtering for forced-dismissal secret reveal"
@@ -63,15 +64,16 @@ completed: 2026-03-23
 - **Duration:** 7 min
 - **Started:** 2026-03-23T07:39:08Z
 - **Completed:** 2026-03-23T07:46:07Z
-- **Tasks:** 2 of 2 auto tasks (Task 3 checkpoint pending)
+- **Tasks:** 3 (2 auto + 1 checkpoint verified)
 - **Files created:** 6
-- **Files modified:** 1
+- **Files modified:** 2
 
 ## Accomplishments
 - Built credential data layer with types, query hooks (auto-refresh), mutation hooks (optimistic revoke)
 - Created five UI components: CredentialTable, CreateCredentialDialog, SecretRevealDialog, RevokeCredentialDialog, and shadcn Tabs
 - Replaced placeholder credentials page with full tabbed CRUD interface
 - Secret reveal dialog prevents all dismiss mechanisms except the "I've copied it" button
+- All 25 end-to-end verification steps passed (checkpoint approved)
 
 ## Task Commits
 
@@ -79,6 +81,9 @@ Each task was committed atomically:
 
 1. **Task 1: Install Tabs component and create credential data layer** - `7e962da` (feat)
 2. **Task 2: Build credential UI components and replace placeholder page** - `6c62ebf` (feat)
+3. **Task 3: Verify credential management UI end-to-end** - checkpoint verified (approved)
+
+**Bug fix during verification:** `32d0357` (fix) - apiClient empty response body handling
 
 ## Files Created/Modified
 - `admin-ui/src/lib/credentials.ts` - Types, query hooks (useApiKeys, useNodeTokens), mutation hooks (create, revoke with optimistic updates), utility functions (maskHash, isExpired)
@@ -88,6 +93,7 @@ Each task was committed atomically:
 - `admin-ui/src/components/secret-reveal-dialog.tsx` - Forced-dismissal dialog showing raw secret once with copy button
 - `admin-ui/src/components/revoke-credential-dialog.tsx` - AlertDialog confirmation for credential revocation
 - `admin-ui/src/routes/_authenticated/credentials.tsx` - Full credentials page with tabs, loading/error/empty states, create and revoke flows
+- `admin-ui/src/lib/api.ts` - Fixed empty response body handling for revoke endpoints (discovered during verification)
 
 ## Decisions Made
 - Used base-ui Dialog `disablePointerDismissal` and `onOpenChange` reason filtering to implement forced-dismissal instead of the older radix `onInteractOutside`/`onEscapeKeyDown` pattern (adapted to shadcn v4 API)
@@ -117,21 +123,32 @@ Each task was committed atomically:
 
 ---
 
-**Total deviations:** 2 auto-fixed (1 bug, 1 blocking)
-**Impact on plan:** Both fixes necessary for shadcn v4 / base-ui compatibility. No scope creep.
+**3. [Rule 1 - Bug] Fixed apiClient empty response body parsing**
+- **Found during:** Task 3 (checkpoint verification)
+- **Issue:** apiClient called `response.json()` on empty 200 responses from revoke endpoints (content-length: 0)
+- **Fix:** Read text first, only JSON-parse if non-empty
+- **Files modified:** admin-ui/src/lib/api.ts
+- **Verification:** Revoke endpoints work end-to-end
+- **Committed in:** 32d0357
+
+---
+
+**Total deviations:** 3 auto-fixed (2 bug, 1 blocking)
+**Impact on plan:** All fixes necessary for correctness and shadcn v4 / base-ui compatibility. No scope creep.
 
 ## Issues Encountered
-None
+- apiClient parsed empty response bodies as JSON causing runtime errors on revoke endpoints. Fixed by checking text content before JSON parsing (`32d0357`).
 
 ## User Setup Required
 None - no external service configuration required.
 
 ## Next Phase Readiness
-- Task 3 (checkpoint:human-verify) pending: end-to-end verification of credential CRUD flows
+- Credential management UI complete and verified end-to-end
 - All TypeScript compiles and production build succeeds
+- Phase 11 (credential-management) fully complete
 
 ---
 *Phase: 11-credential-management*
-*Completed: 2026-03-23 (pending checkpoint verification)*
+*Completed: 2026-03-23*
 
 ## Self-Check: PASSED
