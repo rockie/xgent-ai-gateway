@@ -30,7 +30,7 @@ Full details: `.planning/milestones/v1.0-ROADMAP.md`
 - [ ] **Phase 9: Service and Node Management** - Service CRUD pages and node health pages using existing backend endpoints
 - [x] **Phase 10: Task Management and Data Endpoints** - New backend task endpoints, task list/detail/cancel pages (completed 2026-03-23)
 - [x] **Phase 11: Credential Management** - API key and node token list endpoints, credential CRUD pages (completed 2026-03-23)
-- [ ] **Phase 12: Dashboard and Metrics Visualization** - Dashboard overview cards, live charts, service health badges
+- [x] **Phase 12: Dashboard and Metrics Visualization** - Dashboard overview cards, live charts, service health badges (completed 2026-03-23)
 
 ## Phase Details
 
@@ -106,7 +106,7 @@ Plans:
 
 Plans:
 - [x] 12-01-PLAN.md — Backend ring buffer, metrics snapshot task, summary and history API endpoints
-- [ ] 12-02-PLAN.md — Frontend dashboard page with overview cards, Recharts charts, and service health list
+- [x] 12-02-PLAN.md — Frontend dashboard page with overview cards, Recharts charts, and service health list
 
 ## Progress
 
@@ -127,4 +127,4 @@ Phases 9, 10, and 11 all depend only on Phase 8 and could execute in any order. 
 | 9. Service and Node Management | v1.1 | 0/2 | Planning | - |
 | 10. Task Management and Data Endpoints | v1.1 | 3/3 | Complete    | 2026-03-23 |
 | 11. Credential Management | v1.1 | 2/2 | Complete    | 2026-03-23 |
-| 12. Dashboard and Metrics Visualization | v1.1 | 1/2 | In Progress|  |
+| 12. Dashboard and Metrics Visualization | v1.1 | 2/2 | Complete   | 2026-03-23 |
