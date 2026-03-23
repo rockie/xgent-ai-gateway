@@ -102,11 +102,11 @@ Plans:
   1. Admin sees overview cards showing service count, active nodes, aggregate queue depth, and task throughput
   2. Admin sees live time-series charts for throughput and queue depth that auto-update every 10-15 seconds
   3. Admin sees color-coded service health badges (green/yellow/red) reflecting real node and queue state
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 12-01: TBD
-- [ ] 12-02: TBD
+- [ ] 12-01-PLAN.md — Backend ring buffer, metrics snapshot task, summary and history API endpoints
+- [ ] 12-02-PLAN.md — Frontend dashboard page with overview cards, Recharts charts, and service health list
 
 ## Progress
 
@@ -127,4 +127,4 @@ Phases 9, 10, and 11 all depend only on Phase 8 and could execute in any order. 
 | 9. Service and Node Management | v1.1 | 0/2 | Planning | - |
 | 10. Task Management and Data Endpoints | v1.1 | 3/3 | Complete    | 2026-03-23 |
 | 11. Credential Management | v1.1 | 2/2 | Complete    | 2026-03-23 |
-| 12. Dashboard and Metrics Visualization | v1.1 | 0/? | Not started | - |
+| 12. Dashboard and Metrics Visualization | v1.1 | 0/2 | Planning | - |
