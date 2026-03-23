@@ -73,15 +73,34 @@ pub struct GrpcTlsConfig {
 /// Admin endpoint configuration.
 #[derive(Debug, Deserialize, Clone)]
 pub struct AdminConfig {
-    /// Bootstrap admin token from config file. If set, admin endpoints require this token.
-    /// If not set, admin endpoints are unauthenticated (dev mode).
-    pub token: Option<String>,
+    /// Admin username. If not set, admin endpoints are unauthenticated (dev mode).
+    pub username: Option<String>,
+    /// Argon2 PHC-format password hash for the admin user.
+    pub password_hash: Option<String>,
+    /// Allowed CORS origin for the admin SPA (e.g., "https://admin.example.com").
+    pub cors_origin: Option<String>,
+    /// Session TTL in seconds. Default 86400 (24 hours).
+    #[serde(default = "default_session_ttl_secs")]
+    pub session_ttl_secs: u64,
+    /// Whether to set Secure flag on session cookie. Default true.
+    #[serde(default = "default_true")]
+    pub cookie_secure: bool,
 }
 
 impl Default for AdminConfig {
     fn default() -> Self {
-        Self { token: None }
+        Self {
+            username: None,
+            password_hash: None,
+            cors_origin: None,
+            session_ttl_secs: default_session_ttl_secs(),
+            cookie_secure: true,
+        }
     }
+}
+
+fn default_session_ttl_secs() -> u64 {
+    86400
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -266,6 +285,8 @@ pub fn load_config(config_path: Option<&str>) -> Result<GatewayConfig, config::C
         .set_default("callback.max_retries", 3_i64)?
         .set_default("callback.initial_delay_ms", 1000_i64)?
         .set_default("callback.timeout_secs", 10_i64)?
+        .set_default("admin.session_ttl_secs", 86400_i64)?
+        .set_default("admin.cookie_secure", true)?
         .set_default("logging.format", "text")?;
 
     // TOML file override

@@ -207,7 +207,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                     auth::api_key::api_key_auth_middleware,
                 ));
 
-            // Admin routes -- protected by admin.token if configured
+            // Admin routes -- protected by session cookie if configured
             let admin_routes = axum::Router::new()
                 .route(
                     "/v1/admin/api-keys",
@@ -249,7 +249,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 )
                 .layer(axum::middleware::from_fn_with_state(
                     http_state.clone(),
-                    http::admin::admin_auth_middleware,
+                    http::auth::session_auth_middleware,
                 ));
 
             let app = axum::Router::new()

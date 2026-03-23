@@ -25,8 +25,13 @@ stream_maxlen = 10000
 block_timeout_ms = 5000
 
 [admin]
-# Set admin.token to protect admin endpoints
-# token = "your-admin-token-here"
+# Admin session auth. Set username and password_hash to protect admin endpoints.
+# Generate hash: echo -n 'your-password' | argon2 $(openssl rand -base64 12) -id -e
+# username = "admin"
+# password_hash = "$argon2id$v=19$m=65536,t=3,p=4$..."
+# cors_origin = "https://admin.example.com"
+session_ttl_secs = 86400
+cookie_secure = true
 
 [service_defaults]
 node_stale_after_secs = 60

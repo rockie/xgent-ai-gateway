@@ -469,26 +469,3 @@ pub async fn health_handler(
     }))
 }
 
-// --- Admin Auth Middleware ---
-
-/// Middleware that checks admin.token if configured.
-/// If no admin.token is set, all requests pass through (dev mode).
-pub async fn admin_auth_middleware(
-    State(state): State<Arc<AppState>>,
-    req: axum::extract::Request,
-    next: axum::middleware::Next,
-) -> Result<axum::response::Response, StatusCode> {
-    if let Some(ref expected_token) = state.config.admin.token {
-        let auth_header = req
-            .headers()
-            .get("authorization")
-            .and_then(|v| v.to_str().ok())
-            .and_then(|v| v.strip_prefix("Bearer "));
-        match auth_header {
-            Some(token) if token == expected_token => Ok(next.run(req).await),
-            _ => Err(StatusCode::UNAUTHORIZED),
-        }
-    } else {
-        Ok(next.run(req).await)
-    }
-}

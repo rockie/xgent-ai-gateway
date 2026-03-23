@@ -127,7 +127,7 @@ mod tests {
     #[test]
     fn test_admin_config_default() {
         let admin = crate::config::AdminConfig::default();
-        assert!(admin.token.is_none(), "default admin token should be None");
+        assert!(admin.username.is_none(), "default admin username should be None");
     }
 
     #[test]
@@ -154,6 +154,6 @@ block_timeout_ms = 5000
             toml::from_str(toml_str).expect("should deserialize without TLS fields");
         assert!(cfg.grpc.tls.is_none());
         assert!(cfg.http.tls.is_none());
-        assert!(cfg.admin.token.is_none());
+        assert!(cfg.admin.username.is_none());
     }
 }
