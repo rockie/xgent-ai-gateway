@@ -123,7 +123,7 @@ async fn start_test_grpc_server() -> TestGrpcServer {
 
     // Create API key authorized for test-svc
     let (raw_api_key, key_hash) = auth::api_key::generate_api_key();
-    auth::api_key::store_api_key(&mut conn.clone(), &key_hash, &[service_name.clone()], None)
+    auth::api_key::store_api_key(&mut conn.clone(), &key_hash, &[service_name.clone()], None, None, None)
         .await
         .unwrap();
 
@@ -134,6 +134,7 @@ async fn start_test_grpc_server() -> TestGrpcServer {
         &service_name,
         &token_hash,
         Some("test-node"),
+        None,
     )
     .await
     .unwrap();
@@ -269,6 +270,8 @@ async fn test_grpc_submit_wrong_service() {
         &other_hash,
         &["other-svc".to_string()],
         None,
+        None,
+        None,
     )
     .await
     .unwrap();
@@ -334,6 +337,8 @@ async fn test_grpc_status_wrong_service() {
         &mut gw.auth_conn.clone(),
         &other_hash,
         &["other-svc".to_string()],
+        None,
+        None,
         None,
     )
     .await

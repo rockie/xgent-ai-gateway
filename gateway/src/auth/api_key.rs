@@ -15,6 +15,8 @@ pub struct ClientMetadata {
     pub service_names: Vec<String>,
     pub created_at: String,
     pub callback_url: Option<String>,
+    pub label: Option<String>,
+    pub expires_at: Option<String>,
 }
 
 /// Generate a new API key pair: (raw_key_hex, sha256_hash_hex).
@@ -37,12 +39,14 @@ pub fn hash_api_key(raw_key: &str) -> String {
 
 /// Store an API key hash in Redis with associated service names and optional callback URL.
 ///
-/// Redis key: `api_keys:<key_hash>` (hash type with fields: service_names, created_at, callback_url)
+/// Redis key: `api_keys:<key_hash>` (hash type with fields: service_names, created_at, callback_url, label, expires_at)
 pub async fn store_api_key(
     conn: &mut redis::aio::MultiplexedConnection,
     key_hash: &str,
     service_names: &[String],
     callback_url: Option<&str>,
+    label: Option<&str>,
+    expires_at: Option<&str>,
 ) -> Result<(), redis::RedisError> {
     let redis_key = format!("api_keys:{key_hash}");
     let now = chrono::Utc::now().to_rfc3339();
@@ -52,6 +56,12 @@ pub async fn store_api_key(
         .hset(&redis_key, "created_at", &now);
     if let Some(url) = callback_url {
         pipe.hset(&redis_key, "callback_url", url);
+    }
+    if let Some(lbl) = label {
+        pipe.hset(&redis_key, "label", lbl);
+    }
+    if let Some(exp) = expires_at {
+        pipe.hset(&redis_key, "expires_at", exp);
     }
     pipe.query_async(conn).await
 }
@@ -69,6 +79,16 @@ pub async fn lookup_api_key(
         return Ok(None);
     }
 
+    // Check expiry -- reject expired keys at auth time
+    let expires_at = result.get("expires_at").cloned().filter(|s| !s.is_empty());
+    if let Some(ref exp) = expires_at {
+        if let Ok(exp_time) = chrono::DateTime::parse_from_rfc3339(exp) {
+            if exp_time < chrono::Utc::now() {
+                return Ok(None); // Expired
+            }
+        }
+    }
+
     let service_names = result
         .get("service_names")
         .map(|s| s.split(',').map(|v| v.trim().to_string()).collect())
@@ -83,11 +103,15 @@ pub async fn lookup_api_key(
         .cloned()
         .filter(|s| !s.is_empty());
 
+    let label = result.get("label").cloned().filter(|s| !s.is_empty());
+
     Ok(Some(ClientMetadata {
         key_hash: key_hash.to_string(),
         service_names,
         created_at,
         callback_url,
+        label,
+        expires_at,
     }))
 }
 
@@ -132,6 +156,56 @@ pub async fn update_api_key_callback(
         }
     }
     Ok(true)
+}
+
+/// List all API keys stored in Redis using SCAN.
+///
+/// Returns all credentials including expired ones (admin visibility).
+/// Expiry is only enforced at auth time, not in listings.
+pub async fn list_api_keys(
+    conn: &mut redis::aio::MultiplexedConnection,
+) -> Result<Vec<ClientMetadata>, redis::RedisError> {
+    let mut cursor: u64 = 0;
+    let mut results = Vec::new();
+    loop {
+        let (next_cursor, keys): (u64, Vec<String>) = redis::cmd("SCAN")
+            .arg(cursor)
+            .arg("MATCH")
+            .arg("api_keys:*")
+            .arg("COUNT")
+            .arg(100)
+            .query_async(conn)
+            .await?;
+        for key in &keys {
+            let hash: std::collections::HashMap<String, String> =
+                conn.hgetall(key).await.unwrap_or_default();
+            if hash.is_empty() {
+                continue;
+            }
+            let key_hash = key.strip_prefix("api_keys:").unwrap_or(key).to_string();
+            let service_names = hash
+                .get("service_names")
+                .map(|s| s.split(',').map(|v| v.trim().to_string()).collect())
+                .unwrap_or_default();
+            let created_at = hash.get("created_at").cloned().unwrap_or_default();
+            let callback_url = hash.get("callback_url").cloned().filter(|s| !s.is_empty());
+            let label = hash.get("label").cloned().filter(|s| !s.is_empty());
+            let expires_at = hash.get("expires_at").cloned().filter(|s| !s.is_empty());
+            results.push(ClientMetadata {
+                key_hash,
+                service_names,
+                created_at,
+                callback_url,
+                label,
+                expires_at,
+            });
+        }
+        cursor = next_cursor;
+        if cursor == 0 {
+            break;
+        }
+    }
+    Ok(results)
 }
 
 /// Extract an API key from request headers.

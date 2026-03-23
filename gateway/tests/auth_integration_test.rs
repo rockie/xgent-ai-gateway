@@ -291,7 +291,7 @@ async fn create_test_api_key(
     service_names: &[String],
 ) -> String {
     let (raw_key, key_hash) = auth::api_key::generate_api_key();
-    auth::api_key::store_api_key(conn, &key_hash, service_names, None)
+    auth::api_key::store_api_key(conn, &key_hash, service_names, None, None, None)
         .await
         .unwrap();
     raw_key
@@ -303,7 +303,7 @@ async fn create_test_node_token(
     service_name: &str,
 ) -> String {
     let (raw_token, token_hash) = auth::node_token::generate_node_token();
-    auth::node_token::store_node_token(conn, service_name, &token_hash, Some("test-node"))
+    auth::node_token::store_node_token(conn, service_name, &token_hash, Some("test-node"), None)
         .await
         .unwrap();
     raw_token
