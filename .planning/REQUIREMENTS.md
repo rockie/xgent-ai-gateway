@@ -18,10 +18,10 @@ Requirements for Flexible Agent Execution milestone. Each maps to roadmap phases
 
 ### CLI Execution
 
-- [ ] **CLI-01**: Agent executes CLI commands in arg mode with `<payload>` replaced in command template
-- [ ] **CLI-02**: Agent executes CLI commands in stdin mode, piping payload to process stdin
-- [ ] **CLI-03**: Configurable per-service timeout kills process on expiry (kill_on_drop safety)
-- [ ] **CLI-04**: Exit code 0 maps to success, non-zero maps to failure with exit code in error
+- [x] **CLI-01**: Agent executes CLI commands in arg mode with `<payload>` replaced in command template
+- [x] **CLI-02**: Agent executes CLI commands in stdin mode, piping payload to process stdin
+- [x] **CLI-03**: Configurable per-service timeout kills process on expiry (kill_on_drop safety)
+- [x] **CLI-04**: Exit code 0 maps to success, non-zero maps to failure with exit code in error
 - [x] **CLI-05**: Response body template maps `<stdout>` and `<stderr>` into configurable result shape
 
 ### Sync API Execution
@@ -84,10 +84,10 @@ Requirements for Flexible Agent Execution milestone. Each maps to roadmap phases
 | CFG-04 | Phase 13 | Complete |
 | CFG-05 | Phase 13 | Complete |
 | CFG-06 | Phase 13 | Complete |
-| CLI-01 | Phase 13 | Pending |
-| CLI-02 | Phase 13 | Pending |
-| CLI-03 | Phase 13 | Pending |
-| CLI-04 | Phase 13 | Pending |
+| CLI-01 | Phase 13 | Complete |
+| CLI-02 | Phase 13 | Complete |
+| CLI-03 | Phase 13 | Complete |
+| CLI-04 | Phase 13 | Complete |
 | CLI-05 | Phase 13 | Complete |
 | SAPI-01 | Phase 14 | Pending |
 | SAPI-02 | Phase 14 | Pending |
