@@ -59,8 +59,8 @@ GATEWAY_URL=https://gateway.example.com API_KEY=my-secret-key node cli-client.js
 
 All three scripts follow the same pattern:
 
-1. **Submit** -- POST to `/api/v1/tasks` with a `service_name` and `payload`. The gateway returns a `task_id`.
-2. **Poll** -- GET `/api/v1/tasks/{task_id}` every second until the task status is `completed` or `failed` (max 30 polls).
+1. **Submit** -- POST to `/v1/tasks` with a `service_name` and `payload`. The gateway returns a `task_id`.
+2. **Poll** -- GET `/v1/tasks/{task_id}` every second until the task status is `completed` or `failed` (max 30 polls).
 3. **Print** -- Display the task result on success, or the error message on failure.
 
 ### Task Lifecycle
@@ -68,7 +68,7 @@ All three scripts follow the same pattern:
 ```
 Client                    Gateway                   Agent
   |                         |                         |
-  |-- POST /api/v1/tasks -->|                         |
+  |-- POST /v1/tasks -->|                         |
   |<-- { task_id } ---------|                         |
   |                         |<-- gRPC poll -----------|
   |                         |--- task payload ------->|

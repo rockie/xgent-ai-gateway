@@ -14,7 +14,7 @@ async function main() {
   console.log();
 
   // Submit task
-  const submitRes = await fetch(`${GATEWAY_URL}/api/v1/tasks`, {
+  const submitRes = await fetch(`${GATEWAY_URL}/v1/tasks`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -39,7 +39,7 @@ async function main() {
   for (let i = 0; i < 30; i++) {
     await new Promise(r => setTimeout(r, 1000));
 
-    const pollRes = await fetch(`${GATEWAY_URL}/api/v1/tasks/${task_id}`, {
+    const pollRes = await fetch(`${GATEWAY_URL}/v1/tasks/${task_id}`, {
       headers: { 'Authorization': `Bearer ${API_KEY}` },
     });
 
