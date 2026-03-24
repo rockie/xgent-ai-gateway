@@ -87,7 +87,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("  Method:   {}", sync_api_section.method);
             println!("  Timeout:  {}s", sync_api_section.timeout_secs);
         }
-        println!("  Response: {}", config.response.body);
+        println!("  Response: {}", config.response.success.body);
         return Ok(());
     }
 

@@ -32,6 +32,16 @@ pub fn resolve_response_body(
     Ok(resolved.into_bytes())
 }
 
+/// Parse a JSON string of headers into a HashMap.
+/// Returns empty HashMap if input is None.
+pub fn parse_header_json(header_json: Option<&str>) -> Result<HashMap<String, String>, String> {
+    match header_json {
+        None => Ok(HashMap::new()),
+        Some(json_str) => serde_json::from_str::<HashMap<String, String>>(json_str)
+            .map_err(|e| format!("invalid header JSON '{}': {}", json_str, e)),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -90,6 +100,25 @@ mod tests {
         let template = "<stdout>";
         let result = resolve_response_body(template, &vars, 1000).unwrap();
         assert_eq!(result.len(), 500);
+    }
+
+    #[test]
+    fn parse_header_json_valid() {
+        let result =
+            super::parse_header_json(Some(r#"{"Content-Type": "application/json"}"#)).unwrap();
+        assert_eq!(result.get("Content-Type").unwrap(), "application/json");
+    }
+
+    #[test]
+    fn parse_header_json_none_returns_empty() {
+        let result = super::parse_header_json(None).unwrap();
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn parse_header_json_invalid_returns_error() {
+        let err = super::parse_header_json(Some("not json")).unwrap_err();
+        assert!(err.contains("invalid header JSON"), "error was: {}", err);
     }
 
     #[test]

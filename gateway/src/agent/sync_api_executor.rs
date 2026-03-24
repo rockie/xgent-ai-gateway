@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -6,70 +7,10 @@ use tracing::warn;
 
 use super::config::{ResponseSection, SyncApiSection};
 use super::executor::{ExecutionResult, Executor};
+use super::http_common;
 use super::placeholder;
 use super::response;
 use xgent_proto::TaskAssignment;
-
-/// Extract a value from a JSON object using dot-notation path.
-///
-/// Supports nested objects (`result.text`) and array indices (`data.0.id`).
-/// Returns the value as a string: strings are returned directly, numbers/booleans/null
-/// are JSON-serialized, objects/arrays are compact JSON.
-pub fn extract_json_value(root: &serde_json::Value, path: &str) -> Result<String, String> {
-    let segments: Vec<&str> = path.split('.').collect();
-    let mut current = root;
-
-    for segment in &segments {
-        if let Ok(index) = segment.parse::<usize>() {
-            current = current.get(index).ok_or_else(|| {
-                format!("array index {} out of bounds at path '{}'", index, path)
-            })?;
-        } else {
-            current = current.get(*segment).ok_or_else(|| {
-                format!(
-                    "key '{}' not found at path '{}'; response: {}",
-                    segment,
-                    path,
-                    serde_json::to_string(root).unwrap_or_default()
-                )
-            })?;
-        }
-    }
-
-    match current {
-        serde_json::Value::String(s) => Ok(s.clone()),
-        serde_json::Value::Null => Ok("null".to_string()),
-        other => Ok(serde_json::to_string(other).unwrap_or_default()),
-    }
-}
-
-/// Scan a template string for `<response.XXX>` placeholders and return the paths
-/// (the part after "response.").
-fn find_response_placeholders(template: &str) -> Vec<String> {
-    let mut paths = Vec::new();
-    let mut chars = template.chars().peekable();
-
-    while let Some(c) = chars.next() {
-        if c == '<' {
-            let mut token = String::new();
-            let mut found_close = false;
-            for c2 in chars.by_ref() {
-                if c2 == '>' {
-                    found_close = true;
-                    break;
-                }
-                token.push(c2);
-            }
-            if found_close {
-                if let Some(rest) = token.strip_prefix("response.") {
-                    paths.push(rest.to_string());
-                }
-            }
-        }
-    }
-
-    paths
-}
 
 /// HTTP dispatch executor for sync-api mode.
 ///
@@ -141,6 +82,7 @@ impl SyncApiExecutor {
                             "HTTP request timed out after {}s",
                             self.sync_api.timeout_secs
                         ),
+                        headers: HashMap::new(),
                     });
                 }
 
@@ -163,6 +105,7 @@ impl SyncApiExecutor {
                                         "HTTP request timed out after {}s",
                                         self.sync_api.timeout_secs
                                     ),
+                                    headers: HashMap::new(),
                                 })
                             } else {
                                 Err(ExecutionResult {
@@ -172,6 +115,7 @@ impl SyncApiExecutor {
                                         "HTTP request failed after retry: {}",
                                         retry_err
                                     ),
+                                    headers: HashMap::new(),
                                 })
                             }
                         }
@@ -181,6 +125,7 @@ impl SyncApiExecutor {
                         success: false,
                         result: Vec::new(),
                         error_message: format!("HTTP request failed: {}", e),
+                        headers: HashMap::new(),
                     })
                 }
             }
@@ -202,6 +147,7 @@ impl Executor for SyncApiExecutor {
                     success: false,
                     result: Vec::new(),
                     error_message: format!("failed to resolve URL placeholder: {}", e),
+                    headers: HashMap::new(),
                 };
             }
         };
@@ -216,6 +162,7 @@ impl Executor for SyncApiExecutor {
                             success: false,
                             result: Vec::new(),
                             error_message: format!("failed to resolve body placeholder: {}", e),
+                            headers: HashMap::new(),
                         };
                     }
                 }
@@ -237,6 +184,7 @@ impl Executor for SyncApiExecutor {
                                 "failed to resolve header '{}' placeholder: {}",
                                 key, e
                             ),
+                            headers: HashMap::new(),
                         };
                     }
                 };
@@ -248,6 +196,7 @@ impl Executor for SyncApiExecutor {
                         success: false,
                         result: Vec::new(),
                         error_message: format!("invalid header name '{}': {}", key, e),
+                        headers: HashMap::new(),
                     };
                 }
             };
@@ -259,6 +208,7 @@ impl Executor for SyncApiExecutor {
                         success: false,
                         result: Vec::new(),
                         error_message: format!("invalid header value for '{}': {}", key, e),
+                        headers: HashMap::new(),
                     };
                 }
             };
@@ -288,16 +238,47 @@ impl Executor for SyncApiExecutor {
                     success: false,
                     result: Vec::new(),
                     error_message: format!("failed to read response body: {}", e),
+                    headers: HashMap::new(),
                 };
             }
         };
 
         // (h) Check HTTP status
         if !status.is_success() {
+            // Try to resolve failed.body template with response.* variables from error body
+            let (result_bytes, hdrs) = if let Some(ref failed) = self.response.failed {
+                // Try to parse error body as JSON for response.* extraction
+                let mut fail_vars = variables.clone();
+                if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(&body_text) {
+                    let paths = http_common::find_prefixed_placeholders(&failed.body, "response");
+                    for path in &paths {
+                        if let Ok(value) = http_common::extract_json_value(&json_value, path) {
+                            fail_vars.insert(format!("response.{}", path), value);
+                        }
+                    }
+                }
+                // Also add the raw body text and status code
+                fail_vars.insert("response.status".to_string(), status.as_u16().to_string());
+                fail_vars.insert("response.body".to_string(), body_text.clone());
+
+                let bytes = response::resolve_response_body(
+                    &failed.body,
+                    &fail_vars,
+                    self.response.max_bytes,
+                )
+                .unwrap_or_default();
+                let h = response::parse_header_json(failed.header.as_deref())
+                    .unwrap_or_default();
+                (bytes, h)
+            } else {
+                (Vec::new(), HashMap::new())
+            };
+
             return ExecutionResult {
                 success: false,
-                result: Vec::new(),
+                result: result_bytes,
                 error_message: format!("HTTP {}: {}", status.as_u16(), body_text),
+                headers: hdrs,
             };
         }
 
@@ -311,6 +292,7 @@ impl Executor for SyncApiExecutor {
                     body_text.len(),
                     self.response.max_bytes
                 ),
+                headers: HashMap::new(),
             };
         }
 
@@ -322,14 +304,16 @@ impl Executor for SyncApiExecutor {
                     success: false,
                     result: Vec::new(),
                     error_message: format!("failed to parse response JSON: {}", e),
+                    headers: HashMap::new(),
                 };
             }
         };
 
         // (k) Scan response template for <response.XXX> placeholders and extract values
-        let response_paths = find_response_placeholders(&self.response.body);
+        let response_paths =
+            http_common::find_prefixed_placeholders(&self.response.success.body, "response");
         for path in &response_paths {
-            match extract_json_value(&json_value, path) {
+            match http_common::extract_json_value(&json_value, path) {
                 Ok(value) => {
                     variables.insert(format!("response.{}", path), value);
                 }
@@ -338,23 +322,32 @@ impl Executor for SyncApiExecutor {
                         success: false,
                         result: Vec::new(),
                         error_message: format!("failed to extract response.{}: {}", path, e),
+                        headers: HashMap::new(),
                     };
                 }
             }
         }
 
         // (l) Resolve final response body template
-        match response::resolve_response_body(&self.response.body, &variables, self.response.max_bytes)
-        {
+        let headers =
+            response::parse_header_json(self.response.success.header.as_deref()).unwrap_or_default();
+
+        match response::resolve_response_body(
+            &self.response.success.body,
+            &variables,
+            self.response.max_bytes,
+        ) {
             Ok(bytes) => ExecutionResult {
                 success: true,
                 result: bytes,
                 error_message: String::new(),
+                headers,
             },
             Err(e) => ExecutionResult {
                 success: false,
                 result: Vec::new(),
                 error_message: e,
+                headers: HashMap::new(),
             },
         }
     }
@@ -363,8 +356,8 @@ impl Executor for SyncApiExecutor {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use super::super::config::{FailedResponseConfig, SuccessResponseConfig};
     use axum::{routing::any, Router};
-    use std::collections::HashMap;
     use tokio::net::TcpListener;
 
     /// Spin up a tiny axum server that returns the given status and body for any request.
@@ -441,7 +434,11 @@ mod tests {
 
     fn make_response(body: &str) -> ResponseSection {
         ResponseSection {
-            body: body.to_string(),
+            success: SuccessResponseConfig {
+                body: body.to_string(),
+                header: None,
+            },
+            failed: None,
             max_bytes: 1_048_576,
         }
     }
@@ -452,65 +449,6 @@ mod tests {
             payload: payload.to_vec(),
             metadata: HashMap::new(),
         }
-    }
-
-    // -- extract_json_value tests --
-
-    #[test]
-    fn extract_nested_string_value() {
-        let json: serde_json::Value =
-            serde_json::from_str(r#"{"result": {"text": "hello world"}}"#).unwrap();
-        let val = extract_json_value(&json, "result.text").unwrap();
-        assert_eq!(val, "hello world");
-    }
-
-    #[test]
-    fn extract_array_index_value() {
-        let json: serde_json::Value =
-            serde_json::from_str(r#"{"data": [{"id": "first"}, {"id": "second"}]}"#).unwrap();
-        let val = extract_json_value(&json, "data.0.id").unwrap();
-        assert_eq!(val, "first");
-    }
-
-    #[test]
-    fn extract_numeric_value_serializes() {
-        let json: serde_json::Value = serde_json::from_str(r#"{"count": 42}"#).unwrap();
-        let val = extract_json_value(&json, "count").unwrap();
-        assert_eq!(val, "42");
-    }
-
-    #[test]
-    fn extract_boolean_value_serializes() {
-        let json: serde_json::Value = serde_json::from_str(r#"{"active": true}"#).unwrap();
-        let val = extract_json_value(&json, "active").unwrap();
-        assert_eq!(val, "true");
-    }
-
-    #[test]
-    fn extract_object_value_serializes() {
-        let json: serde_json::Value =
-            serde_json::from_str(r#"{"nested": {"a": 1, "b": 2}}"#).unwrap();
-        let val = extract_json_value(&json, "nested").unwrap();
-        // Should be compact JSON
-        let parsed: serde_json::Value = serde_json::from_str(&val).unwrap();
-        assert_eq!(parsed["a"], 1);
-        assert_eq!(parsed["b"], 2);
-    }
-
-    #[test]
-    fn extract_missing_key_returns_error() {
-        let json: serde_json::Value = serde_json::from_str(r#"{"foo": "bar"}"#).unwrap();
-        let err = extract_json_value(&json, "missing.key").unwrap_err();
-        assert!(err.contains("missing"), "error was: {}", err);
-        assert!(err.contains("missing.key"), "error was: {}", err);
-    }
-
-    #[test]
-    fn extract_array_out_of_bounds() {
-        let json: serde_json::Value = serde_json::from_str(r#"{"data": [1, 2]}"#).unwrap();
-        let err = extract_json_value(&json, "data.5").unwrap_err();
-        assert!(err.contains("5"), "error was: {}", err);
-        assert!(err.contains("out of bounds"), "error was: {}", err);
     }
 
     // -- SyncApiExecutor integration tests --
@@ -659,7 +597,11 @@ mod tests {
 
         let sync_api = make_sync_api(&format!("{}/api", base_url), "POST", Some("{}"));
         let response = ResponseSection {
-            body: "<response.data>".to_string(),
+            success: SuccessResponseConfig {
+                body: "<response.data>".to_string(),
+                header: None,
+            },
+            failed: None,
             max_bytes: 100, // Very small limit
         };
         let executor =
@@ -672,6 +614,50 @@ mod tests {
             result.error_message.contains("exceeds limit"),
             "error was: {}",
             result.error_message
+        );
+    }
+
+    #[tokio::test]
+    async fn non_2xx_resolves_failed_body_template() {
+        let base_url = start_test_server(
+            axum::http::StatusCode::BAD_REQUEST,
+            r#"{"error": "invalid input", "code": "EINVAL"}"#,
+        )
+        .await;
+
+        let sync_api = make_sync_api(&format!("{}/api", base_url), "POST", Some("{}"));
+        let response = ResponseSection {
+            success: SuccessResponseConfig {
+                body: "<response.output>".to_string(),
+                header: None,
+            },
+            failed: Some(FailedResponseConfig {
+                body: r#"{"err": "<response.error>", "err_code": "<response.code>"}"#.to_string(),
+                header: None,
+            }),
+            max_bytes: 1_048_576,
+        };
+        let executor =
+            SyncApiExecutor::new("test-svc".to_string(), sync_api, response).unwrap();
+        let assignment = make_assignment(b"data");
+
+        let result = executor.execute(&assignment).await;
+        assert!(!result.success);
+        assert!(
+            result.error_message.contains("HTTP 400"),
+            "error was: {}",
+            result.error_message
+        );
+        let output = String::from_utf8_lossy(&result.result);
+        assert!(
+            output.contains("invalid input"),
+            "output was: {}",
+            output
+        );
+        assert!(
+            output.contains("EINVAL"),
+            "output was: {}",
+            output
         );
     }
 }

@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::process::Stdio;
 use std::time::Duration;
 
@@ -50,6 +51,7 @@ impl Executor for CliExecutor {
                         success: false,
                         result: Vec::new(),
                         error_message: format!("failed to resolve command placeholder: {}", e),
+                        headers: HashMap::new(),
                     };
                 }
             }
@@ -60,6 +62,7 @@ impl Executor for CliExecutor {
                 success: false,
                 result: Vec::new(),
                 error_message: "command list is empty".to_string(),
+                headers: HashMap::new(),
             };
         }
 
@@ -101,6 +104,7 @@ impl Executor for CliExecutor {
                     success: false,
                     result: Vec::new(),
                     error_message: format!("failed to spawn process: {}", e),
+                    headers: HashMap::new(),
                 };
             }
         };
@@ -151,6 +155,7 @@ impl Executor for CliExecutor {
                         "process timed out after {} seconds",
                         self.cli.timeout_secs
                     ),
+                    headers: HashMap::new(),
                 };
             }
             Ok(Err(e)) => {
@@ -163,6 +168,7 @@ impl Executor for CliExecutor {
                     success: false,
                     result: Vec::new(),
                     error_message: format!("failed to wait for process: {}", e),
+                    headers: HashMap::new(),
                 };
             }
             Ok(Ok(status)) => {
@@ -178,6 +184,7 @@ impl Executor for CliExecutor {
                             success: false,
                             result: Vec::new(),
                             error_message: format!("stdout read error: {}", e),
+                            headers: HashMap::new(),
                         };
                     }
                     Err(e) => {
@@ -185,6 +192,7 @@ impl Executor for CliExecutor {
                             success: false,
                             result: Vec::new(),
                             error_message: format!("stdout task panicked: {}", e),
+                            headers: HashMap::new(),
                         };
                     }
                 };
@@ -196,6 +204,7 @@ impl Executor for CliExecutor {
                             success: false,
                             result: Vec::new(),
                             error_message: format!("stderr read error: {}", e),
+                            headers: HashMap::new(),
                         };
                     }
                     Err(e) => {
@@ -203,29 +212,55 @@ impl Executor for CliExecutor {
                             success: false,
                             result: Vec::new(),
                             error_message: format!("stderr task panicked: {}", e),
+                            headers: HashMap::new(),
                         };
                     }
                 };
 
+                // Compute stdout/stderr strings BEFORE exit code check (needed for failed.body)
+                let stdout_str = String::from_utf8_lossy(&stdout_bytes).to_string();
+                let stderr_str = String::from_utf8_lossy(&stderr_bytes).to_string();
+
                 // (j) Check exit code
                 let exit_code = status.code().unwrap_or(-1);
                 if exit_code != 0 {
+                    variables.insert("stdout".to_string(), stdout_str.clone());
+                    variables.insert("stderr".to_string(), stderr_str.clone());
+                    variables.insert("exit_code".to_string(), exit_code.to_string());
+
+                    let (result_bytes, headers) = if let Some(ref failed) = self.response.failed {
+                        let bytes = response::resolve_response_body(
+                            &failed.body,
+                            &variables,
+                            self.response.max_bytes,
+                        )
+                        .unwrap_or_default();
+                        let hdrs = response::parse_header_json(failed.header.as_deref())
+                            .unwrap_or_default();
+                        (bytes, hdrs)
+                    } else {
+                        (Vec::new(), HashMap::new())
+                    };
+
                     return ExecutionResult {
                         success: false,
-                        result: Vec::new(),
+                        result: result_bytes,
                         error_message: format!("process exited with code {}", exit_code),
+                        headers,
                     };
                 }
 
                 // (k) Add stdout and stderr to variables
-                let stdout_str = String::from_utf8_lossy(&stdout_bytes).to_string();
-                let stderr_str = String::from_utf8_lossy(&stderr_bytes).to_string();
                 variables.insert("stdout".to_string(), stdout_str);
                 variables.insert("stderr".to_string(), stderr_str);
 
                 // (l) Resolve response body template
+                let headers =
+                    response::parse_header_json(self.response.success.header.as_deref())
+                        .unwrap_or_default();
+
                 match response::resolve_response_body(
-                    &self.response.body,
+                    &self.response.success.body,
                     &variables,
                     self.response.max_bytes,
                 ) {
@@ -233,11 +268,13 @@ impl Executor for CliExecutor {
                         success: true,
                         result: bytes,
                         error_message: String::new(),
+                        headers,
                     },
                     Err(e) => ExecutionResult {
                         success: false,
                         result: Vec::new(),
                         error_message: e,
+                        headers: HashMap::new(),
                     },
                 }
             }
@@ -248,7 +285,7 @@ impl Executor for CliExecutor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::HashMap;
+    use super::super::config::{FailedResponseConfig, SuccessResponseConfig};
 
     fn make_assignment(payload: &[u8]) -> TaskAssignment {
         TaskAssignment {
@@ -285,7 +322,11 @@ mod tests {
 
     fn make_response(body: &str) -> ResponseSection {
         ResponseSection {
-            body: body.to_string(),
+            success: SuccessResponseConfig {
+                body: body.to_string(),
+                header: None,
+            },
+            failed: None,
             max_bytes: 1_048_576,
         }
     }
@@ -372,7 +413,11 @@ mod tests {
         let payload = vec![b'X'; 128 * 1024];
         let cli = make_cli(vec!["cat"], CliInputMode::Stdin, 30);
         let response = ResponseSection {
-            body: "<stdout>".to_string(),
+            success: SuccessResponseConfig {
+                body: "<stdout>".to_string(),
+                header: None,
+            },
+            failed: None,
             max_bytes: 256 * 1024,
         };
         let executor = CliExecutor::new("test-svc".to_string(), cli, response);
@@ -403,8 +448,6 @@ mod tests {
 
     #[tokio::test]
     async fn timeout_process_is_actually_killed() {
-        // Spawn a process that would run for 60 seconds, timeout after 1 second,
-        // then verify it was killed by checking we can complete quickly
         let cli = make_cli(vec!["sleep", "60"], CliInputMode::Arg, 1);
         let response = make_response("<stdout>");
         let executor = CliExecutor::new("test-svc".to_string(), cli, response);
@@ -415,7 +458,6 @@ mod tests {
         let elapsed = start.elapsed();
 
         assert!(!result.success);
-        // Should complete in ~1-2 seconds, not 60
         assert!(
             elapsed.as_secs() < 5,
             "took too long ({:?}), process may not have been killed",
@@ -509,6 +551,40 @@ mod tests {
         );
         assert!(
             output.contains(r#""err": ""#),
+            "output was: {}",
+            output
+        );
+    }
+
+    // -- Failure path with failed.body template --
+
+    #[tokio::test]
+    async fn cli_failure_resolves_failed_body_template() {
+        let cli = make_cli(vec!["false"], CliInputMode::Arg, 10);
+        let response = ResponseSection {
+            success: SuccessResponseConfig {
+                body: "<stdout>".to_string(),
+                header: None,
+            },
+            failed: Some(FailedResponseConfig {
+                body: r#"{"error": "<stderr>", "code": "<exit_code>"}"#.to_string(),
+                header: None,
+            }),
+            max_bytes: 1_048_576,
+        };
+        let executor = CliExecutor::new("test-svc".to_string(), cli, response);
+        let assignment = make_assignment(b"");
+
+        let result = executor.execute(&assignment).await;
+        assert!(!result.success);
+        assert!(
+            result.error_message.contains("exited with code"),
+            "error was: {}",
+            result.error_message
+        );
+        let output = String::from_utf8_lossy(&result.result);
+        assert!(
+            output.contains("code"),
             "output was: {}",
             output
         );
