@@ -14,6 +14,7 @@ use tonic::transport::{Certificate, ClientTlsConfig};
 use tracing_subscriber::EnvFilter;
 
 use xgent_gateway::agent::cli_executor::CliExecutor;
+use xgent_gateway::agent::sync_api_executor::SyncApiExecutor;
 use xgent_gateway::agent::config::{load_config, AgentConfig, ExecutionMode};
 use xgent_gateway::agent::executor::Executor;
 use xgent_proto::node_service_client::NodeServiceClient;
@@ -81,6 +82,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         if let Some(ref cli_section) = config.cli {
             println!("  Command:  {:?}", cli_section.command);
         }
+        if let Some(ref sync_api_section) = config.sync_api {
+            println!("  URL:      {}", sync_api_section.url);
+            println!("  Method:   {}", sync_api_section.method);
+            println!("  Timeout:  {}s", sync_api_section.timeout_secs);
+        }
         println!("  Response: {}", config.response.body);
         return Ok(());
     }
@@ -98,8 +104,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 config.response.clone(),
             ))
         }
-        ExecutionMode::SyncApi | ExecutionMode::AsyncApi => {
-            eprintln!("sync-api and async-api modes not yet implemented");
+        ExecutionMode::SyncApi => {
+            let sync_api_section = config
+                .sync_api
+                .clone()
+                .expect("sync_api section required for sync-api mode");
+            match SyncApiExecutor::new(
+                config.service.name.clone(),
+                sync_api_section,
+                config.response.clone(),
+            ) {
+                Ok(executor) => Box::new(executor),
+                Err(e) => {
+                    eprintln!("failed to initialize sync-api executor: {}", e);
+                    std::process::exit(1);
+                }
+            }
+        }
+        ExecutionMode::AsyncApi => {
+            eprintln!("async-api mode not yet implemented");
             std::process::exit(1);
         }
     };
