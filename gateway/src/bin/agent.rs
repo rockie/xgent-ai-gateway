@@ -14,6 +14,7 @@ use tonic::transport::{Certificate, ClientTlsConfig};
 use tracing_subscriber::EnvFilter;
 
 use xgent_gateway::agent::cli_executor::CliExecutor;
+use xgent_gateway::agent::async_api_executor::AsyncApiExecutor;
 use xgent_gateway::agent::sync_api_executor::SyncApiExecutor;
 use xgent_gateway::agent::config::{load_config, AgentConfig, ExecutionMode};
 use xgent_gateway::agent::executor::Executor;
@@ -87,6 +88,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("  Method:   {}", sync_api_section.method);
             println!("  Timeout:  {}s", sync_api_section.timeout_secs);
         }
+        if let Some(ref async_api_section) = config.async_api {
+            println!("  Submit URL: {}", async_api_section.submit.url);
+            println!("  Submit Method: {}", async_api_section.submit.method);
+            println!("  Poll URL: {}", async_api_section.poll.url);
+            println!("  Poll Method: {}", async_api_section.poll.method);
+            println!("  Poll Interval: {}s", async_api_section.poll.interval_secs);
+            println!("  Timeout: {}s", async_api_section.timeout_secs);
+        }
         println!("  Response: {}", config.response.success.body);
         return Ok(());
     }
@@ -122,8 +131,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
         ExecutionMode::AsyncApi => {
-            eprintln!("async-api mode not yet implemented");
-            std::process::exit(1);
+            let async_api_section = config
+                .async_api
+                .clone()
+                .expect("async_api section required for async-api mode");
+            match AsyncApiExecutor::new(
+                config.service.name.clone(),
+                async_api_section,
+                config.response.clone(),
+            ) {
+                Ok(executor) => Box::new(executor),
+                Err(e) => {
+                    eprintln!("failed to initialize async-api executor: {}", e);
+                    std::process::exit(1);
+                }
+            }
         }
     };
 
