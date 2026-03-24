@@ -1,3 +1,4 @@
+pub mod async_api_executor;
 pub mod cli_executor;
 pub mod config;
 pub mod executor;
