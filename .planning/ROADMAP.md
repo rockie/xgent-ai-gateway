@@ -40,7 +40,7 @@ Full details: `.planning/milestones/v1.1-ROADMAP.md`
 
 **Milestone Goal:** Make the runner agent a configurable execution engine supporting CLI, sync-api, and async-api invocation modes with templated request/response mapping.
 
-- [ ] **Phase 13: Config, Placeholders, and CLI Execution** — TOML config parsing, placeholder engine, and CLI arg/stdin execution modes
+- [ ] **Phase 13: Config, Placeholders, and CLI Execution** — YAML config parsing, placeholder engine, and CLI arg/stdin execution modes
 - [ ] **Phase 14: Sync-API Execution** — HTTP dispatch with configurable URL, method, headers, body template, and response mapping
 - [ ] **Phase 15: Async-API Execution** — Two-phase submit + poll with completion conditions, failure detection, and timeout
 - [ ] **Phase 16: Examples and End-to-End Validation** — Example configs for all modes, Node.js client example, and dry-run validation
@@ -48,16 +48,20 @@ Full details: `.planning/milestones/v1.1-ROADMAP.md`
 ## Phase Details
 
 ### Phase 13: Config, Placeholders, and CLI Execution
-**Goal**: Agent reads TOML config and executes CLI tasks with safe process management and templated results
+**Goal**: Agent reads YAML config (agent.yaml) and executes CLI tasks with safe process management and templated results
 **Depends on**: Phase 12 (existing agent binary from v1.0)
 **Requirements**: CFG-01, CFG-02, CFG-03, CFG-04, CFG-05, CFG-06, CLI-01, CLI-02, CLI-03, CLI-04, CLI-05, SAFE-01
 **Success Criteria** (what must be TRUE):
-  1. Agent starts with an `agent.toml` file and constructs the correct executor based on the configured mode
+  1. Agent starts with an `agent.yaml` file and constructs the correct executor based on the configured mode
   2. Agent executes a CLI command in arg mode with payload substituted into the command template and reports the result back to the gateway
   3. Agent executes a CLI command in stdin mode, piping the payload to the process and capturing stdout/stderr without deadlock on large payloads
   4. Agent kills a CLI process that exceeds its configured timeout and reports failure with a meaningful error message
-  5. Response body template produces a configurable result shape using `<stdout>`, `<stderr>`, `<payload>`, `<meta.key>`, and `${ENV_VAR}` placeholders
-**Plans**: TBD
+  5. Response body template produces a configurable result shape using `<stdout>`, `<stderr>`, `<payload>`, `<metadata.key>`, and `${ENV_VAR}` placeholders
+**Plans:** 3 plans
+Plans:
+- [ ] 13-01-PLAN.md — Config structs, placeholder engine, executor trait, response template
+- [ ] 13-02-PLAN.md — CLI executor with arg/stdin modes, timeout, exit code mapping
+- [ ] 13-03-PLAN.md — Agent binary integration (wire config + executor into poll loop)
 
 ### Phase 14: Sync-API Execution
 **Goal**: Agent dispatches tasks to configurable HTTP endpoints with templated requests and response mapping
@@ -112,7 +116,7 @@ Phases execute in numeric order: 13 → 14 → 15 → 16
 | 10. Task Management and Data Endpoints | v1.1 | 3/3 | Complete | 2026-03-23 |
 | 11. Credential Management | v1.1 | 2/2 | Complete | 2026-03-23 |
 | 12. Dashboard and Metrics Visualization | v1.1 | 2/2 | Complete | 2026-03-23 |
-| 13. Config, Placeholders, and CLI Execution | v1.2 | 0/0 | Not started | - |
+| 13. Config, Placeholders, and CLI Execution | v1.2 | 0/3 | Planning | - |
 | 14. Sync-API Execution | v1.2 | 0/0 | Not started | - |
 | 15. Async-API Execution | v1.2 | 0/0 | Not started | - |
 | 16. Examples and End-to-End Validation | v1.2 | 0/0 | Not started | - |
