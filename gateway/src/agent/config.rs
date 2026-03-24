@@ -11,6 +11,8 @@ pub struct AgentConfig {
     pub cli: Option<CliSection>,
     #[serde(default)]
     pub sync_api: Option<SyncApiSection>,
+    #[serde(default)]
+    pub async_api: Option<AsyncApiSection>,
     pub response: ResponseSection,
 }
 
@@ -80,6 +82,104 @@ pub struct SyncApiSection {
     pub tls_skip_verify: bool,
 }
 
+/// Async-API two-phase HTTP execution configuration.
+#[derive(Debug, Clone, Deserialize)]
+pub struct AsyncApiSection {
+    pub submit: SubmitSection,
+    pub poll: PollSection,
+    pub completed_when: CompletionCondition,
+    #[serde(default)]
+    pub failed_when: Option<CompletionCondition>,
+    #[serde(default = "default_timeout_secs")]
+    pub timeout_secs: u64,
+    #[serde(default)]
+    pub tls_skip_verify: bool,
+}
+
+/// Submit phase configuration.
+#[derive(Debug, Clone, Deserialize)]
+pub struct SubmitSection {
+    pub url: String,
+    #[serde(default = "default_http_method")]
+    pub method: String,
+    #[serde(default)]
+    pub headers: HashMap<String, String>,
+    pub body: Option<String>,
+}
+
+/// Poll phase configuration.
+#[derive(Debug, Clone, Deserialize)]
+pub struct PollSection {
+    pub url: String,
+    #[serde(default = "default_poll_method")]
+    pub method: String,
+    #[serde(default)]
+    pub headers: HashMap<String, String>,
+    pub body: Option<String>,
+    #[serde(default = "default_poll_interval")]
+    pub interval_secs: u64,
+}
+
+/// Condition for completion or failure detection.
+#[derive(Debug, Clone, Deserialize)]
+pub struct CompletionCondition {
+    pub path: String,
+    pub operator: ConditionOperator,
+    pub value: ConditionValue,
+}
+
+/// Operator for condition evaluation.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ConditionOperator {
+    Equal,
+    NotEqual,
+    In,
+    NotIn,
+}
+
+/// Condition value: single string for equal/not_equal, array for in/not_in.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(untagged)]
+pub enum ConditionValue {
+    Single(String),
+    Multiple(Vec<String>),
+}
+
+impl CompletionCondition {
+    /// Evaluate the condition against a JSON response.
+    /// Extracts the value at `self.path` and compares using `self.operator`.
+    pub fn evaluate(&self, json: &serde_json::Value) -> Result<bool, String> {
+        let actual = super::http_common::extract_json_value(json, &self.path)?;
+        match (&self.operator, &self.value) {
+            (ConditionOperator::Equal, ConditionValue::Single(expected)) => {
+                Ok(actual == *expected)
+            }
+            (ConditionOperator::NotEqual, ConditionValue::Single(expected)) => {
+                Ok(actual != *expected)
+            }
+            (ConditionOperator::In, ConditionValue::Multiple(values)) => {
+                Ok(values.iter().any(|v| v == &actual))
+            }
+            (ConditionOperator::NotIn, ConditionValue::Multiple(values)) => {
+                Ok(!values.iter().any(|v| v == &actual))
+            }
+            (ConditionOperator::Equal | ConditionOperator::NotEqual, ConditionValue::Multiple(_)) => {
+                Err(format!(
+                    "operator {:?} requires a single string value, not an array",
+                    self.operator
+                ))
+            }
+            (ConditionOperator::In | ConditionOperator::NotIn, ConditionValue::Single(_)) => {
+                Err(format!(
+                    "operator {:?} requires an array value, not a single string",
+                    self.operator
+                ))
+            }
+        }
+    }
+}
+
 /// Response body template configuration with success/failed sub-sections.
 #[derive(Debug, Clone, Deserialize)]
 pub struct ResponseSection {
@@ -126,6 +226,14 @@ fn default_http_method() -> String {
     "POST".to_string()
 }
 
+fn default_poll_method() -> String {
+    "GET".to_string()
+}
+
+fn default_poll_interval() -> u64 {
+    5
+}
+
 fn default_sync_api_timeout() -> u64 {
     30
 }
@@ -162,6 +270,11 @@ pub fn load_config_from_str(raw: &str) -> Result<AgentConfig, String> {
     // Validate: sync-api mode requires sync_api section
     if config.service.mode == ExecutionMode::SyncApi && config.sync_api.is_none() {
         return Err("mode is 'sync-api' but [sync_api] section is missing".to_string());
+    }
+
+    // Validate: async-api mode requires async_api section
+    if config.service.mode == ExecutionMode::AsyncApi && config.async_api.is_none() {
+        return Err("mode is 'async-api' but [async_api] section is missing".to_string());
     }
 
     Ok(config)
@@ -356,9 +469,19 @@ service:
   name: "test"
   mode: async-api
 
+async_api:
+  submit:
+    url: "http://example.com/jobs"
+  poll:
+    url: "http://example.com/jobs/status"
+  completed_when:
+    path: "status"
+    operator: equal
+    value: "done"
+
 response:
   success:
-    body: "<stdout>"
+    body: "<poll_response.result>"
 "#;
         let config = load_config_from_str(yaml).unwrap();
         assert_eq!(config.service.mode, ExecutionMode::AsyncApi);
@@ -548,5 +671,245 @@ response:
         let config = load_config_from_str(yaml).unwrap();
         assert_eq!(config.service.mode, ExecutionMode::SyncApi);
         assert!(config.sync_api.is_some());
+    }
+
+    #[test]
+    fn async_api_yaml_parses_all_fields() {
+        let yaml = r#"
+gateway:
+  address: "localhost:50051"
+  token: "tok"
+
+service:
+  name: "test"
+  mode: async-api
+
+async_api:
+  timeout_secs: 120
+  tls_skip_verify: true
+  submit:
+    url: "http://example.com/jobs"
+    method: "POST"
+    headers:
+      Content-Type: "application/json"
+    body: '{"input": "<payload>"}'
+  poll:
+    url: "http://example.com/jobs/<submit_response.id>/status"
+    method: "GET"
+    interval_secs: 10
+  completed_when:
+    path: "status"
+    operator: equal
+    value: "completed"
+  failed_when:
+    path: "status"
+    operator: in
+    value: ["failed", "error", "cancelled"]
+
+response:
+  success:
+    body: '{"result": "<poll_response.result>"}'
+  max_bytes: 1048576
+"#;
+        let config = load_config_from_str(yaml).unwrap();
+        assert_eq!(config.service.mode, ExecutionMode::AsyncApi);
+
+        let aa = config.async_api.unwrap();
+        assert_eq!(aa.timeout_secs, 120);
+        assert!(aa.tls_skip_verify);
+
+        // Submit
+        assert_eq!(aa.submit.url, "http://example.com/jobs");
+        assert_eq!(aa.submit.method, "POST");
+        assert_eq!(
+            aa.submit.headers.get("Content-Type").unwrap(),
+            "application/json"
+        );
+        assert_eq!(
+            aa.submit.body.as_deref(),
+            Some(r#"{"input": "<payload>"}"#)
+        );
+
+        // Poll
+        assert_eq!(
+            aa.poll.url,
+            "http://example.com/jobs/<submit_response.id>/status"
+        );
+        assert_eq!(aa.poll.method, "GET");
+        assert_eq!(aa.poll.interval_secs, 10);
+
+        // completed_when
+        assert_eq!(aa.completed_when.path, "status");
+        matches!(aa.completed_when.operator, ConditionOperator::Equal);
+        matches!(
+            aa.completed_when.value,
+            ConditionValue::Single(ref s) if s == "completed"
+        );
+
+        // failed_when
+        let fw = aa.failed_when.unwrap();
+        assert_eq!(fw.path, "status");
+        matches!(fw.operator, ConditionOperator::In);
+        matches!(fw.value, ConditionValue::Multiple(ref v) if v.len() == 3);
+    }
+
+    #[test]
+    fn async_api_defaults_apply() {
+        let yaml = r#"
+gateway:
+  address: "localhost:50051"
+  token: "tok"
+
+service:
+  name: "test"
+  mode: async-api
+
+async_api:
+  submit:
+    url: "http://example.com/jobs"
+  poll:
+    url: "http://example.com/jobs/status"
+  completed_when:
+    path: "status"
+    operator: equal
+    value: "done"
+
+response:
+  success:
+    body: "<poll_response.result>"
+"#;
+        let config = load_config_from_str(yaml).unwrap();
+        let aa = config.async_api.unwrap();
+        assert_eq!(aa.submit.method, "POST");
+        assert_eq!(aa.poll.method, "GET");
+        assert_eq!(aa.poll.interval_secs, 5);
+        assert_eq!(aa.timeout_secs, 300);
+        assert!(!aa.tls_skip_verify);
+    }
+
+    #[test]
+    fn async_api_mode_without_section_fails() {
+        let yaml = r#"
+gateway:
+  address: "localhost:50051"
+  token: "tok"
+
+service:
+  name: "test"
+  mode: async-api
+
+response:
+  success:
+    body: "<stdout>"
+"#;
+        let err = load_config_from_str(yaml).unwrap_err();
+        assert!(err.contains("async_api"), "error was: {}", err);
+        assert!(err.contains("missing"), "error was: {}", err);
+    }
+
+    #[test]
+    fn condition_equal_evaluates() {
+        let json: serde_json::Value =
+            serde_json::from_str(r#"{"status": "completed"}"#).unwrap();
+        let cond = CompletionCondition {
+            path: "status".to_string(),
+            operator: ConditionOperator::Equal,
+            value: ConditionValue::Single("completed".to_string()),
+        };
+        assert!(cond.evaluate(&json).unwrap());
+
+        let cond_no_match = CompletionCondition {
+            path: "status".to_string(),
+            operator: ConditionOperator::Equal,
+            value: ConditionValue::Single("running".to_string()),
+        };
+        assert!(!cond_no_match.evaluate(&json).unwrap());
+    }
+
+    #[test]
+    fn condition_not_equal_evaluates() {
+        let json: serde_json::Value =
+            serde_json::from_str(r#"{"status": "running"}"#).unwrap();
+        let cond = CompletionCondition {
+            path: "status".to_string(),
+            operator: ConditionOperator::NotEqual,
+            value: ConditionValue::Single("completed".to_string()),
+        };
+        assert!(cond.evaluate(&json).unwrap());
+
+        let cond_match = CompletionCondition {
+            path: "status".to_string(),
+            operator: ConditionOperator::NotEqual,
+            value: ConditionValue::Single("running".to_string()),
+        };
+        assert!(!cond_match.evaluate(&json).unwrap());
+    }
+
+    #[test]
+    fn condition_in_evaluates() {
+        let json: serde_json::Value =
+            serde_json::from_str(r#"{"status": "failed"}"#).unwrap();
+        let cond = CompletionCondition {
+            path: "status".to_string(),
+            operator: ConditionOperator::In,
+            value: ConditionValue::Multiple(vec![
+                "failed".to_string(),
+                "error".to_string(),
+                "cancelled".to_string(),
+            ]),
+        };
+        assert!(cond.evaluate(&json).unwrap());
+
+        let json_no_match: serde_json::Value =
+            serde_json::from_str(r#"{"status": "running"}"#).unwrap();
+        assert!(!cond.evaluate(&json_no_match).unwrap());
+    }
+
+    #[test]
+    fn condition_not_in_evaluates() {
+        let json: serde_json::Value =
+            serde_json::from_str(r#"{"status": "running"}"#).unwrap();
+        let cond = CompletionCondition {
+            path: "status".to_string(),
+            operator: ConditionOperator::NotIn,
+            value: ConditionValue::Multiple(vec![
+                "failed".to_string(),
+                "error".to_string(),
+            ]),
+        };
+        assert!(cond.evaluate(&json).unwrap());
+
+        let json_match: serde_json::Value =
+            serde_json::from_str(r#"{"status": "failed"}"#).unwrap();
+        assert!(!cond.evaluate(&json_match).unwrap());
+    }
+
+    #[test]
+    fn condition_value_deserializes_single() {
+        let yaml = r#"
+path: "status"
+operator: equal
+value: "done"
+"#;
+        let cond: CompletionCondition = serde_yaml_ng::from_str(yaml).unwrap();
+        matches!(cond.value, ConditionValue::Single(ref s) if s == "done");
+    }
+
+    #[test]
+    fn condition_value_deserializes_multiple() {
+        let yaml = r#"
+path: "status"
+operator: in
+value: ["a", "b", "c"]
+"#;
+        let cond: CompletionCondition = serde_yaml_ng::from_str(yaml).unwrap();
+        if let ConditionValue::Multiple(ref v) = cond.value {
+            assert_eq!(v.len(), 3);
+            assert_eq!(v[0], "a");
+            assert_eq!(v[1], "b");
+            assert_eq!(v[2], "c");
+        } else {
+            panic!("expected Multiple variant");
+        }
     }
 }
