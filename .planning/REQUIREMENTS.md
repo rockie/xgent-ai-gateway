@@ -46,9 +46,9 @@ Requirements for Flexible Agent Execution milestone. Each maps to roadmap phases
 
 ### Examples
 
-- [ ] **EXMP-01**: Example CLI script service with agent.toml config demonstrating arg and stdin modes
-- [ ] **EXMP-02**: Example sync-api HTTP service with agent.toml config
-- [ ] **EXMP-03**: Example async-api HTTP service with agent.toml config showing submit + poll flow
+- [x] **EXMP-01**: Example CLI script service with agent.toml config demonstrating arg and stdin modes
+- [x] **EXMP-02**: Example sync-api HTTP service with agent.toml config
+- [x] **EXMP-03**: Example async-api HTTP service with agent.toml config showing submit + poll flow
 - [ ] **EXMP-04**: Node.js client example demonstrating full client → gateway → agent → result flow
 - [ ] **EXMP-05**: Dry-run mode (--dry-run) validates config and prints resolved templates without executing
 
@@ -100,9 +100,9 @@ Requirements for Flexible Agent Execution milestone. Each maps to roadmap phases
 | AAPI-05 | Phase 15 | Complete |
 | AAPI-06 | Phase 15 | Complete |
 | SAFE-01 | Phase 13 | Complete |
-| EXMP-01 | Phase 16 | Pending |
-| EXMP-02 | Phase 16 | Pending |
-| EXMP-03 | Phase 16 | Pending |
+| EXMP-01 | Phase 16 | Complete |
+| EXMP-02 | Phase 16 | Complete |
+| EXMP-03 | Phase 16 | Complete |
 | EXMP-04 | Phase 16 | Pending |
 | EXMP-05 | Phase 16 | Pending |
 

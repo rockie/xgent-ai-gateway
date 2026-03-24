@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Flexible Agent Execution
-status: Ready to plan
-stopped_at: Phase 16 context gathered
-last_updated: "2026-03-24T13:45:35.654Z"
+status: Ready to execute
+stopped_at: Completed 16-01-PLAN.md
+last_updated: "2026-03-24T14:16:57.095Z"
 last_activity: 2026-03-24
 progress:
   total_phases: 4
   completed_phases: 3
-  total_plans: 7
-  completed_plans: 7
+  total_plans: 10
+  completed_plans: 8
 ---
 
 # Project State
@@ -20,12 +20,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-24)
 
 **Core value:** Tasks submitted by clients reliably reach internal nodes and results reliably flow back, regardless of network topology
-**Current focus:** Phase 15 — async-api-execution
+**Current focus:** Phase 16 — examples-and-end-to-end-validation
 
 ## Current Position
 
-Phase: 16
-Plan: Not started
+Phase: 16 (examples-and-end-to-end-validation) — EXECUTING
+Plan: 2 of 3
 
 ## Performance Metrics
 
@@ -55,6 +55,7 @@ Recent decisions affecting current work:
 - [Phase 15]: FailedResponseConfig is Optional -- existing configs without failed section work unchanged
 - [Phase 15]: CompletionCondition.evaluate() reuses http_common::extract_json_value for path extraction, string comparison for all operators
 - [Phase 15]: No per-request timeout on async-api reqwest client; tokio::time::timeout wraps entire submit+poll flow
+- [Phase 16]: Used std::sync::Mutex for shared job state (microsecond lock hold time)
 
 ### Pending Todos
 
@@ -77,9 +78,10 @@ None.
 | Phase 14 P02 | 1min | 1 tasks | 1 files |
 | Phase 15 P01 | 7min | 2 tasks | 8 files |
 | Phase 15 P02 | 6min | 3 tasks | 4 files |
+| Phase 16 P01 | 2min | 2 tasks | 6 files |
 
 ## Session Continuity
 
 Last activity: 2026-03-24
-Stopped at: Phase 16 context gathered
-Resume file: .planning/phases/16-examples-and-end-to-end-validation/16-CONTEXT.md
+Stopped at: Completed 16-01-PLAN.md
+Resume file: None
