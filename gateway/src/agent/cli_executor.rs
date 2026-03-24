@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::process::Stdio;
 use std::time::Duration;
 
@@ -249,6 +248,7 @@ impl Executor for CliExecutor {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashMap;
 
     fn make_assignment(payload: &[u8]) -> TaskAssignment {
         TaskAssignment {
