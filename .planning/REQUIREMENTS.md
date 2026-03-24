@@ -78,39 +78,39 @@ Requirements for Flexible Agent Execution milestone. Each maps to roadmap phases
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CFG-01 | — | Pending |
-| CFG-02 | — | Pending |
-| CFG-03 | — | Pending |
-| CFG-04 | — | Pending |
-| CFG-05 | — | Pending |
-| CFG-06 | — | Pending |
-| CLI-01 | — | Pending |
-| CLI-02 | — | Pending |
-| CLI-03 | — | Pending |
-| CLI-04 | — | Pending |
-| CLI-05 | — | Pending |
-| SAPI-01 | — | Pending |
-| SAPI-02 | — | Pending |
-| SAPI-03 | — | Pending |
-| SAPI-04 | — | Pending |
-| AAPI-01 | — | Pending |
-| AAPI-02 | — | Pending |
-| AAPI-03 | — | Pending |
-| AAPI-04 | — | Pending |
-| AAPI-05 | — | Pending |
-| AAPI-06 | — | Pending |
-| SAFE-01 | — | Pending |
-| EXMP-01 | — | Pending |
-| EXMP-02 | — | Pending |
-| EXMP-03 | — | Pending |
-| EXMP-04 | — | Pending |
-| EXMP-05 | — | Pending |
+| CFG-01 | Phase 13 | Pending |
+| CFG-02 | Phase 13 | Pending |
+| CFG-03 | Phase 13 | Pending |
+| CFG-04 | Phase 13 | Pending |
+| CFG-05 | Phase 13 | Pending |
+| CFG-06 | Phase 13 | Pending |
+| CLI-01 | Phase 13 | Pending |
+| CLI-02 | Phase 13 | Pending |
+| CLI-03 | Phase 13 | Pending |
+| CLI-04 | Phase 13 | Pending |
+| CLI-05 | Phase 13 | Pending |
+| SAPI-01 | Phase 14 | Pending |
+| SAPI-02 | Phase 14 | Pending |
+| SAPI-03 | Phase 14 | Pending |
+| SAPI-04 | Phase 14 | Pending |
+| AAPI-01 | Phase 15 | Pending |
+| AAPI-02 | Phase 15 | Pending |
+| AAPI-03 | Phase 15 | Pending |
+| AAPI-04 | Phase 15 | Pending |
+| AAPI-05 | Phase 15 | Pending |
+| AAPI-06 | Phase 15 | Pending |
+| SAFE-01 | Phase 13 | Pending |
+| EXMP-01 | Phase 16 | Pending |
+| EXMP-02 | Phase 16 | Pending |
+| EXMP-03 | Phase 16 | Pending |
+| EXMP-04 | Phase 16 | Pending |
+| EXMP-05 | Phase 16 | Pending |
 
 **Coverage:**
 - v1.2 requirements: 27 total
-- Mapped to phases: 0
-- Unmapped: 27 ⚠️
+- Mapped to phases: 27
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-24*
-*Last updated: 2026-03-24 after initial definition*
+*Last updated: 2026-03-24 after roadmap creation*
