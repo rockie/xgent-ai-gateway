@@ -52,7 +52,18 @@ Tasks submitted by clients reliably reach internal nodes and results reliably fl
 
 ### Active
 
-(No active requirements — define next milestone with `/gsd:new-milestone`)
+## Current Milestone: v1.2 Flexible Agent Execution
+
+**Goal:** Make the runner agent a configurable execution engine supporting HTTP and CLI invocation modes with templated request/response mapping and async two-phase polling.
+
+**Target features:**
+- Configurable execution modes: `cli`, `sync-api`, `async-api` per service in agent.toml
+- CLI mode with arg-based and stdin-pipe execution, placeholder system (`<payload>`, `<stdout>`, `<stderr>`)
+- sync-api mode with configurable URL, method, headers, body template, env var interpolation
+- async-api mode with two-phase submit + poll, key-path extraction, completion conditions, timeout
+- Templated response body mapping for all modes
+- Example services covering all three modes
+- Node.js client example for full end-to-end flow
 
 ### Out of Scope
 
@@ -76,6 +87,7 @@ Tech stack: Rust (Tokio, Tonic, Axum, Redis Streams, rustls) + Vite + React 19 +
 32 plans across 12 phases completed in 2 days (v1.0 + v1.1).
 34 integration tests cover auth, registry, health, reaper, and gRPC auth flows.
 Admin UI serves as a single-page app with session-based auth, dark mode, auto-refresh, and full CRUD for services, nodes, tasks, and credentials.
+Runner agent currently hardcodes HTTP POST to echo service; v1.2 replaces this with a configurable execution engine.
 
 ## Constraints
 
@@ -127,4 +139,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-23 after v1.1 milestone complete*
+*Last updated: 2026-03-24 after v1.2 milestone started*
