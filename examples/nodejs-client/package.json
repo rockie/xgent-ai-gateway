@@ -1,0 +1,13 @@
+{
+  "name": "xgent-nodejs-client-examples",
+  "version": "1.0.0",
+  "description": "Node.js client examples for xgent-ai-gateway",
+  "scripts": {
+    "cli-client": "node cli-client.js",
+    "sync-api-client": "node sync-api-client.js",
+    "async-api-client": "node async-api-client.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
