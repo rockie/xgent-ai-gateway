@@ -38,7 +38,7 @@ Requirements for Flexible Agent Execution milestone. Each maps to roadmap phases
 - [ ] **AAPI-03**: Completion condition checks key-path value with operators (equal, not_equal, in, not_in)
 - [ ] **AAPI-04**: Failed_when condition short-circuits polling on detected failure state
 - [ ] **AAPI-05**: Configurable timeout caps total submit + poll duration
-- [ ] **AAPI-06**: Response body template maps poll response values into result shape
+- [x] **AAPI-06**: Response body template maps poll response values into result shape
 
 ### Safety
 
@@ -98,7 +98,7 @@ Requirements for Flexible Agent Execution milestone. Each maps to roadmap phases
 | AAPI-03 | Phase 15 | Pending |
 | AAPI-04 | Phase 15 | Pending |
 | AAPI-05 | Phase 15 | Pending |
-| AAPI-06 | Phase 15 | Pending |
+| AAPI-06 | Phase 15 | Complete |
 | SAFE-01 | Phase 13 | Complete |
 | EXMP-01 | Phase 16 | Pending |
 | EXMP-02 | Phase 16 | Pending |
