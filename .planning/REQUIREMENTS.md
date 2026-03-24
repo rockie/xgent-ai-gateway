@@ -103,7 +103,7 @@ Requirements for Flexible Agent Execution milestone. Each maps to roadmap phases
 | EXMP-01 | Phase 16 | Complete |
 | EXMP-02 | Phase 16 | Complete |
 | EXMP-03 | Phase 16 | Complete |
-| EXMP-04 | Phase 16 | Complete |
+| EXMP-04 | Phase 17 | Complete |
 | EXMP-05 | Phase 16 | Complete |
 
 **Coverage:**

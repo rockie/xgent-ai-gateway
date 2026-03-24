@@ -44,16 +44,16 @@ async function main() {
     });
 
     const task = await pollRes.json();
-    console.log(`  [poll ${i + 1}] status: ${task.status}`);
+    console.log(`  [poll ${i + 1}] state: ${task.state}`);
 
-    if (task.status === 'completed') {
+    if (task.state === 'completed') {
       console.log();
       console.log('Result:');
-      console.log(task.result);
+      console.log(Buffer.from(task.result, 'base64').toString());
       process.exit(0);
     }
 
-    if (task.status === 'failed') {
+    if (task.state === 'failed') {
       console.error();
       console.error(`Task failed: ${task.error_message}`);
       process.exit(1);

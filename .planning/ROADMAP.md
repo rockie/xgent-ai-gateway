@@ -44,6 +44,7 @@ Full details: `.planning/milestones/v1.1-ROADMAP.md`
 - [x] **Phase 14: Sync-API Execution** — HTTP dispatch with configurable URL, method, headers, body template, and response mapping (completed 2026-03-24)
 - [x] **Phase 15: Async-API Execution** — Two-phase submit + poll with completion conditions, failure detection, and timeout (completed 2026-03-24)
 - [x] **Phase 16: Examples and End-to-End Validation** — Example configs for all modes, Node.js client example, and dry-run validation (completed 2026-03-24)
+- [x] **Phase 17: Fix Node.js Client API Contract** — Fix `task.status` → `task.state` field mismatch and base64 result decoding in all Node.js clients (completed 2026-03-24)
 
 ## Phase Details
 
@@ -107,6 +108,15 @@ Plans:
 - [x] 16-02-PLAN.md -- Enhanced --dry-run validation with template preview
 - [x] 16-03-PLAN.md -- Node.js client examples and tutorial READMEs
 
+### Phase 17: Fix Node.js Client API Contract
+**Goal**: Fix runtime-breaking field name mismatch and base64 encoding in Node.js client examples (gap closure from milestone audit)
+**Depends on**: Phase 16
+**Requirements**: EXMP-04
+**Gap Closure:** Closes EXMP-04, integration gap (clients → gateway API), and Node.js E2E flow gap from v1.2 audit
+**Success Criteria** (what must be TRUE):
+  1. All three Node.js clients read `task.state` (not `task.status`) from the gateway response
+  2. All three Node.js clients decode `task.result` from base64 before displaying
+
 ## Progress
 
 **Execution Order:**
@@ -130,3 +140,4 @@ Phases execute in numeric order: 13 → 14 → 15 → 16
 | 14. Sync-API Execution | v1.2 | 2/2 | Complete    | 2026-03-24 |
 | 15. Async-API Execution | v1.2 | 2/2 | Complete    | 2026-03-24 |
 | 16. Examples and End-to-End Validation | v1.2 | 3/3 | Complete    | 2026-03-24 |
+| 17. Fix Node.js Client API Contract | v1.2 | 0/0 (quick fix) | Complete | 2026-03-24 |
