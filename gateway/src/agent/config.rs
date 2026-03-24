@@ -9,6 +9,8 @@ pub struct AgentConfig {
     pub service: ServiceSection,
     #[serde(default)]
     pub cli: Option<CliSection>,
+    #[serde(default)]
+    pub sync_api: Option<SyncApiSection>,
     pub response: ResponseSection,
 }
 
@@ -63,6 +65,21 @@ pub enum CliInputMode {
     Stdin,
 }
 
+/// Sync-API HTTP execution configuration.
+#[derive(Debug, Clone, Deserialize)]
+pub struct SyncApiSection {
+    pub url: String,
+    #[serde(default = "default_http_method")]
+    pub method: String,
+    #[serde(default)]
+    pub headers: HashMap<String, String>,
+    pub body: Option<String>,
+    #[serde(default = "default_sync_api_timeout")]
+    pub timeout_secs: u64,
+    #[serde(default)]
+    pub tls_skip_verify: bool,
+}
+
 /// Response body template configuration.
 #[derive(Debug, Clone, Deserialize)]
 pub struct ResponseSection {
@@ -85,6 +102,14 @@ fn default_input_mode() -> CliInputMode {
 
 fn default_timeout_secs() -> u64 {
     300
+}
+
+fn default_http_method() -> String {
+    "POST".to_string()
+}
+
+fn default_sync_api_timeout() -> u64 {
+    30
 }
 
 fn default_max_bytes() -> usize {
@@ -114,6 +139,11 @@ pub fn load_config_from_str(raw: &str) -> Result<AgentConfig, String> {
     // Validate: CLI mode requires cli section
     if config.service.mode == ExecutionMode::Cli && config.cli.is_none() {
         return Err("mode is 'cli' but [cli] section is missing".to_string());
+    }
+
+    // Validate: sync-api mode requires sync_api section
+    if config.service.mode == ExecutionMode::SyncApi && config.sync_api.is_none() {
+        return Err("mode is 'sync-api' but [sync_api] section is missing".to_string());
     }
 
     Ok(config)
@@ -283,6 +313,9 @@ service:
   name: "test"
   mode: sync-api
 
+sync_api:
+  url: "http://localhost:8080/api"
+
 response:
   body: "<stdout>"
 "#;
@@ -383,5 +416,107 @@ response:
 "#;
         let err = load_config_from_str(yaml).unwrap_err();
         assert!(err.contains("cli"), "error was: {}", err);
+    }
+
+    #[test]
+    fn sync_api_yaml_parses_all_fields() {
+        let yaml = r#"
+gateway:
+  address: "localhost:50051"
+  token: "tok"
+
+service:
+  name: "test"
+  mode: sync-api
+
+sync_api:
+  url: "http://example.com/api/v1/run"
+  method: "PUT"
+  headers:
+    Authorization: "Bearer abc123"
+    Content-Type: "application/json"
+  body: '{"input": "<payload>"}'
+  timeout_secs: 45
+  tls_skip_verify: true
+
+response:
+  body: "<response.result>"
+"#;
+        let config = load_config_from_str(yaml).unwrap();
+        let sa = config.sync_api.unwrap();
+        assert_eq!(sa.url, "http://example.com/api/v1/run");
+        assert_eq!(sa.method, "PUT");
+        assert_eq!(sa.headers.get("Authorization").unwrap(), "Bearer abc123");
+        assert_eq!(sa.headers.get("Content-Type").unwrap(), "application/json");
+        assert_eq!(sa.body.as_deref(), Some(r#"{"input": "<payload>"}"#));
+        assert_eq!(sa.timeout_secs, 45);
+        assert!(sa.tls_skip_verify);
+    }
+
+    #[test]
+    fn sync_api_defaults_apply() {
+        let yaml = r#"
+gateway:
+  address: "localhost:50051"
+  token: "tok"
+
+service:
+  name: "test"
+  mode: sync-api
+
+sync_api:
+  url: "http://localhost:8080/api"
+
+response:
+  body: "<response.output>"
+"#;
+        let config = load_config_from_str(yaml).unwrap();
+        let sa = config.sync_api.unwrap();
+        assert_eq!(sa.method, "POST");
+        assert_eq!(sa.timeout_secs, 30);
+        assert!(!sa.tls_skip_verify);
+        assert!(sa.headers.is_empty());
+        assert!(sa.body.is_none());
+    }
+
+    #[test]
+    fn sync_api_mode_without_section_fails() {
+        let yaml = r#"
+gateway:
+  address: "localhost:50051"
+  token: "tok"
+
+service:
+  name: "test"
+  mode: sync-api
+
+response:
+  body: "<stdout>"
+"#;
+        let err = load_config_from_str(yaml).unwrap_err();
+        assert!(err.contains("sync_api"), "error was: {}", err);
+        assert!(err.contains("missing"), "error was: {}", err);
+    }
+
+    #[test]
+    fn sync_api_mode_with_section_passes() {
+        let yaml = r#"
+gateway:
+  address: "localhost:50051"
+  token: "tok"
+
+service:
+  name: "test"
+  mode: sync-api
+
+sync_api:
+  url: "http://localhost:8080/run"
+
+response:
+  body: "<response.output>"
+"#;
+        let config = load_config_from_str(yaml).unwrap();
+        assert_eq!(config.service.mode, ExecutionMode::SyncApi);
+        assert!(config.sync_api.is_some());
     }
 }
