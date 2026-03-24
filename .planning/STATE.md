@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Flexible Agent Execution
-status: Ready to execute
-stopped_at: Completed 14-01-PLAN.md
-last_updated: "2026-03-24T10:18:17.101Z"
+status: Phase complete — ready for verification
+stopped_at: Completed 14-02-PLAN.md
+last_updated: "2026-03-24T10:21:34.201Z"
 last_activity: 2026-03-24
 progress:
   total_phases: 4
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 5
-  completed_plans: 4
+  completed_plans: 5
 ---
 
 # Project State
@@ -50,6 +50,7 @@ Recent decisions affecting current work:
 - [Phase 13]: Clone derive added to CliSection and ResponseSection for executor construction from config
 - [Phase 14]: Used reqwest::Client per-executor for independent timeout/TLS config
 - [Phase 14]: Connection retry on is_connect() only, not timeouts; axum in-process test server for HTTP tests
+- [Phase 14]: Separated SyncApi and AsyncApi into distinct match arms for independent implementation
 
 ### Pending Todos
 
@@ -69,9 +70,10 @@ None.
 | Phase 13 P02 | 3min | 1 tasks | 2 files |
 | Phase 13 P03 | 4min | 2 tasks | 3 files |
 | Phase 14 P01 | 5min | 2 tasks | 3 files |
+| Phase 14 P02 | 1min | 1 tasks | 1 files |
 
 ## Session Continuity
 
 Last activity: 2026-03-24
-Stopped at: Completed 14-01-PLAN.md
+Stopped at: Completed 14-02-PLAN.md
 Resume file: None
