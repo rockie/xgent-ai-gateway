@@ -50,6 +50,10 @@ Tasks submitted by clients reliably reach internal nodes and results reliably fl
 - ✓ Task management UI (paginated list, filters, detail, cancel) — v1.1
 - ✓ Credential management UI (API keys and node tokens: list, create, revoke) — v1.1
 
+- ✓ Example configs for CLI (arg + stdin), sync-api, and async-api execution modes — v1.2
+- ✓ Node.js client examples demonstrating full submit-execute-retrieve flow — v1.2
+- ✓ Agent --dry-run validates config (command/URL checks, response template preview, pass/fail summary) — v1.2
+
 ### Active
 
 ## Current Milestone: v1.2 Flexible Agent Execution
@@ -139,4 +143,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-24 — Phase 15 complete: AsyncApiExecutor with submit+poll lifecycle, condition evaluation, timeout handling, shared http_common module, and ResponseSection restructure*
+*Last updated: 2026-03-24 — Phase 16 complete: Example configs for all execution modes, Node.js client examples, enhanced --dry-run validation. v1.2 milestone fully complete.*
