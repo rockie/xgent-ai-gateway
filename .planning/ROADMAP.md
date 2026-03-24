@@ -71,9 +71,9 @@ Plans:
   1. Agent sends an HTTP request to a configured URL with the configured method, headers (including env var interpolation), and body template
   2. Agent extracts values from the HTTP response body using JSON Pointer key-paths and maps them into the result via response body template
   3. Agent reports failure with HTTP status code and response body when the target returns a non-2xx status
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 Plans:
-- [ ] 14-01-PLAN.md — SyncApiSection config, validation, SyncApiExecutor with HTTP dispatch and response extraction
+- [x] 14-01-PLAN.md — SyncApiSection config, validation, SyncApiExecutor with HTTP dispatch and response extraction
 - [ ] 14-02-PLAN.md — Agent binary wiring for sync-api mode
 
 ### Phase 15: Async-API Execution
@@ -120,6 +120,6 @@ Phases execute in numeric order: 13 → 14 → 15 → 16
 | 11. Credential Management | v1.1 | 2/2 | Complete | 2026-03-23 |
 | 12. Dashboard and Metrics Visualization | v1.1 | 2/2 | Complete | 2026-03-23 |
 | 13. Config, Placeholders, and CLI Execution | v1.2 | 3/3 | Complete    | 2026-03-24 |
-| 14. Sync-API Execution | v1.2 | 0/2 | Planned | - |
+| 14. Sync-API Execution | v1.2 | 1/2 | In Progress|  |
 | 15. Async-API Execution | v1.2 | 0/0 | Not started | - |
 | 16. Examples and End-to-End Validation | v1.2 | 0/0 | Not started | - |

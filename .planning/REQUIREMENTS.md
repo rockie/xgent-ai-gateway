@@ -26,10 +26,10 @@ Requirements for Flexible Agent Execution milestone. Each maps to roadmap phases
 
 ### Sync API Execution
 
-- [ ] **SAPI-01**: Agent dispatches HTTP request with configurable URL, method, and headers
-- [ ] **SAPI-02**: Body template supports `<payload>` as entire body or embedded in JSON structure
-- [ ] **SAPI-03**: Response body template maps `<response.path>` key-paths into result shape
-- [ ] **SAPI-04**: Non-2xx HTTP status maps to failure with status code and body in error
+- [x] **SAPI-01**: Agent dispatches HTTP request with configurable URL, method, and headers
+- [x] **SAPI-02**: Body template supports `<payload>` as entire body or embedded in JSON structure
+- [x] **SAPI-03**: Response body template maps `<response.path>` key-paths into result shape
+- [x] **SAPI-04**: Non-2xx HTTP status maps to failure with status code and body in error
 
 ### Async API Execution
 
@@ -89,10 +89,10 @@ Requirements for Flexible Agent Execution milestone. Each maps to roadmap phases
 | CLI-03 | Phase 13 | Complete |
 | CLI-04 | Phase 13 | Complete |
 | CLI-05 | Phase 13 | Complete |
-| SAPI-01 | Phase 14 | Pending |
-| SAPI-02 | Phase 14 | Pending |
-| SAPI-03 | Phase 14 | Pending |
-| SAPI-04 | Phase 14 | Pending |
+| SAPI-01 | Phase 14 | Complete |
+| SAPI-02 | Phase 14 | Complete |
+| SAPI-03 | Phase 14 | Complete |
+| SAPI-04 | Phase 14 | Complete |
 | AAPI-01 | Phase 15 | Pending |
 | AAPI-02 | Phase 15 | Pending |
 | AAPI-03 | Phase 15 | Pending |
