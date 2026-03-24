@@ -141,3 +141,15 @@ Phases execute in numeric order: 13 → 14 → 15 → 16
 | 15. Async-API Execution | v1.2 | 2/2 | Complete    | 2026-03-24 |
 | 16. Examples and End-to-End Validation | v1.2 | 3/3 | Complete    | 2026-03-24 |
 | 17. Fix Node.js Client API Contract | v1.2 | 0/0 (quick fix) | Complete | 2026-03-24 |
+
+### Phase 18: Tech Debt Cleanup
+
+**Goal:** Resolve clippy/compiler warnings, eliminate duplicated node health queries, refactor tracing init, and standardize admin error handling
+**Requirements**: TD-01, TD-02, TD-03, TD-04, TD-05
+**Depends on:** Phase 17
+**Plans:** 3 plans
+
+Plans:
+- [ ] 18-01-PLAN.md — Fix all clippy and compiler warnings (Default impls, FromStr trait, clamp, unused assignments)
+- [ ] 18-02-PLAN.md — Deduplicate node health fetching in admin.rs and metrics.rs
+- [ ] 18-03-PLAN.md — Refactor init_tracing duplication and standardize admin handler error types
