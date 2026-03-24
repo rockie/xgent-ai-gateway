@@ -82,9 +82,10 @@ None.
 | Phase 16 P01 | 2min | 2 tasks | 6 files |
 | Phase 16 P02 | 2min | 2 tasks | 1 files |
 | Phase 16 P03 | 3min | 2 tasks | 8 files |
+| 260324-w3j | Fix Node.js client URL paths: remove /api prefix | 2026-03-24 | b1c4bed | [260324-w3j-fix-node-js-client-url-paths-remove-api-](./quick/260324-w3j-fix-node-js-client-url-paths-remove-api-/) |
 
 ## Session Continuity
 
-Last activity: 2026-03-24
-Stopped at: Completed 16-03-PLAN.md
+Last activity: 2026-03-24 - Completed quick task 260324-w3j: Fix Node.js client URL paths
+Stopped at: Quick task 260324-w3j complete
 Resume file: None
