@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use async_trait::async_trait;
 use xgent_proto::TaskAssignment;
 
@@ -6,6 +8,7 @@ pub struct ExecutionResult {
     pub success: bool,
     pub result: Vec<u8>,
     pub error_message: String,
+    pub headers: HashMap<String, String>,
 }
 
 /// Trait for task executors. Each execution mode (CLI, sync-api, async-api)
@@ -25,10 +28,12 @@ mod tests {
             success: true,
             result: vec![1, 2, 3],
             error_message: String::new(),
+            headers: HashMap::new(),
         };
         assert!(result.success);
         assert_eq!(result.result, vec![1, 2, 3]);
         assert!(result.error_message.is_empty());
+        assert!(result.headers.is_empty());
     }
 
     #[test]
@@ -37,6 +42,7 @@ mod tests {
             success: false,
             result: Vec::new(),
             error_message: "something went wrong".to_string(),
+            headers: HashMap::new(),
         };
         assert!(!result.success);
         assert!(result.result.is_empty());

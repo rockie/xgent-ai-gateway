@@ -80,12 +80,30 @@ pub struct SyncApiSection {
     pub tls_skip_verify: bool,
 }
 
-/// Response body template configuration.
+/// Response body template configuration with success/failed sub-sections.
 #[derive(Debug, Clone, Deserialize)]
 pub struct ResponseSection {
-    pub body: String,
+    pub success: SuccessResponseConfig,
+    #[serde(default)]
+    pub failed: Option<FailedResponseConfig>,
     #[serde(default = "default_max_bytes")]
     pub max_bytes: usize,
+}
+
+/// Configuration for the success response body template and optional headers.
+#[derive(Debug, Clone, Deserialize)]
+pub struct SuccessResponseConfig {
+    pub body: String,
+    #[serde(default)]
+    pub header: Option<String>,
+}
+
+/// Configuration for the failed response body template and optional headers.
+#[derive(Debug, Clone, Deserialize)]
+pub struct FailedResponseConfig {
+    pub body: String,
+    #[serde(default)]
+    pub header: Option<String>,
 }
 
 fn default_node_id() -> String {
@@ -214,7 +232,8 @@ cli:
   timeout_secs: 60
 
 response:
-  body: '{"output": "<stdout>"}'
+  success:
+    body: '{"output": "<stdout>"}'
   max_bytes: 2048
 "#
     }
@@ -236,7 +255,7 @@ response:
         assert_eq!(cli.input_mode, CliInputMode::Arg);
         assert_eq!(cli.timeout_secs, 60);
 
-        assert_eq!(config.response.body, "{\"output\": \"<stdout>\"}");
+        assert_eq!(config.response.success.body, "{\"output\": \"<stdout>\"}");
         assert_eq!(config.response.max_bytes, 2048);
     }
 
@@ -259,7 +278,8 @@ cli:
   command: ["echo"]
 
 response:
-  body: "<stdout>"
+  success:
+    body: "<stdout>"
 "#;
         let config = load_config_from_str(yaml).unwrap();
         assert_eq!(config.gateway.token, "secret-token-123");
@@ -286,7 +306,8 @@ cli:
   command: ["echo"]
 
 response:
-  body: "<stdout>"
+  success:
+    body: "<stdout>"
 "#;
         let err = load_config_from_str(yaml).unwrap_err();
         assert!(
@@ -317,7 +338,8 @@ sync_api:
   url: "http://localhost:8080/api"
 
 response:
-  body: "<stdout>"
+  success:
+    body: "<stdout>"
 "#;
         let config = load_config_from_str(yaml).unwrap();
         assert_eq!(config.service.mode, ExecutionMode::SyncApi);
@@ -335,7 +357,8 @@ service:
   mode: async-api
 
 response:
-  body: "<stdout>"
+  success:
+    body: "<stdout>"
 "#;
         let config = load_config_from_str(yaml).unwrap();
         assert_eq!(config.service.mode, ExecutionMode::AsyncApi);
@@ -356,7 +379,8 @@ cli:
   command: ["echo"]
 
 response:
-  body: "<stdout>"
+  success:
+    body: "<stdout>"
 "#;
         let config = load_config_from_str(yaml).unwrap();
         // Default timeout
@@ -390,7 +414,8 @@ cli:
     API_KEY: "test-key"
 
 response:
-  body: "<stdout>"
+  success:
+    body: "<stdout>"
 "#;
         let config = load_config_from_str(yaml).unwrap();
         let cli = config.cli.unwrap();
@@ -412,7 +437,8 @@ service:
   mode: cli
 
 response:
-  body: "<stdout>"
+  success:
+    body: "<stdout>"
 "#;
         let err = load_config_from_str(yaml).unwrap_err();
         assert!(err.contains("cli"), "error was: {}", err);
@@ -440,7 +466,8 @@ sync_api:
   tls_skip_verify: true
 
 response:
-  body: "<response.result>"
+  success:
+    body: "<response.result>"
 "#;
         let config = load_config_from_str(yaml).unwrap();
         let sa = config.sync_api.unwrap();
@@ -468,7 +495,8 @@ sync_api:
   url: "http://localhost:8080/api"
 
 response:
-  body: "<response.output>"
+  success:
+    body: "<response.output>"
 "#;
         let config = load_config_from_str(yaml).unwrap();
         let sa = config.sync_api.unwrap();
@@ -491,7 +519,8 @@ service:
   mode: sync-api
 
 response:
-  body: "<stdout>"
+  success:
+    body: "<stdout>"
 "#;
         let err = load_config_from_str(yaml).unwrap_err();
         assert!(err.contains("sync_api"), "error was: {}", err);
@@ -513,7 +542,8 @@ sync_api:
   url: "http://localhost:8080/run"
 
 response:
-  body: "<response.output>"
+  success:
+    body: "<response.output>"
 "#;
         let config = load_config_from_str(yaml).unwrap();
         assert_eq!(config.service.mode, ExecutionMode::SyncApi);
