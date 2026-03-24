@@ -86,7 +86,10 @@ Plans:
   3. Agent short-circuits polling and reports failure when a configured failed_when condition matches the poll response
   4. Agent enforces a total timeout on the combined submit + poll duration and reports failure on expiry
   5. Agent produces the final result by mapping poll response values into a response body template
-**Plans**: TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 15-01-PLAN.md — Response section refactor, shared http_common module, ExecutionResult headers field
+- [ ] 15-02-PLAN.md — AsyncApiExecutor config, implementation, condition evaluation, agent binary wiring
 
 ### Phase 16: Examples and End-to-End Validation
 **Goal**: Ship working examples for all three execution modes and a client-side example that proves the full submit-execute-retrieve flow
@@ -121,5 +124,5 @@ Phases execute in numeric order: 13 → 14 → 15 → 16
 | 12. Dashboard and Metrics Visualization | v1.1 | 2/2 | Complete | 2026-03-23 |
 | 13. Config, Placeholders, and CLI Execution | v1.2 | 3/3 | Complete    | 2026-03-24 |
 | 14. Sync-API Execution | v1.2 | 2/2 | Complete    | 2026-03-24 |
-| 15. Async-API Execution | v1.2 | 0/0 | Not started | - |
+| 15. Async-API Execution | v1.2 | 0/2 | Planning complete | - |
 | 16. Examples and End-to-End Validation | v1.2 | 0/0 | Not started | - |
