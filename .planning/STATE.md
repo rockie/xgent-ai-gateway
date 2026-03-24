@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Flexible Agent Execution
 status: Ready to execute
-stopped_at: Completed 16-01-PLAN.md
-last_updated: "2026-03-24T14:16:57.095Z"
+stopped_at: Completed 16-02-PLAN.md
+last_updated: "2026-03-24T14:21:20.159Z"
 last_activity: 2026-03-24
 progress:
   total_phases: 4
   completed_phases: 3
   total_plans: 10
-  completed_plans: 8
+  completed_plans: 9
 ---
 
 # Project State
@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-03-24)
 ## Current Position
 
 Phase: 16 (examples-and-end-to-end-validation) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 
 ## Performance Metrics
 
@@ -56,6 +56,7 @@ Recent decisions affecting current work:
 - [Phase 15]: CompletionCondition.evaluate() reuses http_common::extract_json_value for path extraction, string comparison for all operators
 - [Phase 15]: No per-request timeout on async-api reqwest client; tokio::time::timeout wraps entire submit+poll flow
 - [Phase 16]: Used std::sync::Mutex for shared job state (microsecond lock hold time)
+- [Phase 16]: Skip poll URL validation when it contains submit_response placeholders (not valid URL until runtime)
 
 ### Pending Todos
 
@@ -79,9 +80,10 @@ None.
 | Phase 15 P01 | 7min | 2 tasks | 8 files |
 | Phase 15 P02 | 6min | 3 tasks | 4 files |
 | Phase 16 P01 | 2min | 2 tasks | 6 files |
+| Phase 16 P02 | 2min | 2 tasks | 1 files |
 
 ## Session Continuity
 
 Last activity: 2026-03-24
-Stopped at: Completed 16-01-PLAN.md
+Stopped at: Completed 16-02-PLAN.md
 Resume file: None

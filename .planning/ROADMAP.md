@@ -101,10 +101,10 @@ Plans:
   3. An async-api example service with agent.toml config runs successfully, completing a submit + poll cycle
   4. A Node.js client example submits a task via the gateway HTTP API, the agent executes it, and the client retrieves the result
   5. Running `--dry-run` validates the agent.toml config and prints resolved templates without connecting to the gateway or executing any tasks
-**Plans:** 1/3 plans executed
+**Plans:** 2/3 plans executed
 Plans:
 - [x] 16-01-PLAN.md -- Extended sample_service, example configs, and echo script
-- [ ] 16-02-PLAN.md -- Enhanced --dry-run validation with template preview
+- [x] 16-02-PLAN.md -- Enhanced --dry-run validation with template preview
 - [ ] 16-03-PLAN.md -- Node.js client examples and tutorial READMEs
 
 ## Progress
@@ -129,4 +129,4 @@ Phases execute in numeric order: 13 → 14 → 15 → 16
 | 13. Config, Placeholders, and CLI Execution | v1.2 | 3/3 | Complete    | 2026-03-24 |
 | 14. Sync-API Execution | v1.2 | 2/2 | Complete    | 2026-03-24 |
 | 15. Async-API Execution | v1.2 | 2/2 | Complete    | 2026-03-24 |
-| 16. Examples and End-to-End Validation | v1.2 | 1/3 | In Progress|  |
+| 16. Examples and End-to-End Validation | v1.2 | 2/3 | In Progress|  |
