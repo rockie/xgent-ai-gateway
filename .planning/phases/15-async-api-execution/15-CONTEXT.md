@@ -6,7 +6,7 @@
 <domain>
 ## Phase Boundary
 
-Agent handles two-phase async APIs: submit a job via HTTP, poll for completion at a configurable interval, detect success/failure via key-path conditions, and extract the final result into a response body template. Implements `AsyncApiExecutor` following the `Executor` trait pattern from Phase 13. Examples and end-to-end validation are Phase 16.
+Agent handles two-phase async APIs: submit a job via HTTP, poll for completion at a configurable interval, detect success/failure via key-path conditions, and extract the final result into a response body template. Implements `AsyncApiExecutor` following the `Executor` trait pattern from Phase 13. Also refactors the shared `response` config section to support separate success/failed body templates with optional headers — a cross-cutting improvement that applies to all three execution modes. Examples and end-to-end validation are Phase 16.
 
 </domain>
 
@@ -37,9 +37,18 @@ Agent handles two-phase async APIs: submit a job via HTTP, poll for completion a
 - **D-15:** Non-2xx HTTP status on submit or poll fails the task with status code and response body in the error message (consistent with sync-api D-12).
 - **D-16:** Non-JSON poll responses fail the task with a clear error. The condition check requires JSON parsing to extract the key-path value.
 
-### Response extraction
-- **D-17:** `<poll_response.path>` placeholders in the response body template extract values from the final successful poll response JSON. Uses the same `extract_json_value()` and `find_response_placeholders()` functions from sync-api.
-- **D-18:** `<submit_response.path>` placeholders are used in the poll URL and body templates to inject values extracted from the submit response (e.g., job ID).
+### Response section refactor (cross-cutting, all modes)
+- **D-17:** The shared `response` config section is restructured with `success` and `failed` sub-sections, each with its own `body` template and optional `header` field. `max_bytes` stays at the `response` level.
+- **D-18:** `response.success.body` — template applied on success path (replaces current `response.body`). `response.failed.body` — template applied on failure path. If `failed.body` is omitted, failure results remain empty (backwards-compatible with current behavior).
+- **D-19:** `response.success.header` and `response.failed.header` — optional JSON string of extra headers to attach as result metadata, e.g., `'{"Content-Type": "application/json"}'`. These are passed through in the `ExecutionResult` for clients that need to know the result format.
+- **D-20:** On CLI failure (non-zero exit code), `<stdout>`, `<stderr>`, and a new `<exit_code>` placeholder are available in `failed.body`. On sync-api/async-api failure (non-2xx or `failed_when`), `<response.path>` placeholders extract from the error/poll response.
+- **D-21:** `ExecutionResult` struct gains a `headers: HashMap<String, String>` field (default empty) to carry the parsed header metadata back to the gateway. Existing success=true/false, result, error_message fields unchanged.
+- **D-22:** Existing CLI and sync-api executors are updated to use the new response section structure. This is a refactor — their behavior changes only in that failures now produce structured results instead of empty `Vec::new()`.
+
+### Response extraction (async-api specific)
+- **D-23:** `<poll_response.path>` placeholders in `response.success.body` extract values from the final successful poll response JSON. Uses the same `extract_json_value()` and `find_response_placeholders()` functions from sync-api.
+- **D-24:** `<submit_response.path>` placeholders are used in the poll URL and body templates to inject values extracted from the submit response (e.g., job ID).
+- **D-25:** When `failed_when` matches, `<poll_response.path>` placeholders in `response.failed.body` extract values from the failing poll response (e.g., error message, error code).
 
 ### Claude's Discretion
 - Exact `AsyncApiSection`, `SubmitSection`, `PollSection`, `CompletionCondition` struct names and serde attributes
@@ -48,6 +57,9 @@ Agent handles two-phase async APIs: submit a job via HTTP, poll for completion a
 - Test strategy and fixture structure
 - Error message exact formatting
 - Whether `submit_response.*` extraction reuses `find_response_placeholders()` with a different prefix or uses a separate scan
+- Exact naming of the new `ResponseSection` sub-structs (`SuccessResponse`, `FailedResponse`, etc.)
+- How header JSON string is parsed and stored (parse at config load vs pass-through)
+- Whether `response.success` is required or falls back to legacy `response.body` for backwards compatibility during migration
 
 </decisions>
 
@@ -68,7 +80,8 @@ Agent handles two-phase async APIs: submit a job via HTTP, poll for completion a
 - `gateway/src/agent/config.rs` — `AgentConfig`, `ExecutionMode::AsyncApi`, config loading with env var interpolation, validation pattern. Phase 15 adds `AsyncApiSection` and validation.
 - `gateway/src/agent/sync_api_executor.rs` — `extract_json_value()`, `find_response_placeholders()`, `SyncApiExecutor` implementation. Phase 15 reuses the JSON extraction functions and follows the same executor structure.
 - `gateway/src/agent/placeholder.rs` — Single-pass `resolve_placeholders()` engine. Reused for submit body, poll URL, and poll body templates.
-- `gateway/src/agent/response.rs` — `resolve_response_body()` with max_bytes check. Phase 15 extends variable map with `<poll_response.path>` entries.
+- `gateway/src/agent/response.rs` — `resolve_response_body()` with max_bytes check. Phase 15 refactors this to support success/failed body templates and extends variable map with `<poll_response.path>` entries.
+- `gateway/src/agent/cli_executor.rs` — `CliExecutor` implementation. Phase 15 updates failure paths to use `failed.body` template.
 - `gateway/src/bin/agent.rs` — Agent binary with `ExecutionMode::AsyncApi` match arm (currently exits with error). Phase 15 wires in `AsyncApiExecutor`.
 - `gateway/src/agent/mod.rs` — Module declarations. Phase 15 adds `pub mod async_api_executor;`.
 
@@ -84,13 +97,13 @@ Agent handles two-phase async APIs: submit a job via HTTP, poll for completion a
 - `sync_api_executor::extract_json_value()` — Dot-notation JSON value extraction. Reuse directly for condition path evaluation and response extraction. Consider moving to a shared module since both sync-api and async-api need it.
 - `sync_api_executor::find_response_placeholders()` — Scans templates for `<response.XXX>` placeholders. Needs adaptation for `<submit_response.XXX>` and `<poll_response.XXX>` prefixes.
 - `placeholder::resolve_placeholders()` — Reuse for submit body, poll URL template, and poll body template resolution.
-- `response::resolve_response_body()` — Reuse for final response body assembly with max_bytes check.
+- `response::resolve_response_body()` — Refactored to accept success/failed body templates. Max_bytes check stays.
 - `reqwest::Client` — Already in Cargo.toml. Build once with timeout and TLS settings, store as field.
 
 ### Established Patterns
 - Config validation at load time: `if mode == AsyncApi && async_api.is_none() { error }`
 - Placeholder variable map: `HashMap<String, String>` populated from task assignment fields
-- `ExecutionResult { success, result, error_message }` return type
+- `ExecutionResult { success, result, error_message }` return type — gains `headers: HashMap<String, String>` field
 - One connection retry with `is_connect()` check for transient failures
 - Structured logging with `tracing::info!` / `tracing::error!` with field context
 
@@ -99,6 +112,11 @@ Agent handles two-phase async APIs: submit a job via HTTP, poll for completion a
 - `agent/mod.rs` — Add `pub mod async_api_executor;`
 - `bin/agent.rs` match arm — Replace `eprintln!` with `Box::new(AsyncApiExecutor::new(...))`
 - `load_config_from_str()` validation — Add async-api mode check
+- `ResponseSection` struct — Restructure from flat `{ body, max_bytes }` to `{ success, failed, max_bytes }`
+- `ExecutionResult` struct — Add `headers` field
+- `CliExecutor` — Update failure paths to resolve `failed.body` template with `<stderr>`, `<stdout>`, `<exit_code>`
+- `SyncApiExecutor` — Update failure paths to resolve `failed.body` template with `<response.path>` from error response
+- `bin/agent.rs` — Pass parsed headers from `ExecutionResult` into `ReportResultRequest`
 
 </code_context>
 
@@ -108,6 +126,35 @@ Agent handles two-phase async APIs: submit a job via HTTP, poll for completion a
 - Config structure follows nested sub-sections (`submit`, `poll`) because async-api has two distinct HTTP calls, but each sub-section internally mirrors the flat sync-api field pattern for consistency
 - `extract_json_value()` and `find_response_placeholders()` should likely be moved to a shared utility module since both sync-api and async-api executors need them — Claude's discretion on exact approach
 - The `in`/`not_in` operators use YAML arrays, not comma-separated strings, for type safety and clarity
+- Response section restructure example showing all three modes:
+
+```yaml
+# CLI mode
+response:
+  success:
+    header: '{"Content-Type": "text/plain"}'
+    body: '<stdout>'
+  failed:
+    body: '{"error": "<stderr>", "exit_code": "<exit_code>"}'
+  max_bytes: 1048576
+
+# Sync-API mode
+response:
+  success:
+    header: '{"Content-Type": "application/json"}'
+    body: '{"result": "<response.data.output>"}'
+  failed:
+    body: '{"error": "<response.error.message>", "status": "<response.status>"}'
+  max_bytes: 1048576
+
+# Async-API mode
+response:
+  success:
+    body: '{"result": "<poll_response.result.output>"}'
+  failed:
+    body: '{"error": "<poll_response.error.message>"}'
+  max_bytes: 1048576
+```
 
 </specifics>
 

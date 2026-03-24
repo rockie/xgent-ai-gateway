@@ -93,6 +93,29 @@
 
 ---
 
+## Response Section Refactor (added during discussion)
+
+**Context:** User identified that all three modes (CLI, sync-api, async-api) have the same gap — on failure, `result` is always `Vec::new()` and the response body template is never applied. No way to produce structured error results.
+
+**User's decision:** Fold the fix into Phase 15 rather than deferring.
+
+**New response config structure:**
+```yaml
+response:
+  success:
+    header: '{"Content-Type": "application/json"}'  # optional
+    body: '{"result": "<response.data>"}'
+  failed:
+    body: '{"error": "<stderr>"}'  # optional section
+  max_bytes: 1048576
+```
+
+- `header` is a JSON string of extra headers attached as result metadata (e.g., Content-Type)
+- `failed.body` is optional — if omitted, failure results remain empty (backwards-compatible)
+- `<exit_code>` placeholder added for CLI failure path
+- `ExecutionResult` gains `headers: HashMap<String, String>` field
+- All three executors (CLI, sync-api, async-api) updated to use new structure
+
 ## Claude's Discretion
 
 - Struct names and serde attributes for config sections
