@@ -9,12 +9,12 @@ Requirements for Flexible Agent Execution milestone. Each maps to roadmap phases
 
 ### Configuration
 
-- [ ] **CFG-01**: Agent reads per-service execution config from agent.toml file
-- [ ] **CFG-02**: Placeholder system resolves `<payload>`, `<stdout>`, `<stderr>`, `<response.path>`, `<submit_response.path>`, `<poll_response.path>` tokens in templates
-- [ ] **CFG-03**: Environment variable interpolation resolves `${ENV_VAR}` in URLs, headers, and body templates
-- [ ] **CFG-04**: Metadata placeholders resolve `<meta.key>` to task metadata values
-- [ ] **CFG-05**: Per-service working directory (cwd) config for CLI processes
-- [ ] **CFG-06**: Per-service environment variables injected into CLI processes
+- [x] **CFG-01**: Agent reads per-service execution config from agent.toml file
+- [x] **CFG-02**: Placeholder system resolves `<payload>`, `<stdout>`, `<stderr>`, `<response.path>`, `<submit_response.path>`, `<poll_response.path>` tokens in templates
+- [x] **CFG-03**: Environment variable interpolation resolves `${ENV_VAR}` in URLs, headers, and body templates
+- [x] **CFG-04**: Metadata placeholders resolve `<meta.key>` to task metadata values
+- [x] **CFG-05**: Per-service working directory (cwd) config for CLI processes
+- [x] **CFG-06**: Per-service environment variables injected into CLI processes
 
 ### CLI Execution
 
@@ -22,7 +22,7 @@ Requirements for Flexible Agent Execution milestone. Each maps to roadmap phases
 - [ ] **CLI-02**: Agent executes CLI commands in stdin mode, piping payload to process stdin
 - [ ] **CLI-03**: Configurable per-service timeout kills process on expiry (kill_on_drop safety)
 - [ ] **CLI-04**: Exit code 0 maps to success, non-zero maps to failure with exit code in error
-- [ ] **CLI-05**: Response body template maps `<stdout>` and `<stderr>` into configurable result shape
+- [x] **CLI-05**: Response body template maps `<stdout>` and `<stderr>` into configurable result shape
 
 ### Sync API Execution
 
@@ -42,7 +42,7 @@ Requirements for Flexible Agent Execution milestone. Each maps to roadmap phases
 
 ### Safety
 
-- [ ] **SAFE-01**: Response body size limit caps result payload to prevent runaway output
+- [x] **SAFE-01**: Response body size limit caps result payload to prevent runaway output
 
 ### Examples
 
@@ -78,17 +78,17 @@ Requirements for Flexible Agent Execution milestone. Each maps to roadmap phases
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CFG-01 | Phase 13 | Pending |
-| CFG-02 | Phase 13 | Pending |
-| CFG-03 | Phase 13 | Pending |
-| CFG-04 | Phase 13 | Pending |
-| CFG-05 | Phase 13 | Pending |
-| CFG-06 | Phase 13 | Pending |
+| CFG-01 | Phase 13 | Complete |
+| CFG-02 | Phase 13 | Complete |
+| CFG-03 | Phase 13 | Complete |
+| CFG-04 | Phase 13 | Complete |
+| CFG-05 | Phase 13 | Complete |
+| CFG-06 | Phase 13 | Complete |
 | CLI-01 | Phase 13 | Pending |
 | CLI-02 | Phase 13 | Pending |
 | CLI-03 | Phase 13 | Pending |
 | CLI-04 | Phase 13 | Pending |
-| CLI-05 | Phase 13 | Pending |
+| CLI-05 | Phase 13 | Complete |
 | SAPI-01 | Phase 14 | Pending |
 | SAPI-02 | Phase 14 | Pending |
 | SAPI-03 | Phase 14 | Pending |
@@ -99,7 +99,7 @@ Requirements for Flexible Agent Execution milestone. Each maps to roadmap phases
 | AAPI-04 | Phase 15 | Pending |
 | AAPI-05 | Phase 15 | Pending |
 | AAPI-06 | Phase 15 | Pending |
-| SAFE-01 | Phase 13 | Pending |
+| SAFE-01 | Phase 13 | Complete |
 | EXMP-01 | Phase 16 | Pending |
 | EXMP-02 | Phase 16 | Pending |
 | EXMP-03 | Phase 16 | Pending |

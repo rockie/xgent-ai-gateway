@@ -57,9 +57,9 @@ Full details: `.planning/milestones/v1.1-ROADMAP.md`
   3. Agent executes a CLI command in stdin mode, piping the payload to the process and capturing stdout/stderr without deadlock on large payloads
   4. Agent kills a CLI process that exceeds its configured timeout and reports failure with a meaningful error message
   5. Response body template produces a configurable result shape using `<stdout>`, `<stderr>`, `<payload>`, `<metadata.key>`, and `${ENV_VAR}` placeholders
-**Plans:** 3 plans
+**Plans:** 1/3 plans executed
 Plans:
-- [ ] 13-01-PLAN.md — Config structs, placeholder engine, executor trait, response template
+- [x] 13-01-PLAN.md — Config structs, placeholder engine, executor trait, response template
 - [ ] 13-02-PLAN.md — CLI executor with arg/stdin modes, timeout, exit code mapping
 - [ ] 13-03-PLAN.md — Agent binary integration (wire config + executor into poll loop)
 
@@ -116,7 +116,7 @@ Phases execute in numeric order: 13 → 14 → 15 → 16
 | 10. Task Management and Data Endpoints | v1.1 | 3/3 | Complete | 2026-03-23 |
 | 11. Credential Management | v1.1 | 2/2 | Complete | 2026-03-23 |
 | 12. Dashboard and Metrics Visualization | v1.1 | 2/2 | Complete | 2026-03-23 |
-| 13. Config, Placeholders, and CLI Execution | v1.2 | 0/3 | Planning | - |
+| 13. Config, Placeholders, and CLI Execution | v1.2 | 1/3 | In Progress|  |
 | 14. Sync-API Execution | v1.2 | 0/0 | Not started | - |
 | 15. Async-API Execution | v1.2 | 0/0 | Not started | - |
 | 16. Examples and End-to-End Validation | v1.2 | 0/0 | Not started | - |
