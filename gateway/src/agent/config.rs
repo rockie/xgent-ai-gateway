@@ -43,7 +43,7 @@ pub enum ExecutionMode {
 }
 
 /// CLI execution configuration.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct CliSection {
     pub command: Vec<String>,
     #[serde(default = "default_input_mode")]
@@ -64,7 +64,7 @@ pub enum CliInputMode {
 }
 
 /// Response body template configuration.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct ResponseSection {
     pub body: String,
     #[serde(default = "default_max_bytes")]
