@@ -1,270 +1,188 @@
-# Stack Research: Admin Web UI Frontend
+# Stack Research: v1.2 Flexible Agent Execution
 
-**Domain:** Admin dashboard frontend for Rust API gateway
-**Researched:** 2026-03-22
+**Domain:** Configurable execution engine for pull-model task runner agent
+**Researched:** 2026-03-24
 **Confidence:** HIGH
 
-> This document covers ONLY the new frontend stack additions for the v1.1 Admin Web UI.
-> The existing Rust backend stack (Axum, Tonic, Redis, etc.) is documented in CLAUDE.md and is not re-researched here.
+## Scope
 
-## Recommended Stack
+This research covers ONLY the stack additions needed for v1.2 features:
+- CLI process execution (spawn, stdin pipes, shell escaping)
+- Templated HTTP client requests (configurable URL, method, headers, body)
+- Async two-phase polling loops (submit + poll with timeout)
+- TOML-based per-service execution config (agent.toml)
 
-### Core Technologies (User-Selected, Versions Verified)
+Everything below builds on the existing Tokio 1.50 + Tonic 0.14 + Axum 0.8 + reqwest 0.12 + serde 1.0 stack. No changes to that foundation.
 
-| Technology | Version | Purpose | Why Recommended |
-|------------|---------|---------|-----------------|
-| **Vite** | 8.x | Build tool | Latest stable. Ships Rolldown (Rust-based bundler) for 10-30x faster builds. User-selected. |
-| **React** | 19.x | UI framework | User-selected. Required by shadcn/ui. |
-| **TailwindCSS** | 4.2.x | Utility CSS | v4 uses CSS-first config (no tailwind.config.js needed). 100x faster incremental builds. User-selected. |
-| **shadcn/ui** | CLI v4.1.x | Component library | Copy-paste components (not a runtime dependency). Install via `npx shadcn@latest init`. Built on Radix UI primitives. User-selected. |
-| **TanStack Router** | 1.168.x | Client routing | Fully type-safe routing with file-based route generation via Vite plugin. User-selected. |
-| **TanStack Query** | 5.94.x | Server state management | Caching, refetching, polling interval -- ideal for admin dashboard that polls gateway status. User-selected. |
+## Recommended Stack Additions
 
-### Metrics Visualization
+### New Dependencies
 
 | Technology | Version | Purpose | Why Recommended |
 |------------|---------|---------|-----------------|
-| **Recharts** | 3.8.x | Charts and graphs | shadcn/ui's built-in chart components ARE Recharts wrappers. Run `npx shadcn@latest add chart` to install chart primitives (AreaChart, BarChart, LineChart). 53 pre-built variants. Auto-themes with dark mode via CSS variables. No separate charting library needed -- Recharts comes in through shadcn. |
+| **shlex** | 1.3.0 | Shell word splitting/quoting | Split configured command strings into args safely (POSIX shell rules). Patched for CVE-2024-58266. Lighter than `shell-words` (no joining needed). Used in non-interactive context (spawning processes) where `try_quote` is fully safe. 27M+ downloads. |
+| **toml** | 0.8.x | TOML deserialization | Already a dev-dependency in the project. Promote to regular dependency for agent.toml parsing. Stay on 0.8.x -- the jump to 0.9/1.0 renames `parse()` to `from_str()` and has breaking API changes. The `config` crate (0.15) also uses toml 0.8 internally, avoiding duplicate compilation. |
 
-### Supporting Libraries
+### Already Available (No New Dependencies Needed)
 
-| Library | Version | Purpose | When to Use |
-|---------|---------|---------|-------------|
-| **zustand** | 5.x | Client state (auth) | Lightweight store for auth state (isAuthenticated, adminToken). 1KB gzipped. No boilerplate, no providers. Persist middleware backs to sessionStorage. |
-| **date-fns** | 4.x | Date formatting | Format task timestamps, node last-seen times. Tree-shakable, functional API. |
-| **sonner** | latest | Toast notifications | shadcn/ui's recommended toast component. `npx shadcn@latest add sonner`. Use for mutation feedback (service created, task cancelled, key revoked). |
-| **lucide-react** | latest | Icons | shadcn/ui uses Lucide. Installed during `shadcn init`. Tree-shakable icon set. |
-| **class-variance-authority** | latest | Variant styling | Dependency of shadcn/ui. Installed during init. |
-| **clsx** + **tailwind-merge** | latest | Class merging | Powers shadcn's `cn()` utility. Installed during init. |
-
-### Development Dependencies
-
-| Library | Version | Purpose | Notes |
-|---------|---------|---------|-------|
-| **TypeScript** | 5.x | Type safety | Strict mode. TanStack Router provides full type inference for routes, params, search. |
-| **@vitejs/plugin-react** | latest | Vite React plugin | Fast Refresh HMR for React in Vite 8. |
-| **@tanstack/router-plugin** | latest | Route codegen | Vite plugin for file-based route generation. Auto-generates route tree from `src/routes/`. |
-| **@tanstack/react-router-devtools** | 1.168.x | Router debugging | Dev only. Inspect route matches, params, search state. |
-| **@tanstack/react-query-devtools** | 5.94.x | Query debugging | Dev only. Inspect cache, refetch states, mutation status. |
-| **@tanstack/eslint-plugin-query** | latest | Query linting | Catches common TanStack Query mistakes (missing query keys, etc). |
+| Capability | Provided By | How |
+|------------|-------------|-----|
+| **Async process spawn** | `tokio::process::Command` | Included in `tokio` with `features = ["full"]` (already enabled). Supports `.stdin(Stdio::piped())`, `.stdout(Stdio::piped())`, `.stderr(Stdio::piped())`, and async `wait_with_output()`. |
+| **Templated HTTP requests** | `reqwest 0.12` | Already a dependency. `RequestBuilder` supports dynamic `.method()`, `.header()`, `.body()`, `.json()`. Build requests from config at runtime -- no template engine needed. |
+| **JSON key-path extraction** | `serde_json::Value::pointer()` | Built into `serde_json` (already a dependency). RFC 6901 JSON Pointer syntax (`/result/id`) extracts nested values from API responses. Covers all async-api polling use cases like `response.id_path = "/data/job_id"`. |
+| **Async polling loops** | `tokio::time::interval` / `tokio::time::sleep` | Built into tokio. For async-api mode: submit, then `loop { sleep(poll_interval); check_status; if done break; }` with `tokio::time::timeout` wrapping the whole loop for max duration. |
+| **Environment variable interpolation** | `std::env::var` | For `${ENV_VAR}` patterns in config strings (API keys in headers, base URLs). Simple regex or manual scan to expand env vars. A 20-line function covers this without a dependency. |
+| **Placeholder substitution** | `str::replace()` | For `<payload>`, `<stdout>`, `<stderr>` token substitution. These are simple string replacements, not Jinja/Handlebars templates. No templating engine warranted. |
+| **Config file loading** | `toml::from_str()` + serde | Parse agent.toml directly into typed structs with `#[derive(Deserialize)]`. The `config` crate's layered approach is overkill for per-service execution config -- direct toml deserialization is cleaner and more explicit. |
+| **HTTP method parsing** | `reqwest::Method` / `http::Method` | Parse configured method strings ("GET", "POST") into typed values. `http::Method` (already a transitive dep via hyper) provides `Method::from_bytes()`. |
 
 ## Installation
 
-```bash
-# 1. Create project
-npm create vite@latest admin-ui -- --template react-ts
-cd admin-ui
+```toml
+# In gateway/Cargo.toml [dependencies], ADD:
+shlex = "1.3"
+toml = "0.8"
 
-# 2. Core routing + data fetching
-npm install @tanstack/react-router @tanstack/react-query
-
-# 3. Client state (auth only)
-npm install zustand
-
-# 4. Date formatting
-npm install date-fns
-
-# 5. Dev tools + build plugins
-npm install -D @tanstack/react-router-devtools @tanstack/react-query-devtools
-npm install -D @tanstack/router-plugin @tanstack/eslint-plugin-query
-npm install -D @vitejs/plugin-react
-
-# 6. Initialize shadcn/ui (auto-installs tailwindcss, Recharts, Lucide, Radix, etc.)
-npx shadcn@latest init
-
-# 7. Add shadcn components for admin dashboard
-npx shadcn@latest add card table button input badge dialog alert
-npx shadcn@latest add chart sonner sidebar tabs dropdown-menu separator
-npx shadcn@latest add sheet command popover select label switch
+# REMOVE from [dev-dependencies]:
+# toml = "0.8"  (moved to regular deps)
 ```
 
-## Auth Integration Pattern
-
-**No additional auth library needed.** The existing gateway uses a simple Bearer token check via `admin_auth_middleware`:
-
-```
-Authorization: Bearer {admin.token}
-```
-
-Where `admin.token` is a pre-shared secret from the gateway's TOML config. This is NOT a user/password system -- it's a single admin token.
-
-**Frontend auth flow:**
-
-1. Login page: user enters the admin token
-2. Store token in zustand with sessionStorage persistence (cleared on tab close)
-3. Create a shared `fetch` wrapper that adds `Authorization: Bearer {token}` to all requests
-4. TanStack Query uses this wrapper as its `queryFn` transport
-5. On 401 response from any request: clear zustand state, redirect to login route
-6. Protected routes use TanStack Router's `beforeLoad` guard to check auth state
-
-**Why this approach:**
-- Matches the existing `admin_auth_middleware` exactly (Bearer token in header)
-- sessionStorage is appropriate: admin tokens should require re-entry per browser session
-- No JWT, no refresh tokens, no httpOnly cookies -- the admin token is static and long-lived
-- zustand's persist middleware handles sessionStorage serialization automatically
-
-**Gateway-side changes needed:**
-- Add CORS headers via `tower-http::CorsLayer` on admin routes (already a dependency)
-- Or use Vite proxy in dev + reverse proxy in prod to avoid CORS entirely (recommended)
-
-## Prometheus Metrics Strategy
-
-**Do NOT add a Prometheus server, Grafana, or prometheus-query-api dependency.** The gateway IS the metrics source, not a Prometheus server.
-
-**Approach: Direct fetch + parse + Recharts**
-
-1. **Fetch `/metrics`** via TanStack Query with `refetchInterval: 10000` (10s polling)
-2. **Parse Prometheus text format** client-side with a simple custom parser (~50 lines of TypeScript)
-3. **Accumulate time-series** in React state: store last N snapshots (e.g., 60 points at 10s = 10 min history)
-4. **Render with Recharts** via shadcn chart components: area charts for rates, bar charts for queue depth, number cards for counters
-
-**Why a custom parser instead of `parse-prometheus-text-format` (npm)?**
-The npm package is 7 years unmaintained. The Prometheus text exposition format is simple and well-specified:
-```
-# HELP metric_name Description
-# TYPE metric_name counter
-metric_name{label="value"} 42.0
-```
-A regex-based parser handling comments, metric names, labels, and values is trivial in TypeScript. Avoids a dead dependency.
-
-**Why NOT embedded Grafana or a Prometheus query API client?**
-- The gateway exposes raw `/metrics`, not a Prometheus query endpoint (`/api/v1/query`)
-- Embedding Grafana requires running a Grafana instance -- massive operational overhead for a simple admin panel
-- Direct fetch gives full control over visualization with zero infrastructure dependencies
-
-**Dashboard metrics to display (from existing `/metrics` endpoint):**
-- `gateway_tasks_total` -- task submission rate (counter, show as rate/min)
-- `gateway_queue_depth` -- per-service queue depth (gauge, show as bar chart)
-- `gateway_task_latency_seconds` -- task processing latency (histogram, show as area chart)
-- `gateway_active_nodes` -- per-service active node count (gauge, show as number card)
-- `gateway_errors_total` -- error rate by type (counter, show as rate chart)
+Two crates added total. That is the complete delta to Cargo.toml.
 
 ## Alternatives Considered
 
 | Recommended | Alternative | When to Use Alternative |
 |-------------|-------------|-------------------------|
-| **Recharts** (via shadcn) | Chart.js, Victory, Nivo | Never for this project. shadcn chart components ARE Recharts wrappers. Using anything else fights the component library. |
-| **zustand** (auth state) | React Context | React Context works for this use case (just one boolean + one string). Use zustand because persist middleware to sessionStorage is built-in and avoids boilerplate. |
-| **Custom metrics parser** | parse-prometheus-text-format (npm) | Use npm package only if you want to avoid writing any parser code. It works but is unmaintained. |
-| **TanStack Query polling** | WebSocket/SSE live metrics | Only if gateway adds SSE support. Polling every 10s is standard for admin dashboards and matches Prometheus scrape intervals. |
-| **sessionStorage** (auth) | httpOnly cookies | httpOnly cookies only if you later add a proper user/password auth with server-issued sessions. For a static admin token, sessionStorage is simpler and appropriate. |
-| **date-fns** | dayjs | dayjs if you prefer a moment-like chainable API. date-fns is more tree-shakable. Either works. |
-| **Native fetch** | Axios | Axios adds a dependency for what `fetch()` does natively. TanStack Query works with any promise-returning function. |
+| **shlex 1.3** (shell splitting) | shell-words 1.1 | Never for this project. Both parse POSIX shell words, but shlex also provides quoting/escaping which is useful if we need to construct shell commands from user input. shlex is more widely downloaded and has the CVE fix. |
+| **shlex 1.3** (shell splitting) | Manual whitespace splitting | Never. Naive split breaks on quoted args (`"hello world"` becomes two tokens). Shell escaping rules are subtle -- use a battle-tested parser. |
+| **toml 0.8** (config parsing) | toml 1.1 | Not yet. toml 1.0+ renames `parse()` to `from_str()` and changes error types. The `config` crate 0.15 depends on toml 0.8 internally, so upgrading pulls in two toml versions. Migrate when `config` updates its dependency. |
+| **toml 0.8** (config parsing) | serde_yaml / JSON config | Never. TOML is the Rust-idiomatic config format (Cargo.toml precedent). The gateway already uses TOML (gateway.toml). Agent config should match conventions. |
+| **serde_json pointer** (key-path) | serde_json_path (JSONPath RFC 9535) | Only if users need complex array filtering (`$.results[?(@.status=='done')]`). JSON Pointer (`/data/job_id`) covers all async-api polling use cases. JSONPath adds a dependency for power we do not need. |
+| **serde_json pointer** (key-path) | json_dotpath crate | Never. Dot-path syntax (`data.job_id`) feels natural but JSON Pointer is an RFC 6901 standard and built into serde_json with zero dependency cost. |
+| **tokio::process::Command** (CLI exec) | std::process::Command | Never in async context. Blocking process I/O stalls the Tokio runtime. `tokio::process::Command` mirrors the same API surface but is async-native. |
+| **reqwest 0.12** (HTTP client) | reqwest 0.13 | Not for this milestone. 0.13 switches default TLS to aws-lc-rs (not ring), changes error types, removes feature flags. The agent already has reqwest 0.12 working. Upgrade separately when beneficial. |
+| **Manual env var expansion** | envsubst crate / handlebars / tera | Overkill. We need `${API_KEY}` -> env value in a few config strings. A regex replace or manual scan handles this in under 30 lines without adding a template engine dependency. |
+| **Direct toml::from_str()** | config crate layered loading | For agent.toml specifically, direct deserialization is cleaner. The `config` crate's env-var overlay and multi-source merging is valuable for gateway.toml but unnecessary for per-service execution configs that are file-only. |
 
 ## What NOT to Use
 
 | Avoid | Why | Use Instead |
 |-------|-----|-------------|
-| **Embedded Grafana** | Requires running a Grafana server instance. Massive operational overhead for a simple admin panel. | Recharts via shadcn chart components |
-| **prometheus-query (npm)** | Requires a running Prometheus server with query API. The gateway exposes raw `/metrics`, not `/api/v1/query`. | Direct fetch of `/metrics` + custom text parser |
-| **react-admin** | Full admin framework with its own routing, data providers, auth. Conflicts with TanStack Router/Query and shadcn. | Build with shadcn components + TanStack stack |
-| **Redux / Redux Toolkit** | Massive boilerplate for one boolean + one string of client state. TanStack Query handles all server state. | zustand for the tiny amount of client state |
-| **Axios** | Unnecessary dependency. `fetch()` is native and TanStack Query is transport-agnostic. | Native `fetch()` with a thin wrapper |
-| **localStorage for auth** | Persists across sessions. If someone walks away, the token remains. Admin tokens should expire with the session. | sessionStorage via zustand persist middleware |
-| **SWR** | TanStack Query already selected. Query has more features (mutations, optimistic updates, better devtools). | TanStack Query |
-| **parse-prometheus-text-format** | Unmaintained for 7 years. The format is simple enough to parse in ~50 lines. | Custom TypeScript parser |
-| **moment.js** | Enormous bundle size (300KB+), mutable API, officially in maintenance mode. | date-fns |
+| **duct** (process orchestration) | Adds shell pipeline abstractions we do not need. The agent runs one command per task, not pipelines. Extra dependency for zero benefit. | `tokio::process::Command` directly |
+| **subprocess** crate | Wraps `std::process`, not async-aware. Would block the Tokio runtime during process execution. | `tokio::process::Command` |
+| **handlebars / tera** (template engines) | Full template engines are massive overkill for `<payload>` and `${ENV_VAR}` substitution. They add compile time, complexity, and a learning curve for config authors. Our substitution patterns are fixed tokens, not user-authored templates. | `str::replace()` for placeholders, manual env var expansion |
+| **reqwest 0.13** | Breaking changes: default TLS backend switches from ring to aws-lc-rs, feature flags renamed (`trust-dns` removed), error inspector methods removed. No features in 0.13 that this milestone needs. | Stay on reqwest 0.12 |
+| **toml 1.x** | API breaking changes, would conflict with `config` crate 0.15's internal toml 0.8 dependency causing duplicate compilation. | Stay on toml 0.8.x |
+| **nix** crate (Unix process control) | Heavyweight Unix API bindings. We only need spawn + wait + pipe, which tokio::process handles completely. nix is for signal handling, ptys, raw fd manipulation. | `tokio::process` + `std::process::Stdio` |
+| **serde_json_path** | JSONPath RFC 9535 implementation. Adds a dependency for complex query syntax we will never use. Simple key-path extraction (`/data/job_id`) is already built into serde_json. | `serde_json::Value::pointer()` |
+| **shell-escape** crate | Only provides escaping (not splitting). We need splitting of configured command strings. And shlex provides both. | shlex 1.3 |
 
-## Stack Patterns
+## Stack Patterns by Execution Mode
 
-### Development: Vite Proxy (Recommended)
+### CLI Mode (arg-based)
 
-Avoids CORS issues entirely during development. Configure Vite's dev server to proxy API calls to the local gateway:
-
-```typescript
-// vite.config.ts
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import { TanStackRouterVite } from '@tanstack/router-plugin/vite'
-
-export default defineConfig({
-  plugins: [TanStackRouterVite(), react()],
-  server: {
-    proxy: {
-      '/v1': 'http://localhost:8080',
-      '/metrics': 'http://localhost:8080',
-    }
-  }
-})
+```
+Config: command = "python3 /scripts/process.py --input <payload>"
 ```
 
-### Production Deployment Options
+1. Parse command template with `shlex::split()` to get `Vec<String>`
+2. Replace `<payload>` placeholder in args with task payload (base64 or file path)
+3. Spawn with `tokio::process::Command::new(args[0]).args(&args[1..])`
+4. Capture stdout/stderr via `.stdout(Stdio::piped()).stderr(Stdio::piped())`
+5. Use `wait_with_output()` for async completion
+6. Map exit code 0 = success, non-zero = failure
+7. Build result from stdout using response template (`<stdout>`)
 
-**Option A -- Reverse proxy (recommended):**
-Nginx/Caddy serves the static SPA build and proxies `/v1/*` and `/metrics` to the gateway. Single domain, no CORS needed. Standard deployment pattern.
+### CLI Mode (stdin-pipe)
 
-**Option B -- Gateway serves static files:**
-Add an Axum static file handler (`tower-http::services::ServeDir`) for the built admin UI. Keeps single-process deployment. Adds ~2-5MB to the Docker image. Requires rebuilding the gateway image when the UI changes.
-
-**Option C -- Separate origin (CDN):**
-Deploy admin UI on CDN, add `CorsLayer` to gateway admin routes. Simplest deployment but requires CORS configuration. Use if admin UI and gateway are on different infrastructure.
-
-### Auth Guard Pattern with TanStack Router
-
-```typescript
-// src/routes/__root.tsx -- root layout with auth check
-// Use beforeLoad to redirect unauthenticated users to /login
-// Check zustand store for token presence
-// /login route is the only unprotected route
+```
+Config: command = "jq '.transform'" with stdin_pipe = true
 ```
 
-### Metrics Polling Pattern with TanStack Query
+1. Same command parsing via `shlex::split()`
+2. Spawn with `.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped())`
+3. Write task payload bytes to `child.stdin.take().unwrap()` then drop handle to signal EOF
+4. Await `child.wait_with_output()` to collect stdout/stderr after process exits
+5. Same exit code and response mapping as arg-based
 
-```typescript
-// Poll /metrics every 10 seconds, accumulate history in component state
-// useQuery with refetchInterval: 10_000
-// On each fetch, parse text -> extract values -> append to history array
-// Cap history at 60 entries (10 min at 10s interval)
-// Pass history array to Recharts AreaChart for sparklines
+### sync-api Mode
+
+```
+Config: url = "${API_BASE}/process", method = "POST", body = "<payload>"
+```
+
+1. Expand `${ENV_VAR}` in url, headers, body template strings
+2. Replace `<payload>` in body template with task payload
+3. Build `reqwest::Client::request(method, url).headers(configured_headers).body(body)`
+4. Single request-response cycle
+5. Map HTTP 2xx = success, 4xx/5xx = failure
+6. Extract result from response body using optional `response_body_path` (JSON Pointer)
+
+### async-api Mode (two-phase submit + poll)
+
+```
+Config: submit.url, submit.id_path = "/data/job_id", poll.url = "${API_BASE}/status/<id>"
+        poll.status_path = "/status", poll.completed_values = ["done", "failed"]
+        poll.interval_secs = 5, poll.timeout_secs = 300
+```
+
+1. **Phase 1 (submit):** Build and send request like sync-api mode
+2. Extract job ID from response using `serde_json::Value::pointer(id_path)`
+3. **Phase 2 (poll):** Loop with `tokio::time::sleep(Duration::from_secs(interval))`
+   - Build poll request, replacing `<id>` placeholder with extracted job ID
+   - Parse response JSON, extract status via `Value::pointer(status_path)`
+   - Compare against `completed_values` list
+   - On match: extract result from response body, determine success/failure
+   - `tokio::time::timeout(Duration::from_secs(timeout), poll_loop)` wraps entire loop
+4. Timeout expiry = task failure with "poll timeout" error message
+
+### Environment Variable Expansion
+
+```rust
+// Simple expansion function -- no crate needed
+fn expand_env_vars(s: &str) -> String {
+    // Match ${VAR_NAME} patterns
+    // Replace with std::env::var("VAR_NAME").unwrap_or_default()
+    // ~15-20 lines with a simple state machine or regex
+}
 ```
 
 ## Version Compatibility
 
 | Package | Compatible With | Notes |
 |---------|-----------------|-------|
-| Vite 8.x | @tanstack/router-plugin | TanStack Router added Vite 8 support (rolldownOptions) in March 2026 releases |
-| shadcn CLI v4.x | TailwindCSS v4.x | shadcn v4 requires Tailwind v4. Uses CSS-first config, no tailwind.config.js |
-| shadcn chart | Recharts 3.x | shadcn chart components work with Recharts 3.8.x |
-| TanStack Router 1.168.x | TanStack Query 5.94.x | Designed for integration. Router loaders can prefetch queries. |
-| React 19.x | All above | All libraries verified compatible with React 19 |
-| TypeScript 5.x | All above | Required for TanStack Router type inference |
-
-## Gateway-Side Changes Required
-
-These are small Axum additions, not frontend stack items, but needed for the admin UI to function:
-
-| Change | Why | Effort |
-|--------|-----|--------|
-| **CORS layer on admin routes** | Admin UI in dev runs on different port (Vite 5173 vs gateway 8080) | Trivial -- `tower-http::CorsLayer` already a dependency |
-| **Task cancellation endpoint** | PROJECT.md requires task cancellation in v1.1. No endpoint exists yet. | New endpoint: `POST /v1/admin/tasks/{task_id}/cancel` |
-| **Task listing endpoint** | Need to browse/search tasks in the admin UI. No list endpoint exists. | New endpoint: `GET /v1/admin/tasks` with pagination + filters |
-| **Node listing endpoint** | Need to see all nodes across services. Currently only per-service via health. | New endpoint: `GET /v1/admin/nodes` or enhance existing health endpoint |
+| shlex 1.3 | Rust 1.46+ (MSRV) | No async runtime dependency. Pure string parsing. Compatible with everything in the stack. |
+| toml 0.8.x | serde 1.0, config 0.15 | config 0.15 uses toml 0.8 internally. Same version avoids duplicate compilation. |
+| tokio::process | tokio 1.50 (already used) | Part of tokio `full` feature set, already enabled in Cargo.toml. No additional feature flags needed. |
+| reqwest 0.12 | tokio 1.x, rustls 0.23 | Already proven in the project. No version change needed for templated requests. |
+| serde_json pointer | serde_json 1.0 (already used) | `Value::pointer()` stable since serde_json 1.0. No version concern. |
 
 ## Confidence Assessment
 
 | Area | Confidence | Reasoning |
 |------|------------|-----------|
-| Core stack versions | HIGH | All verified via npm registries and GitHub releases within days of this research |
-| Recharts via shadcn | HIGH | Documented integration, shadcn chart = Recharts wrapper, verified |
-| Auth pattern | HIGH | Exactly matches existing `admin_auth_middleware` (Bearer token, same header format) |
-| Prometheus metrics parsing | MEDIUM | Custom parser approach is sound and the format is well-specified, but untested at scale. The parser itself is trivial; the question is whether 10s polling + client-side accumulation provides enough dashboard resolution |
-| Production deployment | MEDIUM | Multiple viable patterns; choice depends on deployment environment preferences |
-| Gateway-side changes | HIGH | Identified from actual code review of `main.rs` and `admin.rs` |
+| tokio::process for CLI | HIGH | Part of tokio core, extensively documented, mirrors std::process API. Thousands of production Rust tools use it. |
+| shlex for shell parsing | HIGH | Verified 1.3.0 on crates.io with CVE fix. 27M+ downloads. Simple, focused, battle-tested crate. |
+| toml 0.8 for config | HIGH | Already a dev-dep in project. config crate uses it internally. Well-understood, no risk. |
+| reqwest 0.12 for HTTP | HIGH | Already proven in the agent's dispatch_task function. No changes needed for templated requests -- just build requests dynamically from config. |
+| serde_json pointer for key-path | HIGH | RFC 6901 standard, built into serde_json, zero dependency cost. Sufficient for `/data/job_id` style paths. |
+| Manual env var expansion | HIGH | std::env::var is trivial. Pattern well-established across Docker, shell, CI tools. |
+| Staying on reqwest 0.12 | MEDIUM | 0.13 exists with breaking changes. No features in 0.13 needed for v1.2. Safe to defer upgrade. |
+| Staying on toml 0.8 | MEDIUM | 1.1.0 exists. Staying on 0.8 avoids config crate version conflict. Safe to defer. |
 
 ## Sources
 
-- [shadcn/ui Chart docs](https://ui.shadcn.com/docs/components/radix/chart) -- Recharts integration verified
-- [shadcn CLI v4 changelog](https://ui.shadcn.com/docs/changelog/2026-03-cli-v4) -- CLI v4.1.x confirmed
-- [TanStack Router releases](https://github.com/TanStack/router/releases) -- v1.168.x confirmed (March 2026)
-- [@tanstack/react-query npm](https://www.npmjs.com/package/@tanstack/react-query) -- v5.94.x confirmed
-- [Recharts npm](https://www.npmjs.com/package/recharts) -- v3.8.0 confirmed
-- [Vite releases](https://vite.dev/releases) -- v8.0.1 confirmed
-- [TailwindCSS releases](https://github.com/tailwindlabs/tailwindcss/releases) -- v4.2.2 confirmed
-- [Prometheus text exposition format](https://prometheus.io/docs/instrumenting/clientlibs/) -- format specification
-- [parse-prometheus-text-format npm](https://www.npmjs.com/package/parse-prometheus-text-format) -- evaluated and rejected (7yr unmaintained)
-- [shadcn/ui dashboard guide (2026)](https://designrevision.com/blog/shadcn-dashboard-tutorial) -- dashboard patterns
-- [TanStack ecosystem guide 2026](https://www.codewithseb.com/blog/tanstack-ecosystem-complete-guide-2026) -- Router + Query integration patterns
+- [tokio::process::Command docs](https://docs.rs/tokio/latest/tokio/process/struct.Command.html) -- async process spawning API verified
+- [tokio::process::Child docs](https://docs.rs/tokio/latest/tokio/process/struct.Child.html) -- stdin/stdout pipe handling
+- [shlex on crates.io](https://crates.io/crates/shlex/1.3.0) -- version 1.3.0 verified
+- [shlex CVE-2024-58266](https://windowsforum.com/threads/rust-shlex-quoting-gap-upgrades-1-2-1-and-1-3-0-for-safe-shells.392673/) -- security fix confirmed in 1.3.0
+- [shell-words on crates.io](https://crates.io/crates/shell-words) -- version 1.1.1 verified, considered but shlex preferred
+- [toml on crates.io](https://crates.io/crates/toml) -- latest is 1.1.0, staying on 0.8.x for config crate compatibility
+- [reqwest on crates.io](https://crates.io/crates/reqwest) -- latest is 0.13.2, staying on 0.12 to avoid breaking changes
+- [reqwest 0.13 changelog](https://github.com/seanmonstar/reqwest/blob/master/CHANGELOG.md) -- TLS backend switch, feature flag removals documented
+- [serde_json::Value::pointer](https://docs.rs/serde_json/latest/serde_json/value/enum.Value.html) -- RFC 6901 JSON Pointer built-in method
+- [serde_json_path](https://docs.rs/serde_json_path/latest/serde_json_path/) -- evaluated and rejected (unnecessary complexity)
 
 ---
-*Stack research for: xgent-ai-gateway Admin Web UI (v1.1)*
-*Researched: 2026-03-22*
+*Stack research for: v1.2 Flexible Agent Execution engine*
+*Researched: 2026-03-24*

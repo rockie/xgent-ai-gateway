@@ -1,235 +1,204 @@
 # Project Research Summary
 
-**Project:** xgent-ai-gateway Admin Web UI (v1.1)
-**Domain:** Infrastructure gateway admin dashboard — React SPA integrated with existing Rust/Axum gateway
-**Researched:** 2026-03-22
+**Project:** xgent-ai-gateway — v1.2 Flexible Agent Execution Engine
+**Domain:** Configurable task execution engine for pull-model Rust task gateway
+**Researched:** 2026-03-24
 **Confidence:** HIGH
 
 ## Executive Summary
 
-The xgent-ai-gateway already has a working Rust/Axum backend with a mature admin API surface. The v1.1 milestone adds a React-based admin web UI on top of that existing backend. This is a well-understood problem domain — infrastructure admin dashboards analogous to Celery Flower or Bull Board — providing task queue management, service configuration, node health monitoring, and operational metrics visualization. The recommended approach is a Vite + React 19 + TanStack Router/Query + shadcn/ui SPA, served from the gateway process itself in production to eliminate CORS complexity and maintain the single-binary deployment constraint.
+This milestone replaces a hardcoded HTTP POST dispatcher in the `xgent-agent` binary with a configurable, TOML-driven execution engine supporting three modes: CLI process execution, synchronous HTTP API dispatch, and two-phase async API polling. The work is scoped entirely to the agent binary (`gateway/src/bin/agent.rs`) and a new `gateway/src/agent/` module — the gateway server, proto definitions, and Redis state machine are completely untouched. The integration surface is narrow and well-understood: the current `dispatch_task()` function is the single replacement point, and the gRPC contract (`PollTasks` + `ReportResult`) does not change.
 
-The backend requires 7 new endpoints before the full UI can be built: an auth/login flow, list endpoints for API keys and node tokens, a paginated task list, a task cancellation endpoint, and a JSON metrics summary endpoint. Three of these are MEDIUM complexity (login, task list, task cancel) due to Redis stream pagination semantics and state machine edge cases. The remaining four are LOW complexity. The frontend can scaffold and implement pages backed by existing endpoints in parallel with backend work, but the auth endpoints (login + /me) are the critical-path dependency that must exist before any authenticated UI page can be end-to-end tested.
+The recommended architecture is a trait-based executor pattern (`Box<dyn Executor>`) with a factory function that reads `ServiceConfig` and constructs the appropriate executor at startup. A standalone `PlaceholderEngine` resolves `<payload>`, `<stdout>`, `<stderr>`, `${ENV_VAR}`, and JSON-pointer-based response placeholders across all modes. This design keeps each execution mode independently testable, avoids coupling transport concerns into executors, and leaves the door open for future modes without structural changes. The build order flows: placeholder engine first (pure unit-testable), then config parsing, then sync-api executor (lowest risk, validates the trait pattern), then CLI, then async-api last (highest complexity).
 
-The primary risks are architectural and must be resolved in Phase 1 before feature work begins: CORS strategy (Vite proxy in dev, same-origin serving in production), SPA fallback routing (ServeDir with not_found_service), auth token storage (HttpOnly cookies, not localStorage), and TanStack Query key structure (centralized factory from day one). Deferring these to "fix later" carries MEDIUM-to-HIGH recovery costs. All other pitfalls are preventable with standard patterns that are well-documented.
+The primary risks are implementation traps rather than architectural unknowns. Three are critical and must be addressed architecturally from the start: (1) stdin/stdout pipe deadlock on payloads exceeding 64KB — requires concurrent `tokio::join!` I/O, not sequential write-then-read; (2) shell injection if command templates ever use `sh -c` with interpolated payloads — the arg-based execution model makes this impossible by construction; (3) async-API poll loops that leak indefinitely on task cancellation — requires `CancellationToken` wiring from day one. All other pitfalls (zombie processes, SSRF via URL placeholders, thundering herd polling, per-request reqwest clients) have straightforward one-pattern fixes documented in detail.
 
 ## Key Findings
 
 ### Recommended Stack
 
-The frontend stack is entirely additive to the existing Rust codebase — no Rust dependencies change. The user pre-selected the core technologies (Vite, React, TailwindCSS, shadcn/ui, TanStack Router, TanStack Query), and research confirmed all are at current stable versions with verified compatibility. The key insight is that Recharts is not a separate dependency: shadcn/ui chart components are Recharts wrappers, installed via `npx shadcn@latest add chart`. Prometheus metrics should be served as a JSON endpoint from the gateway (reading directly from `state.metrics` handles) rather than parsed from raw `/metrics` text in the browser — this keeps auth requirements simple and avoids exposing operational data unauthenticated.
+The existing stack requires only two new dependencies. `shlex 1.3` (patched for CVE-2024-58266) handles POSIX shell word splitting for CLI command strings safely. `toml 0.8` (already a dev-dependency) is promoted to a regular dependency for `agent.toml` parsing — staying on 0.8 avoids a version conflict with the `config` crate's internal dependency. Every other capability needed for v1.2 is already available: `tokio::process::Command` (full feature already enabled), `reqwest 0.12` for templated HTTP, `serde_json::Value::pointer()` for RFC 6901 JSON Pointer extraction, and `tokio::time::sleep`/`timeout` for async polling loops.
 
-See `.planning/research/STACK.md` for full version tables, installation commands, and alternatives considered.
+See `.planning/research/STACK.md` for full version tables, compatibility matrix, and alternatives considered.
 
 **Core technologies:**
-- **Vite 8.x**: Build tool with Rolldown (Rust-based bundler) for fast builds; dev server proxy eliminates CORS during development
-- **React 19.x + TypeScript 5.x**: UI framework with full type inference enabled by TanStack Router
-- **TailwindCSS 4.2.x + shadcn/ui CLI v4.1.x**: CSS-first config (no tailwind.config.js); copy-paste components built on Radix UI primitives
-- **TanStack Router 1.168.x**: Fully type-safe file-based routing with `beforeLoad` auth guards and `_authenticated` layout route convention
-- **TanStack Query 5.94.x**: Server state with automatic caching, background refetch, and `refetchInterval` polling for live dashboard data
-- **Recharts 3.8.x** (via shadcn chart): Time-series and bar charts auto-themed with dark mode via CSS variables — no separate charting library needed
-- **zustand 5.x**: 1KB client state store for auth token with sessionStorage persistence via built-in middleware
+- `tokio::process::Command` — async child process spawn, stdin/stdout/stderr pipes — already in stack, no new dep
+- `shlex 1.3` — POSIX shell word splitting for command templates — single Cargo.toml line addition
+- `toml 0.8` — agent.toml deserialization — promote from dev-dep to regular dep
+- `reqwest 0.12` — templated HTTP requests for sync-api and async-api modes — already proven in agent
+- `serde_json::Value::pointer()` — RFC 6901 JSON Pointer for response extraction — already in stack
+- `async-trait` — enables `Box<dyn Executor>` with async methods until native dyn async traits stabilize
+
+**Critical version notes:** Stay on `reqwest 0.12` (0.13 switches TLS backend to aws-lc-rs, breaking changes). Stay on `toml 0.8` (1.x renames `parse()` to `from_str()` and conflicts with `config` 0.15). Do not add `regex` — the placeholder syntax `<name>` and `${VAR}` is simple enough for iterative `str::find` parsing.
 
 ### Expected Features
 
-The existing backend already covers services CRUD, node health, API key and node token create/revoke, and Prometheus metrics. The UI gaps driving backend work are task listing with pagination, task cancellation, key/token listing, and an admin auth flow. See `.planning/research/FEATURES.md` for full competitor analysis (Celery Flower, Bull Board, Temporal UI) and backend work itemization.
+The v1.2 milestone has a clearly defined MVP boundary. All P1 features are known and scoped. The feature dependency graph runs: TOML config + placeholder system (foundational, no dependencies) → CLI mode → sync-api mode → async-api mode (depends on sync-api HTTP machinery). Build in this order; do not parallelize.
 
-**Must have (table stakes) — v1.1 launch:**
-- Admin login page — all admin functionality gated behind auth
-- Dashboard overview — service count, active nodes, aggregate queue depth, task throughput counters
-- Service list + detail pages — CRUD for services, config values, connected nodes with health badges
-- Task list page — paginated, filterable by service and status (highest-traffic page in comparable tools)
-- Task detail + cancellation — view metadata, assigned node, result; cancel pending/running tasks with confirmation dialog
-- API key management — list (masked hash), create (show-once with copy), revoke
-- Node token management — list (masked hash + label), create (show-once), revoke
-- Loading/error/empty states and toast notifications — non-negotiable for usable infrastructure tooling
+See `.planning/research/FEATURES.md` for full feature table, competitor analysis (GA4GH TES, n8n, Temporal), and config schema design reference.
 
-**Should have (competitive) — v1.1.x patches after validation:**
-- Live metrics charts — Recharts area/bar/line charts polling `/v1/admin/metrics/summary` every 10-15s
-- Dark mode — shadcn/ui native CSS toggle, persisted in localStorage
-- Service config editing — inline edit without delete/recreate cycle (requires `PATCH /v1/admin/services/{name}`)
-- Auto-refresh with pause toggle — TanStack Query `refetchInterval` configuration
-- Copy-to-clipboard — for API keys, node tokens, task IDs
-- Service health badges — color-coded (green/yellow/red) on dashboard service cards
+**Must have (table stakes — v1.2 launch):**
+- Per-service TOML config (`agent.toml` with `[service]` + `[gateway]` sections) — replaces CLI `--dispatch-url`
+- Placeholder system — `<payload>`, `<stdout>`, `<stderr>`, `<exit_code>`, `${ENV_VAR}`, `<response.path>`, `<submit_response.path>`, `<poll_response.path>`
+- CLI execution: arg-based — `shlex::split` command template, replace `<payload>` in args, `tokio::process::Command` (no shell)
+- CLI execution: stdin-pipe — write payload to stdin with concurrent stdout/stderr read via `tokio::join!`
+- CLI timeout + exit code — `tokio::time::timeout` + `child.kill().await` + `kill_on_drop(true)` on every spawn
+- CLI response body template — `<stdout>`, `<stderr>`, `<exit_code>` in success/failed body templates
+- sync-api mode — configurable URL, method, headers (with `${ENV}` interpolation), body template, response body mapping
+- async-api mode — submit phase (POST + JSON pointer job ID extraction) + poll phase (interval with jitter, completion condition, configurable timeout)
+- Error propagation — all modes map failures to `ReportResultRequest { success: false, error_message }` with meaningful context
+
+**Should have (add in v1.2.x patches):**
+- Multi-service support — single agent process with one `tokio::spawn` per service poll loop
+- Working directory per service — `Command::current_dir()`, single config field
+- Environment variables per service — `Command::envs()`, map in config
+- Metadata placeholders — `<meta.key>` expansion from `TaskAssignment.metadata`
+- Dry-run / `--check-config` mode — validates config, prints resolved templates, exits without connecting
 
 **Defer (v2+):**
-- Keyboard shortcuts (`g d`, `g s`, `g t` navigation)
-- Task latency percentiles (p50/p95/p99 from histogram metrics)
-- Node health timeline (needs backend history tracking)
-- Bulk task cancellation
-- Exportable Grafana dashboard JSON
+- Config hot-reload via `notify` crate — restart-on-change is sufficient; hot-reload adds edge cases with in-flight tasks
+- Health check per service — pre-flight readiness probes before pulling tasks
+- Retry on transient failure — local retry before reporting failure; acceptable to report immediately for v1.2
+- Structured execution metrics — per-service duration/success-rate via tracing spans
 
-**Anti-features (do not build):**
-- Embedded Grafana iframe — auth complexity, CORS/CSP issues, massive operational overhead for a simple panel
-- Log viewer — high-volume streaming data, explicitly out of scope in PROJECT.md
-- Real-time WebSocket updates — explicitly descoped in PROJECT.md; polling is sufficient for admin dashboards
-- Role-based access control — single-admin gateway, no value at current scale
+**Anti-features (never build):**
+- Shell execution mode (`sh -c` with payload interpolation) — command injection vector; arg mode and stdin-pipe cover all legitimate cases
+- Dynamic plugin loading — explicitly descoped in PROJECT.md; the three modes cover all practical dispatch patterns
+- Full template engine (Tera/MiniJinja/Handlebars) — overkill for six fixed placeholder types; ~50 lines of `str::find` suffices
+- Parallel task execution per service — horizontal scaling via multiple agent instances is the intended model
 
 ### Architecture Approach
 
-The recommended production architecture serves the built SPA from the gateway process itself using `tower_http::services::ServeDir` with `not_found_service` fallback to `index.html`. This eliminates CORS entirely (same origin), requires no separate frontend process or container, and maintains the single Docker image constraint. Development uses a Vite dev server proxy to forward `/v1/*` and `/metrics` to the gateway — the browser sees same-origin requests, so no CORS configuration is needed in dev either.
+The execution engine plugs into the existing agent at a single point: `dispatch_task()` is replaced by `executor.execute(&assignment)`. The outer reconnect loop, gRPC streaming, SIGTERM drain, and in-flight tracking are unchanged. A new `gateway/src/agent/` module tree houses the execution engine alongside the existing binary, avoiding premature workspace extraction. The agent processes one task at a time — this is the correct and intended model; the gateway's server-side flow control on the gRPC stream means no new assignment arrives until `ReportResult` is sent for the current task. The async-api poll loop runs inline within `execute()` — it is a slow async call, not a detached background task.
 
-Auth uses the existing static Bearer token pattern for v1.1: the login endpoint validates credentials against the config file and returns the configured admin token. No JWT, no Redis sessions, no new state — this matches `admin_auth_middleware` exactly. For metrics, a `GET /v1/admin/metrics/summary` JSON endpoint reads directly from `state.metrics` (`Arc<Metrics>` Prometheus handles) rather than having the browser parse Prometheus text format. Keep `/metrics` for external scrapers.
-
-See `.planning/research/ARCHITECTURE.md` for the full system diagram, recommended project structure (`admin-ui/` at repo root), code patterns for all major components, and the Docker multi-stage build definition.
+See `.planning/research/ARCHITECTURE.md` for the full component diagram, Rust struct definitions, config TOML schema, build order table, and anti-patterns to avoid.
 
 **Major components:**
-1. **Vite Dev Proxy** — forwards `/v1/*` and `/metrics` to gateway during development; eliminates CORS in dev
-2. **Axum ServeDir with fallback** — serves built SPA in production; returns `index.html` for all unmatched paths under `/admin/*`
-3. **Admin Auth Middleware** (existing) — validates `Authorization: Bearer` on all `/v1/admin/*` routes
-4. **API Client (`api/client.ts`)** — thin fetch wrapper that injects auth token; all TanStack Query hooks use this, never raw fetch
-5. **TanStack Router file-based routes** — `_authenticated` layout route enforces auth guard across all protected pages without repetition
-6. **TanStack Query hooks** — one file per resource domain (`services.ts`, `tasks.ts`, `metrics.ts`, etc.) with centralized query key factory
-7. **Metrics JSON endpoint** (`/v1/admin/metrics/summary`) — reads from `state.metrics` handles, returns dashboard-friendly JSON with admin auth
+1. `AgentConfig` (`agent/config.rs`) — deserialize `agent.toml`, run `validate()`, resolve `${ENV_VAR}` at startup; uses tagged enum `ExecutionMode` so missing required fields are serde errors, not runtime panics
+2. `Executor` trait + factory (`agent/executor/mod.rs`) — `async fn execute(&self, assignment: &TaskAssignment) -> ExecutionResult`; factory constructs `Box<dyn Executor>` from `ServiceConfig` at startup
+3. `CliExecutor` (`agent/executor/cli.rs`) — `tokio::process::Command`, `kill_on_drop(true)`, concurrent stdin/stdout via `tokio::join!`, `tokio::time::timeout` wrapping
+4. `SyncApiExecutor` (`agent/executor/sync_api.rs`) — absorbs current `dispatch_task`; shared `reqwest::Client` passed from startup; per-request `RequestBuilder` for headers/body/timeout
+5. `AsyncApiExecutor` (`agent/executor/async_api.rs`) — two-phase: submit + poll loop; `tokio::time::sleep` (not `interval`) for jitter-friendly polling; `CancellationToken` for shutdown wiring
+6. `PlaceholderEngine` (`agent/placeholder.rs`) — two-pass resolution (input phase pre-execution, output phase post-execution); `str::find`-based, no regex; unknown placeholders are hard errors
+7. `ResponseMapper` (`agent/response.rs`) — applies response template with output-phase placeholder context to produce final result bytes
+
+**Key patterns to enforce:**
+- `Box<dyn Executor>` via `async_trait` — trait objects, not enum dispatch; enables independent testability and future mode addition
+- Config-driven factory — validation and executor construction at startup, fail-fast; no config re-parsing during task execution
+- Placeholder two-phase model — input placeholders (payload, env, metadata) resolved before execution; output placeholders (stdout, stderr, response body) resolved after
+- Config tagged enum (`#[serde(tag = "mode")]`) with `#[serde(deny_unknown_fields)]` — mode-specific required fields are structurally enforced at deserialization time, not at runtime
 
 ### Critical Pitfalls
 
-See `.planning/research/PITFALLS.md` for full details, warning signs, recovery costs, and a phase-to-pitfall mapping table.
+See `.planning/research/PITFALLS.md` for full details, warning signs, recovery costs, integration gotchas, and a phase-to-pitfall mapping checklist.
 
-1. **CORS misconfiguration** — Use Vite proxy in dev (eliminates CORS entirely); serve SPA from gateway in production (same origin, no CORS headers needed). Never use `CorsLayer::permissive()` in production. Recovery cost is LOW but the failure mode (admin API open to cross-origin attacks) is HIGH severity.
+1. **stdin/stdout pipe deadlock** — `tokio::join!` stdin write + stdout read + stderr read concurrently; never write-then-read sequentially; affects all payloads > 64KB (Linux pipe buffer). Recovery cost: MEDIUM (requires restructuring the dispatch function). Phase 1.
 
-2. **Auth token in localStorage** — Store the session token in an HttpOnly, Secure, SameSite=Strict cookie, not localStorage. localStorage is accessible to any JavaScript on the page (XSS/supply chain attack vector). Recovery requires backend changes plus forced re-login of all admin users — MEDIUM recovery cost, best avoided from the start.
+2. **Zombie processes from dropped child handles** — always `kill_on_drop(true)` on every `Command::new()`; always `child.kill().await` then `child.wait().await` on timeout expiry; extend SIGTERM handler to kill outstanding children before exit. Recovery cost: LOW (one-line fix) but PID exhaustion is catastrophic if missed. Phase 1.
 
-3. **SPA fallback routing missing** — Configure `ServeDir::not_found_service(ServeFile::new("dist/index.html"))`. Without this, any direct URL access or page refresh returns Axum's 404 instead of the React app. Mount API routes before the SPA fallback to preserve proper API 404 responses. Recovery cost is LOW but it breaks basic browser behavior immediately.
+3. **Shell injection via `sh -c`** — enforce arg-based execution (`Command::new(program).args(...)`) architecturally; never interpolate `<payload>` into a shell command string; stdin-pipe mode is the safe alternative for complex payloads. Recovery cost: HIGH (audit deployed configs, potential security incident). Phase 1.
 
-4. **TanStack Query cache staleness from scattered keys** — Define a centralized query key factory module on day one. Use hierarchical keys so `invalidateQueries({ queryKey: ['services'] })` invalidates both list and detail queries. Scattered inline string literals cause invisible typo-driven cache bugs that multiply as the UI grows. Recovery cost is MEDIUM — touching every query and mutation in the codebase.
+4. **Async-API poll loop resource leak on cancellation** — wire `CancellationToken` from SIGTERM handler into every poll loop iteration; set hard `max_poll_duration` that the loop enforces unconditionally; document `cancel_url` config field for external job cleanup. Recovery cost: HIGH (significant feature work for persistent poll state if deferred). Phase 3.
 
-5. **Prometheus metrics exposed without auth** — Do not fetch `/metrics` from the browser. The `/metrics` endpoint is conventionally unauthenticated (Prometheus scraping model). Create `/v1/admin/metrics/summary` with admin auth that returns pre-processed JSON. Recovery cost is MEDIUM (new backend endpoints plus frontend component rework).
+5. **Cryptic serde errors for config mistakes** — use `#[serde(tag = "mode")]` enum (not flat struct with all-Option fields); add `#[serde(deny_unknown_fields)]` to catch typos; run `validate()` after deserialization with domain-appropriate error messages; ship example `agent.toml`. Recovery cost: LOW (wrapping parse errors) but operator experience is immediately broken. Phase 1.
+
+**Additional moderate pitfalls:**
+- SSRF via URL placeholder substitution — validate post-substitution URL hostname matches template hostname; `redirect(Policy::none())` on shared reqwest client. Phase 2.
+- Per-request `reqwest::Client` construction — one shared client at startup, per-request `RequestBuilder` only. Phase 2.
+- Thundering herd async polling — `tokio::time::sleep` (not `interval`) + randomized jitter; exponential backoff; respect `Retry-After` headers. Phase 3.
+- Blocking `fork()` on runtime threads — current sequential task model naturally prevents; document; add `Semaphore` if parallel execution ever added. Phase 1.
 
 ## Implications for Roadmap
 
-The natural build order is driven by two constraints: (1) backend endpoints must exist before the frontend can test against them end-to-end, and (2) foundational architectural decisions (CORS, auth storage, SPA routing, query key structure) must be locked in before feature work begins or they become expensive to retrofit across the entire codebase.
+Based on the feature dependency graph and pitfall-to-phase mapping, a 4-phase structure emerges naturally. Each phase is independently deliverable and testable.
 
-### Phase 1: Project Setup and Architectural Foundation
+### Phase 1: Config Schema + Placeholder Engine + CLI Execution
 
-**Rationale:** Several architectural choices are zero-cost to get right upfront but MEDIUM-to-HIGH cost to fix later. CORS strategy, SPA fallback routing, auth token storage model, and TanStack Query key structure must all be established before writing the first feature page. This phase de-risks the entire project.
+**Rationale:** TOML config and placeholder resolution are foundational — every other feature depends on them. CLI execution is the highest-risk implementation (process lifecycle, pipe deadlock, injection) and must be locked down architecturally before HTTP modes are built. Five of the ten documented pitfalls (pipe deadlock, zombies, injection, config errors, mode enum validation) all map here. Getting these right upfront costs nothing extra; fixing them later after HTTP executors inherit the patterns is expensive.
+**Delivers:** Agent reads `agent.toml`, constructs executor at startup, executes CLI tasks (arg-based and stdin-pipe), reports results with meaningful error messages. The existing hardcoded HTTP dispatch is replaced for CLI mode.
+**Addresses features:** Per-service TOML config, placeholder system, CLI arg mode, CLI stdin-pipe mode, CLI timeout + exit code, CLI response body template, error propagation.
+**Avoids pitfalls:** stdin/stdout deadlock (concurrent `tokio::join!`), zombie processes (`kill_on_drop(true)` + explicit kill/wait), shell injection (arg-array construction only), cryptic config errors (tagged enum + `validate()` + `deny_unknown_fields`), mode enum validation at parse time not runtime.
+**Build sequence within phase:** `placeholder.rs` → `config.rs` → `executor/mod.rs` (trait only) → `executor/cli.rs` → `bin/agent.rs` TOML wiring → example CLI config.
 
-**Delivers:** Working dev environment (Vite proxy configured, `admin-ui/` scaffolded), TanStack Router layout with `_authenticated` route, centralized query key factory module, API client wrapper with auth injection, Axum SPA static file serving with fallback, and a shell app that routes correctly and loads (with placeholder content). Confirms the production build path works locally.
+### Phase 2: Sync-API Execution Mode
 
-**Addresses:** App routing structure, login page shell, dev/prod URL strategy
-**Avoids:** CORS misconfiguration (Pitfall 1), SPA fallback routing broken (Pitfall 3), TanStack Query cache staleness (Pitfall 4), Vite dev vs production URL mismatch (Pitfall 5)
+**Rationale:** Sync-api directly replaces the existing `dispatch_task()` function and is the simplest HTTP executor. Building it second validates the `Box<dyn Executor>` trait pattern with minimal new risk before tackling async-api's complexity. Pitfalls for shared reqwest client and SSRF via URL placeholders map here.
+**Delivers:** Agent dispatches tasks to a configurable HTTP endpoint with templated URL, method, headers, and body. Response body mapping via JSON Pointer. This makes the old `--dispatch-url` flag fully obsolete.
+**Uses:** Shared `reqwest::Client` (created at startup, passed to factory), `serde_json::Value::pointer()` for response mapping, `HeaderValue::from_str()` for header injection prevention.
+**Implements:** `SyncApiExecutor`, `ResponseMapper`, expanded placeholder engine (`<response.path>` resolution).
+**Avoids pitfalls:** Shared reqwest client (constructed once at startup, not per-request), URL-encoding of placeholder values in path segments, header injection prevention via `HeaderValue::from_str()`, SSRF via post-substitution URL hostname validation.
 
-### Phase 2: Backend Auth and New Endpoints
+### Phase 3: Async-API Execution Mode
 
-**Rationale:** The frontend cannot complete end-to-end testing of any authenticated page without the login endpoint. This is the critical-path backend work. Build all 7 new endpoints together in dependency order so the frontend proceeds against a stable, complete API surface.
+**Rationale:** Depends on sync-api HTTP machinery for the submit phase — cannot be built in parallel with Phase 2. Most complex feature: two-phase execution, poll loop, completion condition evaluation, cancellation. Pitfalls for thundering herd (polling) and poll loop resource leak on cancellation map here.
+**Delivers:** Agent handles tasks requiring submit + poll against external async APIs (ML inference, video processing, any request-reply pattern). Configurable poll interval, timeout, completion condition, and optional external job cancellation.
+**Implements:** `AsyncApiExecutor`, poll loop with `tokio::time::sleep` + jitter, `CancellationToken` wiring to SIGTERM handler, JSON Pointer completion condition evaluation, submit-response placeholder extraction for poll URL construction.
+**Avoids pitfalls:** Poll loop resource leak on SIGTERM (`CancellationToken`), thundering herd (sleep-based polling + jitter, not `tokio::time::interval`), hard `max_poll_duration` enforcement, documented orphaned external job mitigation.
 
-**Delivers:** 7 new backend endpoints fully implemented and tested in build order:
-- `POST /v1/admin/auth/login` + `GET /v1/admin/auth/me` — auth gate for all UI pages (MEDIUM)
-- `GET /v1/admin/api-keys` + `GET /v1/admin/node-tokens` — Redis SCAN list endpoints (LOW)
-- `GET /v1/admin/tasks` with pagination/filtering — Redis stream pagination (MEDIUM)
-- `POST /v1/admin/tasks/{task_id}/cancel` — state machine transition with edge cases (MEDIUM)
-- `GET /v1/admin/metrics/summary` — reads from `Arc<Metrics>` handles, returns JSON (LOW)
+### Phase 4: End-to-End Validation + Examples
 
-**Uses:** Existing redis-rs `MultiplexedConnection`, existing Axum middleware patterns, existing `Arc<Metrics>` Prometheus handles
-**Avoids:** Confused auth systems — three auth paths (client, node, admin) tested independently with per-router Tower middleware (Pitfall 7); Prometheus metrics exposure without auth (Pitfall 6); missing pagination (HIGH recovery cost if added later)
-
-### Phase 3: Core UI Feature Pages (P1 Features)
-
-**Rationale:** With the backend API surface complete, all P1 features can be built against real endpoints. Build in the order an admin would use them: login first (required to access anything), dashboard second (first thing seen), then the most operationally critical pages (services and tasks).
-
-**Delivers:** Full v1.1 launch-ready admin UI including:
-- Login page with auth flow (token storage per auth model decided in Phase 2)
-- Dashboard overview (service count, node count, queue depth, task throughput as numeric cards)
-- Service list + detail pages (uses existing `GET /v1/admin/services*` endpoints — no backend changes)
-- Task list + detail + cancel (uses new paginated task endpoints from Phase 2)
-- API key management (list, create-show-once with copy button, revoke)
-- Node token management (list, create-show-once, revoke)
-- Loading/error/empty states and toast notifications on all mutations
-
-**Implements:** All shadcn/ui components, TanStack Query hooks per resource domain, TanStack Router protected routes, all P1 features from FEATURES.md
-**Avoids:** No loading states (UX pitfall — users click twice thinking nothing happened), optimistic updates without rollback (use loading spinners for destructive actions), no confirmation dialogs on destructive actions
-
-### Phase 4: Production Integration and Docker
-
-**Rationale:** Once the UI is feature-complete, validate the full production deployment path before calling v1.1 done. The multi-stage Docker build is new and must be verified to confirm the gateway binary and SPA assets coexist correctly in the `FROM scratch` final image.
-
-**Delivers:** Working Docker multi-stage build (Node stage + Rust stage, `FROM scratch` final image with binary + `dist/`), `admin.static_dir` config key in `gateway.toml`, deployment documentation, integration test confirming the built SPA serves correctly from the Axum process (not just the Vite dev server).
-
-**Uses:** `tower_http::services::ServeDir`, multi-stage Dockerfile, `cross` for musl static binary if cross-compiling
-**Avoids:** Vite dev vs production URL mismatch being caught at release time instead of during development (Pitfall 5)
-
-### Phase 5: Metrics Visualization and P2 Features (v1.1.x)
-
-**Rationale:** After v1.1 launch validation, add the differentiating features that set this UI apart from Celery Flower and Bull Board. Metrics charts are the highest-value P2 item — neither competitor has built-in time-series charting. The remaining P2 features are all low-complexity frontend-only changes.
-
-**Delivers:** Live metrics charts (Recharts area/bar charts via `shadcn chart`, polling `/v1/admin/metrics/summary` every 10-15s with history accumulation in React state), dark mode toggle, service config editing (`PATCH /v1/admin/services/{name}` backend endpoint + frontend form), auto-refresh with pause toggle, copy-to-clipboard, service health color badges on dashboard.
-
-**Addresses:** Metrics charts differentiate vs Celery Flower/Bull Board per competitor research in FEATURES.md
-**Avoids:** 1-second polling hammering the admin API (use 10-15s interval; disable polling when browser tab is not visible via `refetchIntervalInBackground: false`)
+**Rationale:** Integration testing requires a running gateway + Redis + mock target services. This phase cannot be parallelized with phases 1-3 and ships the documentation and examples that make the feature externally usable.
+**Delivers:** End-to-end test suite (gateway + agent with each mode + mock HTTP service), one example `agent.toml` per execution mode with inline comments, Node.js client example (submit task via HTTP, agent executes via each mode, poll result from gateway), `--check-config` flag for offline config validation.
+**Addresses features:** Example service configs (P1), Node.js client example (P1), dry-run mode (P2 — low effort here).
 
 ### Phase Ordering Rationale
 
-- **Phase 1 before Phase 2:** Architectural decisions (CORS, auth storage, SPA routing, query keys) affect how backend endpoints set cookies, how routes are mounted, and how auth middleware is structured. Lock these in before the API contract is finalized.
-- **Phase 2 before Phase 3:** Every P1 UI page depends on at least one new backend endpoint. The auth endpoints (login + /me) block all authenticated pages from end-to-end testing.
-- **Phase 3 before Phase 4:** Integration testing requires a feature-complete UI to exercise all routes and API calls through the production serving path, not just the Vite dev server.
-- **Phase 4 before Phase 5:** P2 features should be added to a validated production baseline. Adding metrics charts to an untested deployment creates a larger blast radius for debugging.
-- **Pitfall alignment:** Every critical pitfall is addressed in Phases 1-2, preventing expensive retrofits during feature work in Phase 3.
+- Phase 1 before Phase 2: Placeholder engine is a shared dependency for all modes; config schema must be locked before any executor is built; CLI exposes the highest-risk patterns (process lifecycle, injection) that must be correct before HTTP modes reuse the same placeholder and response-mapping abstractions.
+- Phase 2 before Phase 3: The async-api submit phase reuses sync-api HTTP machinery directly — building async-api first would require implementing the same HTTP code twice.
+- Phases 1-3 before Phase 4: Integration tests require all three execution modes to exist; end-to-end validation is meaningless without the complete feature set.
+- Multi-service support (P2) deferred to after Phase 4: Currently one agent per service is the design; multi-service adds concurrent poll loops and per-service reconnect state, a non-trivial `bin/agent.rs` change that should not risk delaying the MVP.
 
 ### Research Flags
 
 Phases likely needing deeper research during planning:
-
-- **Phase 2 (Redis stream pagination for task list):** `GET /v1/admin/tasks` requires cursor-based pagination over Redis data with service and status filtering. The Redis XRANGE/SCAN cursor semantics for paginating stream entries with filter predicates are non-obvious. Recommend a focused implementation spike before writing this endpoint to validate the approach against the actual Redis data structures used for tasks.
-- **Phase 2 (Task cancellation state machine):** Edge cases need explicit definition before coding — what happens when cancel is called on a task that is already completing? What if the node reports completion at the same time the admin cancels? Idempotency requirements need to be spelled out.
-- **Phase 2 (Auth cookie vs Bearer token decision):** The existing `admin_auth_middleware` validates Bearer tokens. Switching to HttpOnly cookies means the middleware must also validate cookies, or the login endpoint must return both (Bearer for API scripts, cookie for browser). This design choice has cascading effects on frontend fetch configuration (`credentials: 'include'`) and CSRF protection. Resolve at the start of Phase 2, not mid-implementation.
+- **Phase 3 (Async-API external job cancellation):** External API cancellation semantics vary widely — there is no standard "cancel a job" pattern. The `cancel_url` config field approach needs API-specific validation. The question of whether to persist poll state to Redis (enabling resume on agent restart) requires an explicit scope decision before implementation starts.
+- **Phase 4 (Integration test harness):** The end-to-end test environment setup (gateway + Redis + agent + mock HTTP service) may benefit from a brief research spike on test harness patterns in the existing codebase before writing tests.
 
 Phases with standard patterns (skip research-phase):
-
-- **Phase 1 (Vite + React + TanStack + shadcn scaffolding):** All versions verified and compatible; setup is well-documented with official guides.
-- **Phase 3 (UI feature pages):** Standard CRUD UI patterns against a known API surface using established TanStack Query + shadcn/ui patterns.
-- **Phase 4 (Docker multi-stage build):** Pattern is fully documented in ARCHITECTURE.md and is standard for Rust + Node projects.
-- **Phase 5 (Recharts via shadcn chart components):** Verified integration; shadcn chart = Recharts wrappers, documented and widely used.
+- **Phase 1 (Config + CLI):** All patterns are well-documented. `tokio::process::Command`, `shlex`, serde tagged enums — solutions for every pitfall are specific and confirmed. No research needed.
+- **Phase 2 (Sync-API):** `reqwest::Client` patterns, JSON Pointer extraction, URL encoding — well-understood, no research needed.
+- **Phase 3 (Async-API poll mechanics):** `tokio::time::sleep` + jitter + `CancellationToken` — standard Tokio patterns, no research needed. The external cancellation question is the only open item.
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | All versions verified via npm registries and GitHub releases as of 2026-03-22. Vite 8 + TanStack Router 1.168 compatibility with Rolldown confirmed. shadcn CLI v4 + Tailwind v4 pairing verified. React 19 compatibility with all libraries confirmed. |
-| Features | HIGH | Derived from actual gateway codebase review (`admin.rs`, `metrics.rs`, `main.rs`) plus competitor feature analysis (Celery Flower, Bull Board, Temporal UI). Backend gaps are precise because the existing API surface is fully known. |
-| Architecture | HIGH | Integration patterns (Vite proxy, Axum ServeDir fallback, TanStack Query, auth middleware structure) are all well-documented with code references. Docker multi-stage build follows established Rust + Node pattern. |
-| Pitfalls | HIGH | Sourced from official documentation, GitHub issue threads, and security literature. Recovery costs assessed against known codebase structure. Phase mapping is explicit. |
+| Stack | HIGH | Only 2 new dependencies. Everything else already in the project. Versions verified on crates.io. No version conflicts identified. |
+| Features | HIGH | MVP boundary is explicitly defined. Feature dependency graph is precise. P1/P2/P3 prioritization is opinionated with clear rationale. Anti-features are explicitly justified. |
+| Architecture | HIGH | Builds directly on the existing 317-line agent. Integration point is a single function replacement. Trait pattern, factory pattern, and config schema are standard Rust patterns with documented prior art and code sketches. |
+| Pitfalls | HIGH | 10 pitfalls identified with prevention patterns, warning signs, recovery costs, and phase mapping. Pipe deadlock, zombie processes, and shell injection are well-documented Rust process management issues sourced from official docs and cve reports. |
 
 **Overall confidence:** HIGH
 
 ### Gaps to Address
 
-- **Auth cookie vs Bearer token decision:** The research recommends HttpOnly cookies over localStorage for security, but the existing `admin_auth_middleware` validates Bearer tokens. Supporting both requires middleware changes. Alternatively, the login endpoint returns a Bearer token that the frontend keeps in memory (lost on page refresh, but the cookie can silently re-establish the session). This must be resolved at the start of Phase 2 — it affects frontend fetch configuration, CSRF protection requirements, and whether any backend session state is needed.
-
-- **Redis SCAN performance for key listing:** `GET /v1/admin/api-keys` and `GET /v1/admin/node-tokens` likely use Redis SCAN to enumerate keys. SCAN is O(N) over the full keyspace. If Redis holds many keys from task data, this may be slow. Consider whether API key and node token hashes are tracked in a dedicated Redis Set (enabling O(1) listing) or must be discovered via SCAN. Confirm the data structure decision at the start of Phase 2.
-
-- **Metrics polling resolution vs dashboard utility:** The research recommends a 10-15s polling interval for `/metrics/summary`. For dashboards showing task throughput rates during high-traffic periods, this may be too coarse to show meaningful trends. Validate the interval against real traffic patterns during Phase 5 and tune accordingly.
-
-- **`admin-ui/` Docker image size:** The `FROM scratch` final image currently contains only the Rust binary and TLS certs (~15-25MB). Adding the SPA `dist/` directory adds ~0.5-2MB (typical Vite-built React SPA). This is acceptable, but confirm the image size constraint is not a hard requirement before Phase 4.
+- **Config schema: `[service]` vs `[[services]]` inconsistency.** ARCHITECTURE.md recommends `[service]` (singular) for v1.2. FEATURES.md example shows `[[services]]` (array). This must be resolved before Phase 1 locks the TOML schema — changing the format after Phase 1 is a breaking config change. Recommendation: use `[service]` (singular) for v1.2; multi-service can adopt `[[services]]` array in a later version.
+- **Async-API external job cancellation scope.** Pitfalls research identifies orphaned external API jobs as HIGH recovery cost, but the full solution (Redis-persisted poll state, resume-on-restart, `cancel_url` config) is significant feature work. Roadmap planning must explicitly scope this for Phase 3: either include a minimal `cancel_url` attempt-on-SIGTERM or document it as a known limitation with operational mitigation.
+- **`async-trait` vs native async traits.** Rust stable 1.85+ has async fns in traits, but `dyn async Trait` is not yet stable (tracking rust-lang/rust#133119). Using `async_trait` proc macro is the correct approach for now. Worth re-checking at the start of Phase 1 in case the tracking issue closes, but not a blocker.
+- **`reqwest 0.12` → `0.13` migration.** Both STACK.md and the existing codebase correctly stay on 0.12 for v1.2. This should be tracked as a post-v1.2 follow-on to avoid accumulating technical debt.
 
 ## Sources
 
 ### Primary (HIGH confidence)
-
-- Existing gateway codebase (`gateway/src/http/admin.rs`, `gateway/src/metrics.rs`, `gateway/src/main.rs`) — API surface, Prometheus metric registry, middleware structure
-- [Vite 8.0.1 release notes](https://vite.dev/releases) — version and Rolldown bundler status confirmed
-- [TanStack Router releases](https://github.com/TanStack/router/releases) — v1.168.x confirmed, Vite 8 compatibility verified
-- [@tanstack/react-query npm](https://www.npmjs.com/package/@tanstack/react-query) — v5.94.x confirmed
-- [shadcn CLI v4 changelog](https://ui.shadcn.com/docs/changelog/2026-03-cli-v4) — v4.1.x, Tailwind v4 requirement confirmed
-- [shadcn/ui Chart docs](https://ui.shadcn.com/docs/components/radix/chart) — Recharts 3.x integration verified
-- [Recharts npm](https://www.npmjs.com/package/recharts) — v3.8.0 confirmed
-- [TailwindCSS releases](https://github.com/tailwindlabs/tailwindcss/releases) — v4.2.2 CSS-first config confirmed
-- [Axum SPA fallback discussion](https://github.com/tokio-rs/axum/discussions/2486) — ServeDir with not_found_service pattern
-- [Vite server proxy docs](https://vite.dev/config/server-options#server-proxy) — dev proxy configuration reference
-- [tower-http CORS docs](https://docs.rs/tower-http/latest/tower_http/cors/struct.CorsLayer.html) — CorsLayer configuration
+- Existing codebase: `gateway/src/bin/agent.rs` — 317-line current implementation; `dispatch_task()` integration point confirmed
+- Existing codebase: `gateway/Cargo.toml` — reqwest 0.12, serde_json, tonic, tokio `full` features confirmed present
+- [tokio::process::Command docs](https://docs.rs/tokio/latest/tokio/process/struct.Command.html) — async process API, `kill_on_drop`, stdin/stdout pipe patterns
+- [shlex 1.3.0 on crates.io](https://crates.io/crates/shlex/1.3.0) — CVE-2024-58266 fix confirmed, 27M+ downloads
+- [serde_json::Value::pointer docs](https://docs.rs/serde_json/latest/serde_json/) — RFC 6901 JSON Pointer built-in, no additional dependency
+- [toml 0.8.x on crates.io](https://crates.io/crates/toml) — compatibility with `config` 0.15 confirmed
+- [tokio::process zombie issue](https://github.com/tokio-rs/tokio/issues/2685) — `kill_on_drop` behavior and background reaping limitations documented
 
 ### Secondary (MEDIUM confidence)
-
-- [JWT storage security analysis](https://dev.to/cotter/localstorage-vs-cookies-all-you-need-to-know-about-storing-jwt-tokens-securely-in-the-front-end-15id) — localStorage vs HttpOnly cookie security tradeoffs
-- [TanStack Query cache invalidation patterns](https://www.buncolak.com/posts/avoiding-common-mistakes-with-tanstack-query-part-1/) — query key factory pattern and invalidation strategies
-- [Celery Flower](https://github.com/mher/flower) — competitor feature reference for task list, worker monitoring, cancel
-- [Prometheus security model](https://prometheus.io/docs/operating/security/) — metrics endpoint conventional auth model
-- [Fullstack Rust + React + Vite integration](https://dev.to/alexeagleson/how-to-set-up-a-fullstack-rust-project-with-axum-react-vite-and-shared-types-429e) — development integration patterns
+- [std::process pipe deadlock](https://github.com/rust-lang/rust/issues/45572) — 64KB pipe buffer deadlock pattern documented
+- [Microsoft Async Request-Reply Pattern](https://learn.microsoft.com/en-us/azure/architecture/patterns/asynchronous-request-reply) — submit/poll/completion model reference
+- [OWASP Command Injection Defense](https://cheatsheetseries.owasp.org/cheatsheets/OS_Command_Injection_Defense_Cheat_Sheet.html) — arg-array vs `sh -c` guidance
+- [OWASP SSRF Prevention](https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html) — URL hostname validation approach
+- [GA4GH Task Execution Service spec](https://ga4gh.github.io/task-execution-schemas/docs/) — validates CLI mode executor/stdin/stdout design
 
 ### Tertiary (LOW confidence / needs validation)
-
-- Redis SCAN performance at scale for key listing — O(N) behavior assumed; validate against actual Redis keyspace size in production
-- 10-15s metrics polling resolution — assumed sufficient for admin dashboards; validate against actual traffic patterns during Phase 5 work
+- [reqwest 0.13 changelog](https://github.com/seanmonstar/reqwest/blob/master/CHANGELOG.md) — breaking changes documented; deferring upgrade is correct but full migration scope not analyzed
+- External API cancellation patterns — no standard exists; `DELETE /jobs/{id}` approach assumed reasonable but must be validated per target API during Phase 3
 
 ---
-*Research completed: 2026-03-22*
+*Research completed: 2026-03-24*
 *Ready for roadmap: yes*

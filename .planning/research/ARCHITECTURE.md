@@ -1,599 +1,611 @@
-# Architecture Research: Admin Web UI Integration
+# Architecture Research: Flexible Agent Execution Engine
 
-**Domain:** Frontend-to-backend integration for admin UI on existing Rust/Axum gateway
-**Researched:** 2026-03-22
+**Domain:** Configurable execution modes for pull-model task agent
+**Researched:** 2026-03-24
 **Confidence:** HIGH
 
-## System Overview
+## Current State
+
+The `xgent-agent` binary (`gateway/src/bin/agent.rs`) is a ~300-line file that:
+
+1. Parses CLI args via clap (gateway addr, service name, node ID, dispatch URL, token, TLS)
+2. Enters an outer reconnect loop with exponential backoff
+3. Inner `run_poll_loop` opens a gRPC streaming connection (`PollTasks`) to the gateway
+4. On each `TaskAssignment`, calls `dispatch_task` -- a hardcoded HTTP POST to `--dispatch-url`
+5. Reports result back via `ReportResult` unary RPC
+6. Handles SIGTERM graceful drain via `DrainNode` RPC
+
+**The entire execution logic is the `dispatch_task` function** -- 20 lines that POST the payload and return the response bytes. This is the single point where the new execution engine plugs in.
+
+The agent is a `[[bin]]` inside the `gateway` crate (not a separate workspace member). It imports `xgent_proto` types and uses `reqwest` + `tonic` as its only runtime dependencies.
+
+## System Overview: After Integration
 
 ```
-                DEVELOPMENT                                  PRODUCTION
-
-  ┌─────────────────────────┐               ┌─────────────────────────────────────┐
-  │   Vite Dev Server :5173 │               │          Gateway Process :8080       │
-  │   ┌───────────────────┐ │               │                                     │
-  │   │  React Admin SPA  │ │               │  ┌─────────────────────────────────┐│
-  │   │  TanStack Router  │ │               │  │  Axum Router                    ││
-  │   │  TanStack Query   │ │               │  │                                 ││
-  │   └────────┬──────────┘ │               │  │  /admin/*  ──> ServeDir(dist/)  ││
-  │            │ /api/*     │               │  │               fallback index.html││
-  │   ┌────────▼──────────┐ │               │  │                                 ││
-  │   │  Vite Proxy       │─┼──┐            │  │  /v1/admin/* ──> Admin API      ││
-  │   │  /api/* -> :8080  │ │  │            │  │  /v1/tasks   ──> Client API     ││
-  │   └───────────────────┘ │  │            │  │  /metrics    ──> Prometheus      ││
-  └─────────────────────────┘  │            │  └─────────────────────────────────┘│
-                               │            │                                     │
-  ┌─────────────────────────┐  │            │  ┌──────────┐  ┌──────────────────┐│
-  │   Gateway :8080         │◀─┘            │  │  Auth    │  │  Redis/Valkey    ││
-  │   /v1/admin/*           │               │  │  Layer   │  │  (state store)   ││
-  │   /metrics              │               │  └──────────┘  └──────────────────┘│
-  └─────────────────────────┘               └─────────────────────────────────────┘
+                          agent.toml
+                              |
+                              v
+                    +-----------------+
+                    | AgentConfig     |
+                    | (TOML parsing)  |
+                    +--------+--------+
+                             |
+                             v
++--------+          +--------+--------+          +-----------+
+| Gateway | <-gRPC->| Agent Main Loop |          | Executors |
+| (poll   |         | (reconnect +    +--------->| (trait     |
+|  stream)|         |  select! loop)  |          |  objects)  |
++--------+          +--------+--------+          +-----+-----+
+                             |                         |
+                             v                   +-----+-----+
+                    +--------+--------+          |           |
+                    | ReportResult    |     +----+---+ +-----+----+ +--------+
+                    | (gRPC unary)    |     | CliExec| | SyncApi  | |AsyncApi|
+                    +-----------------+     +--------+ +----------+ +--------+
+                                                |          |             |
+                                           child proc  reqwest     reqwest +
+                                           (stdout/    (single     poll loop
+                                            stderr)     POST)
 ```
 
 ### Component Responsibilities
 
-| Component | Responsibility | Implementation |
-|-----------|----------------|----------------|
-| **Vite Dev Proxy** | Forward `/api/*` to gateway during development, avoid CORS in dev | `server.proxy` in `vite.config.ts` |
-| **Axum Static File Server** | Serve built SPA assets in production, fallback to `index.html` for client-side routing | `tower_http::services::ServeDir` with `fallback(ServeFile)` |
-| **CORS Layer** | Allow cross-origin requests (only needed if frontend served from different origin) | `tower_http::cors::CorsLayer` on admin API routes |
-| **Admin Auth Middleware** | Validate admin bearer token on all `/v1/admin/*` requests | Existing `admin_auth_middleware` -- already implemented |
-| **API Client (fetch wrapper)** | Typed HTTP client for frontend, attaches auth token, handles errors | Thin wrapper around `fetch` used by TanStack Query |
-| **TanStack Query** | Server state cache, automatic refetching, loading/error states | `queryClient` with queries per API endpoint |
-| **TanStack Router** | Client-side routing, auth guards, layout nesting | File-based routes with `beforeLoad` auth check |
-
-## Integration Architecture
-
-### Decision: Serve from Gateway in Production
-
-**Recommendation:** Serve the built SPA from the gateway process in production. Separate origin in development only.
-
-**Rationale:**
-- Eliminates CORS entirely in production (same origin)
-- No separate frontend process/container to deploy
-- Single Docker image remains (constraint from PROJECT.md)
-- Admin UI is low-traffic; no CDN needed
-- Vite dev proxy handles the development case cleanly
-
-**How it works:**
-- Development: Vite dev server on `:5173` proxies `/api/*` to gateway on `:8080`
-- Production: Gateway serves SPA from `dist/` directory at `/admin/*`, API at `/v1/admin/*`
-
-### New Axum Routes Needed
-
-| Route Pattern | Method | Purpose | Auth | New/Modified |
-|---------------|--------|---------|------|--------------|
-| `/admin/*` | GET | Serve SPA static assets + index.html fallback | None (SPA is public shell, auth in JS) | **NEW** |
-| `/v1/admin/auth/login` | POST | Admin login, returns bearer token | None (login endpoint) | **NEW** |
-| `/v1/admin/auth/me` | GET | Validate current token, return admin info | Admin token | **NEW** |
-| `/v1/admin/tasks` | GET | List tasks with pagination/filtering | Admin token | **NEW** |
-| `/v1/admin/tasks/{task_id}` | GET | Get task detail (reuse existing result endpoint logic) | Admin token | **NEW** (admin version with full detail) |
-| `/v1/admin/tasks/{task_id}/cancel` | POST | Cancel a pending/running task | Admin token | **NEW** |
-| `/v1/admin/metrics/query` | POST | Proxy PromQL queries to internal metrics | Admin token | **NEW** |
-| `/v1/admin/api-keys` | GET | List all API keys (hashes only) | Admin token | **NEW** (existing POST stays) |
-| `/v1/admin/node-tokens` | GET | List all node tokens per service | Admin token | **NEW** (existing POST stays) |
-| `/v1/admin/services` | GET/POST | Already exists | Admin token | Existing |
-| `/v1/admin/services/{name}` | GET/DELETE | Already exists | Admin token | Existing |
-| `/v1/admin/health` | GET | Already exists | Admin token | Existing |
-| `/metrics` | GET | Already exists (Prometheus exposition) | Admin token | Existing |
-
-### Endpoints NOT Needed
-
-| Endpoint | Why Not |
-|----------|---------|
-| WebSocket for live updates | Polling with TanStack Query refetchInterval is simpler and sufficient for an admin dashboard. Out of scope per PROJECT.md. |
-| `/v1/admin/logs` | Explicitly deferred in PROJECT.md out of scope |
-| Session/cookie auth | Bearer token is simpler, matches existing admin auth pattern |
+| Component | Responsibility | New vs Modified |
+|-----------|----------------|-----------------|
+| `AgentConfig` | Parse `agent.toml`, validate service configs, resolve env vars | **NEW** -- replaces clap-only config |
+| `Executor` trait | Unified interface: `execute(TaskAssignment) -> ExecutionResult` | **NEW** -- core abstraction |
+| `CliExecutor` | Spawn child process, pipe payload, capture stdout/stderr | **NEW** |
+| `SyncApiExecutor` | HTTP request with templated URL/body/headers, return response | **NEW** (replaces hardcoded `dispatch_task`) |
+| `AsyncApiExecutor` | Two-phase: submit HTTP, then poll for completion with timeout | **NEW** |
+| `PlaceholderEngine` | Resolve `<payload>`, `<task_id>`, `<metadata.key>`, `<stdout>`, env vars | **NEW** |
+| `ResponseMapper` | Extract result bytes from executor output using configured template | **NEW** |
+| Agent main loop | Select between gRPC stream and shutdown; dispatch to executor | **MODIFIED** -- use executor instead of `dispatch_task` |
+| CLI args | Retain `--config` path, gateway addr, token; remove `--dispatch-url` | **MODIFIED** |
 
 ## Recommended Project Structure
 
 ```
-admin-ui/                        # Separate directory at repo root (NOT in gateway/)
-├── index.html                   # Vite entry point
-├── package.json
-├── vite.config.ts               # Dev proxy config
-├── tsconfig.json
-├── tailwind.config.ts
-├── components.json              # shadcn/ui config
-├── src/
-│   ├── main.tsx                 # React entry, QueryClientProvider, RouterProvider
-│   ├── routeTree.gen.ts         # TanStack Router generated tree
-│   ├── api/
-│   │   ├── client.ts            # fetch wrapper with auth token injection
-│   │   ├── types.ts             # TypeScript types matching gateway JSON responses
-│   │   ├── services.ts          # TanStack Query hooks: useServices, useServiceDetail
-│   │   ├── tasks.ts             # TanStack Query hooks: useTasks, useTaskDetail, useCancelTask
-│   │   ├── nodes.ts             # TanStack Query hooks: useNodes
-│   │   ├── api-keys.ts          # TanStack Query hooks: useApiKeys, useCreateApiKey
-│   │   ├── metrics.ts           # TanStack Query hooks: useMetrics, useMetricQuery
-│   │   └── auth.ts              # TanStack Query hooks: useLogin, useAuthMe
-│   ├── routes/
-│   │   ├── __root.tsx           # Root layout: sidebar nav, auth guard
-│   │   ├── login.tsx            # Login page (no auth required)
-│   │   ├── _authenticated.tsx   # Layout route: checks auth, redirects to login
-│   │   ├── _authenticated/
-│   │   │   ├── index.tsx        # Dashboard (metrics overview)
-│   │   │   ├── services/
-│   │   │   │   ├── index.tsx    # Service list
-│   │   │   │   └── $name.tsx    # Service detail + nodes
-│   │   │   ├── tasks/
-│   │   │   │   ├── index.tsx    # Task list with filters
-│   │   │   │   └── $taskId.tsx  # Task detail
-│   │   │   ├── api-keys.tsx     # API key management
-│   │   │   └── settings.tsx     # Node tokens, gateway config view
-│   ├── components/
-│   │   ├── ui/                  # shadcn/ui components (generated)
-│   │   ├── layout/
-│   │   │   ├── sidebar.tsx
-│   │   │   ├── header.tsx
-│   │   │   └── page-container.tsx
-│   │   ├── dashboard/
-│   │   │   ├── metric-card.tsx
-│   │   │   ├── queue-depth-chart.tsx
-│   │   │   └── node-status-grid.tsx
-│   │   ├── services/
-│   │   │   ├── service-table.tsx
-│   │   │   ├── register-service-dialog.tsx
-│   │   │   └── node-health-badge.tsx
-│   │   └── tasks/
-│   │       ├── task-table.tsx
-│   │       ├── task-status-badge.tsx
-│   │       └── cancel-task-dialog.tsx
-│   ├── lib/
-│   │   ├── auth.ts              # Token storage (localStorage), auth context
-│   │   └── utils.ts             # shadcn/ui cn() helper, formatters
-│   └── hooks/
-│       └── use-auth.ts          # Auth state hook
-└── dist/                        # Build output (gitignored, copied into Docker image)
+gateway/src/
+  bin/
+    agent.rs              # MODIFIED: main loop, config loading, executor dispatch
+  agent/                  # NEW module tree
+    mod.rs                # pub mod declarations
+    config.rs             # AgentConfig, ServiceConfig, ExecutionMode enums
+    executor/
+      mod.rs              # Executor trait, ExecutionResult, executor_for_service()
+      cli.rs              # CliExecutor
+      sync_api.rs         # SyncApiExecutor (absorbs old dispatch_task)
+      async_api.rs        # AsyncApiExecutor with poll loop
+    placeholder.rs        # Template resolution engine
+    response.rs           # Response body mapping
 ```
 
 ### Structure Rationale
 
-- **`admin-ui/` at repo root:** Keeps frontend completely separate from the Rust workspace. No cargo interaction. Clean build boundary.
-- **`api/` directory:** One file per resource domain. Each file exports TanStack Query hooks, keeping data fetching organized and co-located with types.
-- **`_authenticated` layout route:** TanStack Router convention for layout routes. All child routes automatically get auth checking without repeating it.
-- **`components/` by feature:** UI components grouped by the page/feature they serve, not by type (no `atoms/molecules/organisms` pattern -- that adds indirection without value at this scale).
+- **`agent/` as a module inside `gateway` crate** -- the agent binary already lives here as a `[[bin]]`. A separate workspace crate is premature since it shares `xgent_proto` types and the `reqwest`/`tonic` dependencies are already in `gateway/Cargo.toml`. If the agent grows beyond ~1500 LOC, extract to a workspace member later.
+- **`executor/` sub-module** -- each execution mode has distinct enough logic (process spawning vs HTTP vs HTTP+poll) to warrant separate files, but they share the trait and result type from `mod.rs`.
+- **`placeholder.rs` separate from executors** -- placeholder resolution is used by all three modes (CLI args, HTTP body templates, response mapping). Keeping it standalone avoids duplication.
+- **`response.rs` separate from placeholders** -- response mapping takes an `ExecutionResult` plus a template and produces final bytes. It depends on placeholders but is a distinct concern (when to apply, what context to inject post-execution).
 
 ## Architectural Patterns
 
-### Pattern 1: Vite Dev Proxy
+### Pattern 1: Trait-Based Executor Dispatch
 
-**What:** During development, Vite's built-in proxy forwards API requests to the gateway. No CORS configuration needed in dev.
+**What:** Define an `Executor` trait with a single async method. Each execution mode implements it. The agent main loop holds a `Box<dyn Executor>` per service and dispatches without knowing the mode.
 
-**When to use:** Always during `npm run dev`. This is the standard Vite pattern for frontend+backend development.
+**When to use:** Always -- this is the core abstraction.
 
-**Trade-offs:** Only works in development. Production needs a different solution (SPA serving from gateway).
+**Trade-offs:** Dynamic dispatch via `Box<dyn Executor>` adds one vtable indirection per task execution (negligible cost given executors do I/O). The alternative -- an enum with match arms -- is simpler but forces all executor logic into one file and makes adding modes require touching the enum. Trait objects win here because modes are configured at startup and never change at runtime.
 
-**Configuration:**
-```typescript
-// vite.config.ts
-export default defineConfig({
-  server: {
-    proxy: {
-      '/v1': {
-        target: 'http://localhost:8080',
-        changeOrigin: true,
-      },
-      '/metrics': {
-        target: 'http://localhost:8080',
-        changeOrigin: true,
-      },
-    },
-  },
-  base: '/admin/',  // SPA lives under /admin/ in production
-});
-```
-
-### Pattern 2: SPA Serving from Axum with Fallback
-
-**What:** In production, Axum serves the built SPA files. Any request to `/admin/*` that does not match a static file returns `index.html`, enabling client-side routing.
-
-**When to use:** Production deployment. The gateway binary includes a path to the static files directory (configurable).
-
-**Trade-offs:** Adds a few lines to the Axum router. Static files are small (~500KB-2MB for a React SPA). No performance concern for an admin tool.
-
-**Implementation (Rust):**
 ```rust
-use tower_http::services::{ServeDir, ServeFile};
+use async_trait::async_trait;
+use xgent_proto::TaskAssignment;
 
-// In the HTTP router setup:
-let spa_service = ServeDir::new(&config.admin.static_dir)
-    .fallback(ServeFile::new(
-        format!("{}/index.html", config.admin.static_dir)
-    ));
+/// Result of executing a task -- success with bytes or failure with error message.
+pub struct ExecutionResult {
+    pub success: bool,
+    pub result: Vec<u8>,
+    pub error_message: String,
+}
 
-let app = Router::new()
-    .merge(api_routes)
-    .merge(admin_routes)
-    .nest_service("/admin", spa_service)  // SPA assets
-    .with_state(http_state);
+#[async_trait]
+pub trait Executor: Send + Sync {
+    /// Execute a task and return the result. Must not panic.
+    async fn execute(&self, assignment: &TaskAssignment) -> ExecutionResult;
+}
 ```
 
-**Config addition needed:**
+**Why `async_trait` and not native async traits:** As of Rust stable 1.85+, async fn in traits is stable but does not support `dyn` dispatch (no `dyn AsyncTrait`). The `async_trait` crate desugars to `Pin<Box<dyn Future>>` which enables `Box<dyn Executor>`. Once `dyn async Trait` stabilizes (tracking rust-lang/rust#133119), migrate away from the proc macro.
+
+### Pattern 2: Config-Driven Executor Construction (Factory)
+
+**What:** A factory function reads the `ServiceConfig` and returns the correct executor instance, fully configured. The agent main loop never parses mode-specific config.
+
+**When to use:** At agent startup, after TOML is loaded and validated.
+
+**Trade-offs:** Validation happens once at startup. If the config is invalid, the agent fails fast with a clear error. The downside is config changes require a restart (acceptable -- the agent is a long-running daemon, not a hot-reloadable service).
+
 ```rust
-// In AdminConfig:
-pub struct AdminConfig {
-    pub token: Option<String>,
-    /// Path to built SPA assets directory. None = UI disabled.
-    pub static_dir: Option<String>,
+pub fn executor_for_service(
+    service_cfg: &ServiceConfig,
+    http_client: &reqwest::Client,
+) -> Result<Box<dyn Executor>, AgentConfigError> {
+    match service_cfg.mode.as_str() {
+        "cli" => {
+            let cli_cfg = service_cfg.cli.as_ref()
+                .ok_or(AgentConfigError::MissingSection("cli"))?;
+            Ok(Box::new(CliExecutor::new(cli_cfg.clone())))
+        }
+        "sync-api" => {
+            let api_cfg = service_cfg.sync_api.as_ref()
+                .ok_or(AgentConfigError::MissingSection("sync_api"))?;
+            Ok(Box::new(SyncApiExecutor::new(api_cfg.clone(), http_client.clone())))
+        }
+        "async-api" => {
+            let async_cfg = service_cfg.async_api.as_ref()
+                .ok_or(AgentConfigError::MissingSection("async_api"))?;
+            Ok(Box::new(AsyncApiExecutor::new(async_cfg.clone(), http_client.clone())))
+        }
+        other => Err(AgentConfigError::UnknownMode(other.to_string())),
+    }
 }
 ```
 
-### Pattern 3: API Client with Token Injection
+### Pattern 3: Placeholder Resolution as a Standalone Pass
 
-**What:** A thin fetch wrapper that automatically attaches the admin bearer token from localStorage to every request. TanStack Query hooks use this client, never raw `fetch`.
+**What:** Template strings like `<payload>`, `<task_id>`, `<metadata.key>`, `${ENV_VAR}` are resolved in a single pass before being handed to the executor. Output placeholders like `<stdout>`, `<stderr>` are resolved after execution.
 
-**When to use:** Every API call from the frontend.
+**When to use:** Two phases -- input placeholders before execution, output placeholders after.
 
-**Trade-offs:** Simple and transparent. No axios dependency needed -- native `fetch` is sufficient for JSON APIs.
+**Trade-offs:** A single-pass resolver is simple and debuggable. The alternative (lazy resolution) adds complexity for no benefit since all values are known at resolution time. Unknown placeholders produce hard errors at resolution time rather than silently passing through.
 
-**Implementation:**
-```typescript
-// api/client.ts
-const API_BASE = import.meta.env.DEV ? '' : '/admin/..';
-// In dev, Vite proxy handles /v1/*. In prod, same origin.
-
-export async function apiClient<T>(
-  path: string,
-  options: RequestInit = {},
-): Promise<T> {
-  const token = localStorage.getItem('admin_token');
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    ...options.headers,
-  };
-
-  const response = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers,
-  });
-
-  if (response.status === 401) {
-    localStorage.removeItem('admin_token');
-    window.location.href = '/admin/login';
-    throw new Error('Unauthorized');
-  }
-
-  if (!response.ok) {
-    throw new Error(`API error: ${response.status}`);
-  }
-
-  return response.json();
-}
-```
-
-### Pattern 4: TanStack Query for Server State
-
-**What:** Each API resource gets a query hook. Automatic caching, background refetching, and stale-while-revalidate. Mutations for write operations.
-
-**When to use:** Every data fetch in the UI. Never use `useEffect` + `useState` for API data.
-
-**Trade-offs:** Adds a dependency but eliminates manual loading/error/cache state management. TanStack Query is the established standard for this.
-
-**Example:**
-```typescript
-// api/services.ts
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiClient } from './client';
-
-export function useServices() {
-  return useQuery({
-    queryKey: ['services'],
-    queryFn: () => apiClient<ListServicesResponse>('/v1/admin/services'),
-    refetchInterval: 30_000, // Refresh every 30s for dashboard
-  });
-}
-
-export function useServiceDetail(name: string) {
-  return useQuery({
-    queryKey: ['services', name],
-    queryFn: () => apiClient<ServiceDetailResponse>(`/v1/admin/services/${name}`),
-    refetchInterval: 10_000, // More frequent for live node health
-  });
-}
-
-export function useRegisterService() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (data: RegisterServiceRequest) =>
-      apiClient('/v1/admin/services', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['services'] });
-    },
-  });
-}
-```
-
-### Pattern 5: Prometheus Metrics via Gateway Proxy Endpoint
-
-**What:** The frontend does NOT query Prometheus directly. Instead, the gateway exposes a `/v1/admin/metrics/query` endpoint that reads from its internal `prometheus::Registry` and returns formatted data. No external Prometheus server needed.
-
-**When to use:** Dashboard metrics visualization.
-
-**Why this approach:**
-- The gateway already has all metrics in its `prometheus::Registry` (8 metric families)
-- No external Prometheus server dependency for the admin UI
-- The `/metrics` endpoint already exposes Prometheus text format
-- Admin auth protects metric data
-
-**Implementation options (pick one):**
-
-**Option A -- Parse /metrics text format in frontend (simplest):**
-```typescript
-// Fetch raw Prometheus text, parse client-side
-export function useRawMetrics() {
-  return useQuery({
-    queryKey: ['metrics', 'raw'],
-    queryFn: async () => {
-      const token = localStorage.getItem('admin_token');
-      const res = await fetch('/metrics', {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      return res.text(); // Prometheus exposition format
-    },
-    refetchInterval: 15_000,
-  });
-}
-// Use a library like `prom-client-parser` or write a simple parser
-// for the text exposition format (it is line-based and simple)
-```
-
-**Option B -- Add JSON metrics endpoint to gateway (recommended):**
 ```rust
-// New endpoint: GET /v1/admin/metrics/summary
-// Returns pre-computed dashboard-friendly JSON
-#[derive(Serialize)]
-pub struct MetricsSummary {
-    pub queue_depths: HashMap<String, f64>,
-    pub active_nodes: HashMap<String, f64>,
-    pub tasks_submitted_total: HashMap<String, f64>,
-    pub tasks_completed_total: HashMap<String, f64>,
-    pub error_rate: HashMap<String, f64>,
+/// Resolve placeholders in a template string.
+/// Input phase: <payload>, <payload_json>, <task_id>, <metadata.KEY>, ${ENV_VAR}
+/// Output phase: <stdout>, <stderr>, <exit_code>
+pub fn resolve(
+    template: &str,
+    context: &PlaceholderContext,
+) -> Result<String, PlaceholderError> {
+    // Simple approach: no regex needed.
+    // 1. Scan for ${...} -- env var interpolation
+    // 2. Scan for <...> -- placeholder resolution
+    // Use iterative str::find + str::replace approach
+    // Unknown placeholders are errors (fail fast)
 }
 
-pub async fn metrics_summary(
-    State(state): State<Arc<AppState>>,
-) -> Json<MetricsSummary> {
-    // Read directly from state.metrics gauge/counter handles
-    // No Prometheus text parsing needed
+pub struct PlaceholderContext {
+    pub task_id: String,
+    pub payload: Vec<u8>,
+    pub payload_utf8: Option<String>,
+    pub metadata: HashMap<String, String>,
+    // Post-execution fields (None before execution)
+    pub stdout: Option<String>,
+    pub stderr: Option<String>,
+    pub exit_code: Option<i32>,
+    pub response_body: Option<Vec<u8>>,
+    pub job_id: Option<String>,
 }
 ```
 
-**Recommendation:** Option B. The gateway already holds all metric handles in `state.metrics`. Reading them directly and returning JSON is trivial, type-safe, and avoids text format parsing on both sides. The existing `/metrics` endpoint continues to serve Prometheus scrapers.
+**Implementation note:** Avoid the `regex` crate for this. The placeholder syntax is simple enough (`<word>` and `${WORD}`) that iterative `str::find` with manual parsing is faster, has no dependency, and is easier to debug. Only add regex if placeholder syntax grows complex.
 
 ## Data Flow
 
-### Admin Authentication Flow
+### Task Execution Flow (All Modes)
 
 ```
-Browser                     Gateway                      Redis
-  |                           |                            |
-  |-- POST /v1/admin/auth/login                            |
-  |   { username, password }  |                            |
-  |                           |-- Validate against config  |
-  |                           |   (admin.token or          |
-  |                           |    admin.credentials)      |
-  |                           |                            |
-  |<-- 200 { token }         |                            |
-  |                           |                            |
-  | Store token in            |                            |
-  | localStorage              |                            |
-  |                           |                            |
-  |-- GET /v1/admin/services  |                            |
-  |   Authorization: Bearer X |                            |
-  |                           |-- admin_auth_middleware     |
-  |                           |   validates Bearer token   |
-  |                           |                            |
-  |<-- 200 { services: [...] }                             |
+Gateway gRPC Stream
+    |
+    v
+TaskAssignment { task_id, payload, metadata }
+    |
+    v
+Build PlaceholderContext (input phase: payload, task_id, metadata, env vars)
+    |
+    v
+executor.execute(&assignment) --> internally uses PlaceholderContext
+    |                              to resolve templates
+    v
+ExecutionResult { success, result, error_message }
+    |
+    v
+(Optional) ResponseMapper applies response_template to shape result bytes
+    |
+    v
+ReportResultRequest --> gRPC ReportResult RPC --> Gateway
 ```
 
-**Auth token design decision:**
-
-The existing `admin_auth_middleware` already validates `Authorization: Bearer <token>` against `config.admin.token`. Two approaches for login:
-
-**Approach A -- Static token (simplest, recommended for v1.1):**
-- The admin token in `gateway.toml` IS the bearer token
-- Login endpoint validates username/password against config, returns the same static token
-- No JWT, no expiry, no Redis session state
-- Matches the existing auth model exactly
-- To "logout", frontend just clears localStorage
-
-**Approach B -- JWT tokens (future, if multi-admin needed):**
-- Login returns a signed JWT with expiry
-- Middleware validates JWT signature + expiry
-- Adds `jsonwebtoken` crate dependency
-- Only needed if multiple admin users with different permissions are required
-
-**Recommendation:** Approach A for v1.1. The gateway already has a single admin token. The login endpoint just verifies credentials and hands back that token. Zero new backend state.
-
-### Dashboard Data Refresh Flow
+### CLI Mode Data Flow
 
 ```
-React Component          TanStack Query Cache        Gateway API
-  |                           |                          |
-  | useServices()             |                          |
-  |-------------------------->|                          |
-  |                           |-- Cache MISS             |
-  |                           |-- GET /v1/admin/services |
-  |                           |                          |
-  |                           |<-- { services: [...] }   |
-  |<-- data (loading=false)   |                          |
-  |                           |                          |
-  |   ... 30s passes ...      |                          |
-  |                           |-- Background refetch     |
-  |                           |-- GET /v1/admin/services |
-  |                           |<-- { services: [...] }   |
-  |<-- data (updated silently)|                          |
+PlaceholderContext resolves args: ["--input", "<payload>"] --> ["--input", "actual data"]
+    |
+    v
+tokio::process::Command::new(program)
+    .args(resolved_args)
+    .stdin(if stdin_pipe: payload bytes)
+    .stdout(Stdio::piped())
+    .stderr(Stdio::piped())
+    .spawn()
+    |
+    v
+Wait for exit (with configurable timeout)
+    |
+    v
+Capture stdout, stderr, exit_code
+    |
+    v
+Resolve response_template with <stdout>, <stderr>, <exit_code>
+    |
+    v
+ExecutionResult { success: exit_code == 0, result: resolved_template_bytes }
 ```
 
-### Key Data Flows
+### Sync API Data Flow
 
-1. **Login:** User submits credentials -> Gateway validates -> Returns admin token -> Frontend stores in localStorage -> All subsequent requests include `Authorization: Bearer` header
-2. **Dashboard load:** Multiple parallel TanStack Query fetches (services, health, metrics summary) -> Gateway reads Redis + internal metrics -> Returns JSON -> React renders
-3. **Service registration:** User fills form -> `useMutation` POSTs to `/v1/admin/services` -> On success, `invalidateQueries(['services'])` triggers automatic refetch of service list
-4. **Task cancellation:** User clicks cancel -> `useMutation` POSTs to `/v1/admin/tasks/{id}/cancel` -> Gateway marks task as failed in Redis -> Invalidate task queries
-5. **Metrics refresh:** `refetchInterval: 15000` on metrics query -> Gateway reads from `state.metrics` Prometheus handles -> Returns JSON summary -> Chart components re-render
+```
+PlaceholderContext resolves:
+  - url: "http://localhost:8090/process/<task_id>"
+  - body: "{\"data\": \"<payload>\"}"
+  - headers: {"X-Custom": "<metadata.priority>"}
+    |
+    v
+reqwest::Client
+    .request(method, resolved_url)
+    .headers(resolved_headers)
+    .body(resolved_body)
+    .timeout(config.timeout)
+    .send()
+    |
+    v
+HTTP Response (status + body bytes)
+    |
+    v
+ExecutionResult { success: status.is_success(), result: response_body }
+```
 
-## CORS Configuration
+### Async API Data Flow
 
-### Production: Not Needed
+```
+Phase 1: Submit
+    PlaceholderContext resolves submit URL, body, headers
+        |
+        v
+    reqwest POST/PUT --> HTTP Response
+        |
+        v
+    Extract job_id from response using job_id_path (JSON pointer)
+        (serde_json::Value pointer navigation)
 
-Same-origin serving eliminates CORS entirely. The SPA is served from `/admin/*` on the same gateway process that serves `/v1/admin/*`. No `Access-Control-*` headers needed.
+Phase 2: Poll
+    Loop (bounded by interval + max_attempts + timeout):
+        |
+        v
+    PlaceholderContext resolves poll URL with <job_id>
+        |
+        v
+    reqwest GET --> HTTP Response
+        |
+        v
+    Check completion_condition against response body
+        (key_path "status" == expected value like "complete")
+        |
+        v
+    If complete: extract result from configured result_path
+    If still pending: sleep(poll_interval), continue loop
+    If timeout/max_attempts exceeded: ExecutionResult { success: false }
+```
 
-### Development: Not Needed (Vite Proxy)
+### Async Polling vs gRPC Stream: No Conflict
 
-The Vite dev proxy forwards requests from `:5173` to `:8080` server-side. The browser sees all requests going to `:5173`. No CORS.
-
-### Fallback: If Separate Deployment Ever Needed
-
-If someone runs the frontend on a different origin (e.g., during testing), add CORS only to admin routes:
+The async-api poll loop runs **inside** `executor.execute()`, which is an async function called from within the gRPC stream's `select!` branch. The outer loop structure remains:
 
 ```rust
-use tower_http::cors::{CorsLayer, Any};
-
-let cors = CorsLayer::new()
-    .allow_origin(["http://localhost:5173".parse().unwrap()])
-    .allow_methods([Method::GET, Method::POST, Method::PATCH, Method::DELETE])
-    .allow_headers([header::CONTENT_TYPE, header::AUTHORIZATION])
-    .allow_credentials(true);
-
-// Apply ONLY to admin routes, not client API routes
-let admin_routes = admin_routes.layer(cors);
+loop {
+    tokio::select! {
+        _ = &mut shutdown => { /* drain */ }
+        msg = stream.message() => {
+            // TaskAssignment received
+            let result = executor.execute(&assignment).await;  // may poll internally
+            report_client.report_result(result).await;
+        }
+    }
+}
 ```
 
-**Recommendation:** Do not add CORS by default. The proxy + same-origin pattern means it is never needed in the normal workflow. Add it only if the deployment model changes.
+The async-api executor's internal poll loop is a series of `reqwest` calls with `tokio::time::sleep` between them. Because the agent processes **one task at a time** (sequential within the stream), there is no concurrency conflict. The gRPC stream is server-side flow-controlled -- the gateway sends the next task only after the node reports the previous result via `ReportResult`.
 
-## Gateway Config Changes
+**Key insight:** The agent does NOT need to poll the gRPC stream and the async-api target simultaneously. The gRPC stream blocks (no new assignment) while the executor runs. The `select!` only matters for shutdown signals during execution.
+
+**Shutdown during long-running async-api polls:** The current `select!` structure does not cancel the executor if shutdown fires while `execute()` is running. This is intentional -- the graceful drain waits for the in-flight task to complete (via `in_flight_done.notified()`). For v1.2, this is acceptable. If cancellation during execution is needed later, wrap `execute()` in a `tokio::select!` with a cancellation token.
+
+If future requirements demand concurrent task execution, the executor call moves into a `tokio::spawn` with a semaphore for concurrency control. That is out of scope for v1.2.
+
+## TOML Config Structure
+
+### Agent Config Design
 
 ```toml
-# gateway.toml additions for v1.1:
+# agent.toml
 
-[admin]
-token = "your-admin-token"            # Existing
-static_dir = "./admin-ui/dist"        # NEW: path to built SPA assets
-# username = "admin"                  # NEW: optional, for login endpoint
-# password_hash = "sha256:..."        # NEW: hashed admin password
+[gateway]
+addr = "localhost:50051"
+token = "${XGENT_NODE_TOKEN}"    # env var interpolation
+node_id = "node-001"             # optional, auto-generated UUIDv7 if absent
+ca_cert = "/path/to/ca.pem"     # optional TLS
+tls_skip_verify = false
+max_reconnect_delay_secs = 30
+
+[service]
+name = "echo"
+mode = "sync-api"                # "cli" | "sync-api" | "async-api"
+
+# --- Mode-specific sections (only the one matching `mode` is required) ---
+
+[service.sync_api]
+url = "http://localhost:8090/execute"
+method = "POST"
+timeout_secs = 30
+[service.sync_api.headers]
+Content-Type = "application/octet-stream"
+X-Task-Id = "<task_id>"
+
+[service.cli]
+program = "/usr/local/bin/convert"
+args = ["-resize", "50%", "-"]
+stdin_pipe = true
+timeout_secs = 60
+response_template = "<stdout>"
+[service.cli.env]
+MAGICK_HOME = "/usr/local"
+
+[service.async_api]
+submit_url = "http://ml-service:5000/predict"
+submit_method = "POST"
+submit_body = "{\"input\": \"<payload>\"}"
+job_id_path = "job_id"
+poll_url = "http://ml-service:5000/status/<job_id>"
+poll_method = "GET"
+poll_interval_secs = 2
+poll_timeout_secs = 300
+poll_max_attempts = 150
+completion_path = "status"
+completion_value = "complete"
+result_path = "output"
+[service.async_api.submit_headers]
+Content-Type = "application/json"
+Authorization = "Bearer ${ML_API_KEY}"
 ```
 
-## Docker Build Integration
+### Why `[service]` (singular) Not `[services.*]` (map)
 
-```dockerfile
-# Multi-stage: build frontend, then build Rust, then combine
-FROM node:22-alpine AS frontend
-WORKDIR /app/admin-ui
-COPY admin-ui/package*.json ./
-RUN npm ci
-COPY admin-ui/ ./
-RUN npm run build
+The current agent connects as one node for one service. The gRPC `PollTasksRequest` takes a single `service_name`. The reconnect loop, drain logic, and in-flight tracking are all single-service.
 
-FROM rust:1.85-alpine AS backend
-# ... existing Rust build ...
+Using `[service]` (singular) keeps the v1.2 scope tight:
+- No need for multi-stream management
+- No need for per-service reconnect state
+- Config is simpler to validate (one mode, one executor)
+- Users who need multiple services run multiple agent processes (standard practice for daemon-per-service)
 
-FROM scratch
-COPY --from=backend /app/target/release/xgent-gateway /gateway
-COPY --from=frontend /app/admin-ui/dist /admin-ui/dist
-# Single binary + SPA assets
+The TOML structure can evolve to `[services.X]` in a future version if multi-service agents become necessary. The executor abstraction does not change -- only the config parsing and main loop grow.
+
+### Rust Config Structs
+
+```rust
+#[derive(Debug, Deserialize)]
+pub struct AgentConfig {
+    pub gateway: GatewayConnectionConfig,
+    pub service: ServiceConfig,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct GatewayConnectionConfig {
+    pub addr: String,
+    pub token: String,       // supports ${ENV_VAR} interpolation
+    pub node_id: Option<String>,
+    pub ca_cert: Option<String>,
+    #[serde(default)]
+    pub tls_skip_verify: bool,
+    #[serde(default = "default_max_reconnect_delay")]
+    pub max_reconnect_delay_secs: u64,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ServiceConfig {
+    pub name: String,
+    pub mode: String,  // "cli" | "sync-api" | "async-api"
+    pub cli: Option<CliConfig>,
+    pub sync_api: Option<SyncApiConfig>,
+    pub async_api: Option<AsyncApiConfig>,
+    pub response_template: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct CliConfig {
+    pub program: String,
+    #[serde(default)]
+    pub args: Vec<String>,
+    #[serde(default)]
+    pub stdin_pipe: bool,
+    #[serde(default = "default_timeout")]
+    pub timeout_secs: u64,
+    #[serde(default)]
+    pub env: HashMap<String, String>,
+    pub working_dir: Option<String>,
+    pub response_template: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct SyncApiConfig {
+    pub url: String,
+    #[serde(default = "default_post")]
+    pub method: String,
+    #[serde(default)]
+    pub headers: HashMap<String, String>,
+    pub body: Option<String>,       // template string; if None, raw payload forwarded
+    #[serde(default = "default_timeout")]
+    pub timeout_secs: u64,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct AsyncApiConfig {
+    pub submit_url: String,
+    #[serde(default = "default_post")]
+    pub submit_method: String,
+    #[serde(default)]
+    pub submit_headers: HashMap<String, String>,
+    pub submit_body: Option<String>,
+    pub job_id_path: String,          // dot-separated path into JSON response
+    pub poll_url: String,             // must contain <job_id> placeholder
+    #[serde(default = "default_get")]
+    pub poll_method: String,
+    #[serde(default)]
+    pub poll_headers: HashMap<String, String>,
+    #[serde(default = "default_poll_interval")]
+    pub poll_interval_secs: u64,
+    #[serde(default = "default_poll_timeout")]
+    pub poll_timeout_secs: u64,
+    pub poll_max_attempts: Option<u64>,
+    pub completion_path: String,      // dot-separated path to status field
+    pub completion_value: String,     // value indicating completion
+    pub result_path: Option<String>,  // dot-separated path to extract result
+}
 ```
 
-## Anti-Patterns
+### Config Validation Rules (Fail-Fast at Startup)
 
-### Anti-Pattern 1: Embedding SPA in Rust Binary with include_bytes!
+1. `mode` must be one of `"cli"`, `"sync-api"`, `"async-api"`
+2. The corresponding config section (`cli`, `sync_api`, `async_api`) must be present for the declared mode
+3. `program` in CLI mode must be a non-empty string (PATH resolution happens at execution time)
+4. `url` / `submit_url` / `poll_url` must be parseable as URLs after env var interpolation
+5. `poll_url` in async-api mode must contain the `<job_id>` placeholder
+6. `token` (or `${ENV_VAR}` resolving to a non-empty string) must be present
+7. `timeout_secs` / `poll_timeout_secs` must be > 0
 
-**What people do:** Use `include_bytes!` or `rust-embed` to compile the SPA into the Rust binary.
-**Why it is wrong:** Every frontend change requires recompiling the Rust binary. Adds 1-2MB to binary size. Makes hot-reload impossible during development. Complicates CI (Rust build depends on Node build).
-**Do this instead:** Serve from a configurable directory path. The Docker multi-stage build places the files alongside the binary. In development, point to the Vite build output directory.
+### Env Var Interpolation in Config
 
-### Anti-Pattern 2: Adding a Full Prometheus Server Dependency
+The `config` crate does not natively resolve `${ENV_VAR}` inside string values. Two approaches:
 
-**What people do:** Deploy a Prometheus server alongside the gateway and have the frontend query Prometheus directly.
-**Why it is wrong:** Massive operational overhead for an admin dashboard. The gateway already has all the metrics in memory. Adding Prometheus adds a container, storage, and another network hop.
-**Do this instead:** Read metrics directly from the gateway's `prometheus::Registry` handles and return JSON. Keep the `/metrics` endpoint for external Prometheus scrapers if desired.
+**Recommended: Post-parse resolution.** After deserializing the TOML, walk all string fields and resolve `${VAR}` patterns. This is explicit, testable, and does not require a custom deserializer.
 
-### Anti-Pattern 3: JWT with Refresh Tokens for Single-Admin Tool
+```rust
+fn resolve_env_vars(s: &str) -> Result<String, AgentConfigError> {
+    // Find ${VAR_NAME} patterns, replace with std::env::var(VAR_NAME)
+    // Error if env var not set (fail-fast, no silent empty strings)
+}
+```
 
-**What people do:** Build a full JWT auth system with access tokens, refresh tokens, and rotation.
-**Why it is wrong:** Over-engineered for a single-admin gateway tool. Adds crypto dependencies, token storage, and refresh logic. The gateway already has a static admin token.
-**Do this instead:** Use the existing static admin token pattern. The login endpoint validates credentials and returns the configured token. If multi-admin is needed later, upgrade to JWT then.
+**Alternative: Use the `config` crate's environment source.** Map TOML keys to `AGENT__GATEWAY__TOKEN` env vars. This works for top-level overrides but does not handle inline interpolation like `"Bearer ${ML_API_KEY}"` in header values.
 
-### Anti-Pattern 4: Polling with setInterval Instead of TanStack Query
-
-**What people do:** Use `setInterval` + `fetch` + `useState` for periodic data refresh.
-**Why it is wrong:** No request deduplication, no caching, no background refetch, no stale-while-revalidate, no automatic error retry, no garbage collection of unused queries.
-**Do this instead:** TanStack Query with `refetchInterval`. It handles all of the above automatically. One line of config vs 30+ lines of manual state management.
-
-### Anti-Pattern 5: CORS Permissive Mode in Production
-
-**What people do:** Add `CorsLayer::permissive()` to allow all origins.
-**Why it is wrong:** Allows any website to make authenticated requests to the admin API if the user has a token stored.
-**Do this instead:** Serve from the same origin (no CORS needed) or whitelist specific origins.
-
-## Build Order (Dependencies Between Frontend and Backend Changes)
-
-The following order respects dependencies -- backend endpoints must exist before frontend can consume them.
-
-### Phase 1: Backend Auth + New Endpoints
-1. Add `static_dir` to `AdminConfig`
-2. Add login endpoint (`/v1/admin/auth/login`) that validates credentials against config
-3. Add `/v1/admin/auth/me` endpoint
-4. Add `/v1/admin/metrics/summary` JSON endpoint (reads from `state.metrics`)
-5. Add `/v1/admin/tasks` list endpoint with pagination
-6. Add `/v1/admin/tasks/{task_id}/cancel` endpoint
-7. Add `/v1/admin/api-keys` GET (list) endpoint
-8. Add `/v1/admin/node-tokens` GET (list) endpoint
-9. Add SPA static file serving route (`/admin/*` with fallback)
-
-### Phase 2: Frontend Scaffolding
-1. Initialize Vite + React + TypeScript project in `admin-ui/`
-2. Configure Vite dev proxy, TailwindCSS, shadcn/ui
-3. Set up TanStack Router with `__root.tsx` and `_authenticated` layout
-4. Build API client (`api/client.ts`) and auth hooks
-5. Build login page
-
-### Phase 3: Frontend Feature Pages
-1. Dashboard page (metrics summary, queue depths, node counts)
-2. Services list + detail pages (uses existing endpoints)
-3. Task list + detail + cancel (uses new endpoints)
-4. API key management page
-5. Node token management page
-
-### Phase 4: Production Integration
-1. Docker multi-stage build (Node + Rust)
-2. Gateway config documentation for `admin.static_dir`
-3. Integration testing (build frontend, serve from gateway, verify routes)
-
-**Critical dependency:** Phase 2 step 4 (API client) depends on Phase 1 steps 2-3 (auth endpoints). The frontend cannot test auth flow without the login endpoint. Build auth endpoints first.
+**Use both:** The `config` crate's env source for full-key overrides (e.g., `AGENT__GATEWAY__ADDR=host:port`) and post-parse `${VAR}` resolution for inline interpolation in templates and headers.
 
 ## Integration Points
 
-### External Services
+### What Changes in Existing Code
 
-| Service | Integration Pattern | Notes |
-|---------|---------------------|-------|
-| Redis/Valkey | Existing -- no changes | All admin data already in Redis |
-| Vite Dev Server | Dev proxy to gateway | Only during `npm run dev` |
+| File | Change | Scope |
+|------|--------|-------|
+| `gateway/src/bin/agent.rs` | Replace clap-only config with TOML loading via `--config` arg; replace `dispatch_task()` call with `executor.execute()`; retain reconnect/drain logic | **Major rewrite** of main + `run_poll_loop`; ~50% of lines change |
+| `gateway/Cargo.toml` | Add `async-trait`; add `tokio` `process` feature; move `toml` from dev to normal deps | **Minor addition** |
+| `gateway/src/lib.rs` | Add `pub mod agent;` | **One line** |
 
-### Internal Boundaries
+### What Does NOT Change
 
-| Boundary | Communication | Notes |
-|----------|---------------|-------|
-| SPA <-> Admin API | HTTP JSON via `fetch` | All requests go through `apiClient` wrapper with auth token |
-| Admin API <-> Redis | Existing `auth_conn` | New list endpoints add read-only Redis queries |
-| Admin API <-> Metrics | Direct Rust struct access | `state.metrics` is `Arc<Metrics>`, read gauge/counter values directly |
-| SPA Router <-> Auth State | localStorage + React context | Token in localStorage, auth state in context, router guards in `beforeLoad` |
+- Proto definitions -- `TaskAssignment`, `ReportResultRequest` unchanged
+- Gateway-side code -- zero modifications needed
+- The gRPC streaming contract -- agent still calls `PollTasks` and `ReportResult` identically
+- TLS/auth handling -- token still goes in gRPC metadata
+- Reconnect/backoff logic -- same outer loop pattern
+- Graceful drain -- same `DrainNode` RPC + in-flight wait
+
+### New Dependencies
+
+| Dependency | Purpose | Already in Cargo.toml? |
+|------------|---------|----------------------|
+| `async-trait` | `dyn Executor` dispatch with async | No -- add |
+| `toml` | Parse agent.toml | Yes (dev-dependencies) -- move to `[dependencies]` |
+| `tokio` `process` feature | `Command` for CLI mode | No -- add feature flag to existing tokio dep |
+
+**No `regex` needed.** The placeholder syntax (`<name>` and `${VAR}`) is simple enough for iterative `str::find`-based parsing. Adding regex for this would be overkill.
+
+**`serde_json` already present** for JSON pointer navigation in async-api mode (extracting `job_id` and checking `completion_path` from response bodies).
+
+## Anti-Patterns
+
+### Anti-Pattern 1: Executor Holding gRPC Client Reference
+
+**What people do:** Pass the `report_client` into the executor so it can report intermediate status updates.
+**Why it is wrong:** Executors should be pure computation -- take input, return output. Mixing transport concerns makes testing require a gRPC mock. The gateway's task state machine expects a single terminal `ReportResult`, not intermediate updates.
+**Do this instead:** Executor returns `ExecutionResult`. Main loop maps it to `ReportResultRequest` and sends via gRPC. If progress reporting is needed later, add it as a callback/channel parameter, not a gRPC client injection.
+
+### Anti-Pattern 2: Generic Executor Over Task Types
+
+**What people do:** Make the executor generic over the task payload type (e.g., `Executor<ImageTask>`, `Executor<TextTask>`).
+**Why it is wrong:** The gateway treats payloads as opaque bytes. The agent should too. Typed executors create coupling between the agent binary and specific payload schemas, defeating the gateway's protocol-agnostic design.
+**Do this instead:** All executors work with `&TaskAssignment` (opaque `Vec<u8>` payload + string metadata map). Payload interpretation is handled entirely by the placeholder templates and the target service.
+
+### Anti-Pattern 3: Spawning Async-API Poll Loop as Background Task
+
+**What people do:** For async-api mode, spawn the poll loop as a detached `tokio::spawn` and try to correlate results back later via a channel.
+**Why it is wrong:** The agent processes one task at a time. A detached poll loop requires a result channel, complicates shutdown, and adds concurrency the gateway does not expect (gateway will not send a new task until `ReportResult` is called for the current one).
+**Do this instead:** The async-api poll loop runs inline within `execute()`. It is an async function that happens to contain a loop with sleep. From the caller's perspective, it is just a slow `execute()` call.
+
+### Anti-Pattern 4: Hot-Reloading Config
+
+**What people do:** Watch the TOML file with `notify` crate and rebuild executors on change.
+**Why it is wrong:** The agent registers as a node for a specific service. Config changes that affect which service is polled require a new gRPC stream and re-registration. Hot-reload adds file-watcher complexity and edge cases (partially-valid config, executor mid-execution) for near-zero operational benefit.
+**Do this instead:** Restart the agent on config change. Use systemd/supervisord for automatic restart. Document this.
+
+### Anti-Pattern 5: Using an Enum Instead of Trait for Executors
+
+**What people do:** Define `enum ExecutorKind { Cli(CliExecutor), SyncApi(SyncApiExecutor), AsyncApi(AsyncApiExecutor) }` and match on every call.
+**Why it is wrong for this case:** While enum dispatch avoids heap allocation, it couples all modes together. Adding a fourth mode requires modifying the enum and every match site. The performance difference (stack vs heap dispatch) is irrelevant when the executor does I/O (process spawn, HTTP requests).
+**Do this instead:** `Box<dyn Executor>`. Constructed once at startup, dispatched many times. The trait boundary makes each mode independently testable and extensible.
+
+## Suggested Build Order
+
+Dependencies flow downward -- each step produces independently testable output.
+
+| Step | Component | Depends On | Test Strategy |
+|------|-----------|------------|---------------|
+| 1 | `agent/placeholder.rs` -- template resolution engine | Nothing | Unit tests: resolve known placeholders, reject unknown, env var substitution, edge cases (empty payload, missing metadata key) |
+| 2 | `agent/config.rs` -- TOML parsing + validation + env var interpolation | Step 1 (for resolving `${VAR}` in config values) | Unit tests: parse valid TOML, reject invalid mode, reject missing section, env var resolution |
+| 3 | `agent/executor/mod.rs` -- trait + `ExecutionResult` + factory function | Nothing (type definitions only) | Compiles; factory tested in step 7 |
+| 4 | `agent/executor/sync_api.rs` -- synchronous HTTP executor | Steps 1, 3 | Integration test: spin up a mock HTTP server (axum on random port), verify URL/header/body template resolution, success and error status handling |
+| 5 | `agent/executor/cli.rs` -- CLI process executor | Steps 1, 3 | Integration test: execute `echo "hello"`, verify stdout capture; test stdin pipe with `cat`; test timeout with `sleep 999`; test non-zero exit code |
+| 6 | `agent/executor/async_api.rs` -- async two-phase executor | Steps 1, 3 | Integration test: mock server with `/submit` (returns job_id) + `/status/<id>` (returns pending then complete); verify poll loop, timeout, max_attempts |
+| 7 | `agent/response.rs` -- response body mapping | Step 1 | Unit tests: apply output template with `<stdout>`, `<stderr>`, `<exit_code>` context |
+| 8 | `bin/agent.rs` rewrite -- TOML config + executor wiring | Steps 1-7 | End-to-end: start gateway + agent with agent.toml + mock service, submit task, verify result flows back |
+| 9 | Example configs + documentation | Step 8 | Manual verification with example `agent.toml` files for each mode |
+
+**Rationale for ordering:**
+- Placeholder engine is a leaf dependency with zero I/O -- build and test it first with pure unit tests.
+- Config depends on placeholder engine for env var resolution.
+- Sync-api executor comes before CLI because it is closest to the existing `dispatch_task` (minimal conceptual risk, validates the trait pattern).
+- CLI comes next because it adds process spawning (new capability, needs the `process` tokio feature).
+- Async-api is last among executors because it has the most moving parts (two-phase, polling, timeout, JSON pointer extraction).
+- The agent binary rewrite is last because it integrates everything and requires an end-to-end test environment (gateway + Redis + agent + mock target).
+
+## Scaling Considerations
+
+| Concern | Current (v1.2) | Future (if needed) |
+|---------|-----------------|---------------------|
+| Tasks per second per agent | Sequential (1 at a time) -- sufficient for most workloads | Add `concurrency` config option, use `tokio::spawn` + semaphore per executor call |
+| Long-running async-api tasks | Blocks the agent from taking new tasks during polling | Acceptable for v1.2; future: spawn poll loop, accept new tasks on separate stream |
+| Multiple services per agent | Run multiple agent processes | Future: `[services.*]` map, one `tokio::spawn` per service with own poll loop |
+| Config complexity | Single TOML file | Future: TOML includes, or split per-service config files |
 
 ## Sources
 
-- [Axum SPA fallback discussion](https://github.com/tokio-rs/axum/discussions/2486) -- ServeDir with fallback for React client-side routing
-- [tower-http CORS](https://docs.rs/tower-http/latest/tower_http/cors/struct.CorsLayer.html) -- CorsLayer configuration reference
-- [Vite server proxy docs](https://vite.dev/config/server-options#server-proxy) -- Dev proxy configuration
-- [TanStack Query auth patterns](https://github.com/TanStack/query/discussions/3253) -- Authentication with TanStack Query
-- [Prometheus HTTP API](https://prometheus.io/docs/prometheus/latest/querying/api/) -- Query API reference
-- [Axum static file serving](https://github.com/tokio-rs/axum/discussions/1309) -- Embedding and serving static files
+- Existing codebase: `gateway/src/bin/agent.rs` -- current 317-line agent implementation
+- Existing codebase: `gateway/src/config.rs` -- config loading pattern (same `config` crate, same layered approach)
+- Existing codebase: `proto/src/gateway.proto` -- gRPC contract (unchanged by this work)
+- Existing codebase: `gateway/Cargo.toml` -- dependency list, confirms `reqwest`, `tonic`, `serde_json` already available
+- Rust `async-trait` crate -- standard pattern for dyn-dispatchable async traits until native `dyn async Trait` stabilizes
+- Rust `tokio::process::Command` -- async child process execution, part of tokio with `process` feature flag
+- Rust `serde_json::Value::pointer` -- JSON pointer navigation for extracting values from API responses
 
 ---
-*Architecture research for: Admin Web UI integration with Rust/Axum gateway*
-*Researched: 2026-03-22*
+*Architecture research for: xgent-agent flexible execution engine*
+*Researched: 2026-03-24*
