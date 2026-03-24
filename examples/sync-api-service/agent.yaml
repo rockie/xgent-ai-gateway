@@ -1,0 +1,21 @@
+gateway:
+  address: "localhost:50051"
+  token: "dev-token"
+  node_id: "sync-api-node"
+
+service:
+  name: "sync-echo"
+  mode: sync-api
+
+sync_api:
+  url: "http://localhost:8090/sync"
+  method: "POST"
+  headers:
+    Content-Type: "application/json"
+  body: '<payload>'
+  timeout_secs: 30
+
+response:
+  success:
+    body: '<response.result.text>'
+  max_bytes: 65536

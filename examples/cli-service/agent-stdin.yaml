@@ -1,0 +1,18 @@
+gateway:
+  address: "localhost:50051"
+  token: "dev-token"
+  node_id: "cli-stdin-node"
+
+service:
+  name: "cli-echo"
+  mode: cli
+
+cli:
+  command: ["./examples/cli-service/echo.sh"]
+  input_mode: stdin
+  timeout_secs: 30
+
+response:
+  success:
+    body: '<stdout>'
+  max_bytes: 65536

@@ -1,0 +1,34 @@
+gateway:
+  address: "localhost:50051"
+  token: "dev-token"
+  node_id: "async-api-node"
+
+service:
+  name: "async-echo"
+  mode: async-api
+
+async_api:
+  timeout_secs: 120
+  submit:
+    url: "http://localhost:8090/async/submit"
+    method: "POST"
+    headers:
+      Content-Type: "application/json"
+    body: '<payload>'
+  poll:
+    url: "http://localhost:8090/async/status/<submit_response.job_id>"
+    method: "GET"
+    interval_secs: 2
+  completed_when:
+    path: "status"
+    operator: equal
+    value: "completed"
+  failed_when:
+    path: "status"
+    operator: in
+    value: ["failed", "error"]
+
+response:
+  success:
+    body: '{"result": "<poll_response.result.text>", "processed": "<poll_response.result.processed>"}'
+  max_bytes: 65536

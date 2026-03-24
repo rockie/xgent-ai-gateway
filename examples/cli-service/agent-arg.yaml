@@ -1,0 +1,18 @@
+gateway:
+  address: "localhost:50051"
+  token: "dev-token"
+  node_id: "cli-arg-node"
+
+service:
+  name: "cli-echo"
+  mode: cli
+
+cli:
+  command: ["./examples/cli-service/echo.sh", "<payload>"]
+  input_mode: arg
+  timeout_secs: 30
+
+response:
+  success:
+    body: '<stdout>'
+  max_bytes: 65536
