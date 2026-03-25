@@ -45,6 +45,7 @@ Full details: `.planning/milestones/v1.1-ROADMAP.md`
 - [x] **Phase 15: Async-API Execution** — Two-phase submit + poll with completion conditions, failure detection, and timeout (completed 2026-03-24)
 - [x] **Phase 16: Examples and End-to-End Validation** — Example configs for all modes, Node.js client example, and dry-run validation (completed 2026-03-24)
 - [x] **Phase 17: Fix Node.js Client API Contract** — Fix `task.status` → `task.state` field mismatch and base64 result decoding in all Node.js clients (completed 2026-03-24)
+- [ ] **Phase 19: JSON Payload Format (Remove Base64 Requirement)** — Replace base64-encoded bytes payloads with any valid JSON value across HTTP, gRPC, agent, and examples
 
 ## Phase Details
 
@@ -141,6 +142,8 @@ Phases execute in numeric order: 13 → 14 → 15 → 16
 | 15. Async-API Execution | v1.2 | 2/2 | Complete    | 2026-03-24 |
 | 16. Examples and End-to-End Validation | v1.2 | 3/3 | Complete    | 2026-03-24 |
 | 17. Fix Node.js Client API Contract | v1.2 | 0/0 (quick fix) | Complete | 2026-03-24 |
+| 18. Tech Debt Cleanup | v1.2 | 3/3 | Complete | 2026-03-25 |
+| 19. JSON Payload Format | v1.2 | 0/0 | Pending | — |
 
 ### Phase 18: Tech Debt Cleanup
 
@@ -153,3 +156,17 @@ Plans:
 - [x] 18-01-PLAN.md — Fix all clippy and compiler warnings (Default impls, FromStr trait, clamp, unused assignments)
 - [x] 18-02-PLAN.md — Deduplicate node health fetching in admin.rs and metrics.rs
 - [x] 18-03-PLAN.md — Refactor init_tracing duplication and standardize admin handler error types
+
+### Phase 19: JSON Payload Format (Remove Base64 Requirement)
+**Goal:** Replace base64-encoded bytes payloads with any valid JSON value across HTTP, gRPC, agent, and examples. Binary blobs will be transferred through S3-like infrastructure instead.
+**Depends on:** Phase 18
+**Requirements:** EXMP-04
+**Gap Closure:** Closes EXMP-04 (partial → satisfied), integration gap (payload encoding mismatch), and Node.js E2E flow gap from v1.2 audit
+**Success Criteria** (what must be TRUE):
+  1. Gateway HTTP submit accepts `payload` as any valid JSON value (object, string, number, array, boolean, null) — not base64
+  2. gRPC `.proto` `payload` field is `string` (JSON-encoded) instead of `bytes`
+  3. Agent deserializes JSON payloads from Redis and passes them to executors
+  4. Gateway task retrieval endpoint returns JSON payload/result (not base64)
+  5. All 3 Node.js clients send JSON object payloads and work end-to-end without encoding
+  6. README documents JSON payload contract with no base64 references
+**Plans:** 0/0 (not yet planned)
