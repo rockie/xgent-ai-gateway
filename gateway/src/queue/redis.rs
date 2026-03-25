@@ -11,8 +11,8 @@ pub struct TaskStatus {
     pub task_id: TaskId,
     pub state: TaskState,
     pub service: String,
-    pub payload: Vec<u8>,
-    pub result: Vec<u8>,
+    pub payload: String,
+    pub result: String,
     pub error_message: String,
     pub metadata: HashMap<String, String>,
     pub created_at: String,
@@ -24,7 +24,7 @@ pub struct TaskStatus {
 #[derive(Debug, Clone)]
 pub struct TaskAssignmentData {
     pub task_id: TaskId,
-    pub payload: Vec<u8>,
+    pub payload: String,
     pub metadata: HashMap<String, String>,
 }
 
@@ -109,16 +109,12 @@ impl RedisQueue {
     pub async fn submit_task(
         &self,
         service: &ServiceName,
-        payload: Vec<u8>,
+        payload: String,
         metadata: HashMap<String, String>,
     ) -> Result<TaskId, GatewayError> {
         let task_id = TaskId::new();
         let stream_key = format!("tasks:{}", service);
         let hash_key = format!("task:{}", task_id);
-        let payload_b64 = base64::Engine::encode(
-            &base64::engine::general_purpose::STANDARD,
-            &payload,
-        );
         let metadata_json = serde_json::to_string(&metadata).unwrap_or_default();
         let created_at = chrono::Utc::now().to_rfc3339();
 
@@ -136,7 +132,7 @@ impl RedisQueue {
             .arg("service")
             .arg(&service.0)
             .arg("payload")
-            .arg(&payload_b64)
+            .arg(&payload)
             .arg("metadata")
             .arg(&metadata_json)
             .arg("created_at")
@@ -188,22 +184,8 @@ impl RedisQueue {
         }
 
         let state = TaskState::from_str(fields.get("state").map(|s| s.as_str()).unwrap_or(""))?;
-        let payload_b64 = fields.get("payload").cloned().unwrap_or_default();
-        let payload = base64::Engine::decode(
-            &base64::engine::general_purpose::STANDARD,
-            &payload_b64,
-        )
-        .unwrap_or_default();
-        let result_b64 = fields.get("result").cloned().unwrap_or_default();
-        let result = if result_b64.is_empty() {
-            Vec::new()
-        } else {
-            base64::Engine::decode(
-                &base64::engine::general_purpose::STANDARD,
-                &result_b64,
-            )
-            .unwrap_or_default()
-        };
+        let payload = fields.get("payload").cloned().unwrap_or_default();
+        let result = fields.get("result").cloned().unwrap_or_default();
         let metadata_json = fields.get("metadata").cloned().unwrap_or_default();
         let metadata: HashMap<String, String> =
             serde_json::from_str(&metadata_json).unwrap_or_default();
@@ -230,7 +212,7 @@ impl RedisQueue {
         &self,
         task_id: &TaskId,
         success: bool,
-        result: Vec<u8>,
+        result: String,
         error_message: String,
     ) -> Result<Option<String>, GatewayError> {
         let hash_key = format!("task:{}", task_id);
@@ -265,10 +247,6 @@ impl RedisQueue {
             });
         }
 
-        let result_b64 = base64::Engine::encode(
-            &base64::engine::general_purpose::STANDARD,
-            &result,
-        );
         let completed_at = chrono::Utc::now().to_rfc3339();
         let service = fields.get("service").cloned().unwrap_or_default();
         let stream_id = fields.get("stream_id").cloned().unwrap_or_default();
@@ -281,7 +259,7 @@ impl RedisQueue {
             .arg("state")
             .arg(new_state.as_str())
             .arg("result")
-            .arg(&result_b64)
+            .arg(&result)
             .arg("error_message")
             .arg(&error_message)
             .arg("completed_at")
@@ -560,7 +538,7 @@ mod tests {
     async fn submit_task_stores_hash_and_adds_to_stream() {
         let queue = test_queue().await;
         let service = ServiceName::new("test-submit").unwrap();
-        let payload = b"hello world".to_vec();
+        let payload = "\"hello world\"".to_string();
         let mut metadata = HashMap::new();
         metadata.insert("key".to_string(), "value".to_string());
 
@@ -606,8 +584,8 @@ mod tests {
         let svc_a = ServiceName::new("test-svc-a").unwrap();
         let svc_b = ServiceName::new("test-svc-b").unwrap();
 
-        let id_a = queue.submit_task(&svc_a, b"a".to_vec(), HashMap::new()).await.unwrap();
-        let id_b = queue.submit_task(&svc_b, b"b".to_vec(), HashMap::new()).await.unwrap();
+        let id_a = queue.submit_task(&svc_a, "\"a\"".to_string(), HashMap::new()).await.unwrap();
+        let id_b = queue.submit_task(&svc_b, "\"b\"".to_string(), HashMap::new()).await.unwrap();
 
         // Both tasks should be retrievable
         let status_a = queue.get_task_status(&id_a).await.unwrap();
@@ -628,7 +606,7 @@ mod tests {
     async fn result_ttl_is_set_on_task_hash() {
         let queue = test_queue().await;
         let service = ServiceName::new("test-ttl").unwrap();
-        let task_id = queue.submit_task(&service, b"data".to_vec(), HashMap::new()).await.unwrap();
+        let task_id = queue.submit_task(&service, "\"data\"".to_string(), HashMap::new()).await.unwrap();
 
         // Check that TTL is set
         let hash_key = format!("task:{}", task_id);
