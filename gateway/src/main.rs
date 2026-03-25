@@ -42,68 +42,46 @@ fn init_tracing(config: &LoggingConfig) -> Option<tracing_appender::non_blocking
 
     let is_json = config.format == "json";
 
-    match (&config.file, is_json) {
-        (Some(file_path), true) => {
-            let file = std::fs::OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(file_path)
-                .expect("Failed to open log file");
-            let (non_blocking, guard) = tracing_appender::non_blocking(file);
-            let file_layer = tracing_subscriber::fmt::layer()
-                .json()
-                .with_target(true)
-                .with_writer(non_blocking);
-            let stdout_layer = tracing_subscriber::fmt::layer()
-                .json()
-                .with_target(true);
-            tracing_subscriber::registry()
-                .with(env_filter)
-                .with(stdout_layer)
-                .with(file_layer)
-                .init();
-            Some(guard)
-        }
-        (Some(file_path), false) => {
-            let file = std::fs::OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(file_path)
-                .expect("Failed to open log file");
-            let (non_blocking, guard) = tracing_appender::non_blocking(file);
-            let file_layer = tracing_subscriber::fmt::layer()
-                .json()
-                .with_target(true)
-                .with_writer(non_blocking);
-            let stdout_layer = tracing_subscriber::fmt::layer()
-                .with_target(true);
-            tracing_subscriber::registry()
-                .with(env_filter)
-                .with(stdout_layer)
-                .with(file_layer)
-                .init();
-            Some(guard)
-        }
-        (None, true) => {
-            let stdout_layer = tracing_subscriber::fmt::layer()
-                .json()
-                .with_target(true);
-            tracing_subscriber::registry()
-                .with(env_filter)
-                .with(stdout_layer)
-                .init();
-            None
-        }
-        (None, false) => {
-            let stdout_layer = tracing_subscriber::fmt::layer()
-                .with_target(true);
-            tracing_subscriber::registry()
-                .with(env_filter)
-                .with(stdout_layer)
-                .init();
-            None
-        }
+    // File layer is always JSON format (structured logs for log aggregation).
+    // Constructed once and shared across both stdout format branches.
+    let (file_layer, guard) = if let Some(ref file_path) = config.file {
+        let file = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(file_path)
+            .expect("Failed to open log file");
+        let (non_blocking, guard) = tracing_appender::non_blocking(file);
+        let layer = tracing_subscriber::fmt::layer()
+            .json()
+            .with_target(true)
+            .with_writer(non_blocking);
+        (Some(layer), Some(guard))
+    } else {
+        (None, None)
+    };
+
+    // Stdout layer varies by format; two branches needed because .json() changes the type.
+    // Both branches consume the shared file_layer and env_filter.
+    if is_json {
+        let stdout_layer = tracing_subscriber::fmt::layer()
+            .json()
+            .with_target(true);
+        tracing_subscriber::registry()
+            .with(env_filter)
+            .with(file_layer)
+            .with(stdout_layer)
+            .init();
+    } else {
+        let stdout_layer = tracing_subscriber::fmt::layer()
+            .with_target(true);
+        tracing_subscriber::registry()
+            .with(env_filter)
+            .with(file_layer)
+            .with(stdout_layer)
+            .init();
     }
+
+    guard
 }
 
 fn hash_password_interactive() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
