@@ -143,7 +143,7 @@ Phases execute in numeric order: 13 → 14 → 15 → 16
 | 16. Examples and End-to-End Validation | v1.2 | 3/3 | Complete    | 2026-03-24 |
 | 17. Fix Node.js Client API Contract | v1.2 | 0/0 (quick fix) | Complete | 2026-03-24 |
 | 18. Tech Debt Cleanup | v1.2 | 3/3 | Complete | 2026-03-25 |
-| 19. JSON Payload Format | v1.2 | 0/3 | Planned | — |
+| 19. JSON Payload Format | v1.2 | 1/3 | In Progress|  |
 
 ### Phase 18: Tech Debt Cleanup
 
@@ -169,9 +169,9 @@ Plans:
   4. Gateway task retrieval endpoint returns JSON payload/result (not base64)
   5. All 3 Node.js clients send JSON object payloads and work end-to-end without encoding
   6. README documents JSON payload contract with no base64 references
-**Plans:** 3 plans
+**Plans:** 1/3 plans executed
 
 Plans:
-- [ ] 19-01-PLAN.md — Proto bytes->string, Redis queue String types, executor/response/placeholder String types
+- [x] 19-01-PLAN.md — Proto bytes->string, Redis queue String types, executor/response/placeholder String types
 - [ ] 19-02-PLAN.md — HTTP handlers accept/return JSON, gRPC handlers use String, all executors produce String results
 - [ ] 19-03-PLAN.md — Update tests, Node.js clients, and documentation for JSON payloads
