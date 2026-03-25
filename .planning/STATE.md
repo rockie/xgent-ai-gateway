@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Flexible Agent Execution
-status: Milestone complete
-stopped_at: Completed 19-02-PLAN.md
-last_updated: "2026-03-25T04:21:19.428Z"
+status: Milestone shipped
+stopped_at: v1.2 milestone completed
+last_updated: "2026-03-25"
 last_activity: 2026-03-25
 progress:
   total_phases: 7
-  completed_phases: 6
+  completed_phases: 7
   total_plans: 16
   completed_plans: 16
 ---
@@ -17,92 +17,38 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-24)
+See: .planning/PROJECT.md (updated 2026-03-25)
 
 **Core value:** Tasks submitted by clients reliably reach internal nodes and results reliably flow back, regardless of network topology
-**Current focus:** Phase 19 — json-payload-format
+**Current focus:** Planning next milestone
 
 ## Current Position
 
-Phase: 19
-Plan: Not started
+Milestone v1.2 shipped. No active milestone.
 
 ## Performance Metrics
 
 **Velocity (v1.0):** 7 phases, 20 plans in 2 days
 **Velocity (v1.1):** 5 phases, 12 plans in 1 day
-**Total plans completed:** 32
+**Velocity (v1.2):** 7 phases, 16 plans in 4 days
+**Total plans completed:** 48
 
 ## Accumulated Context
 
 ### Decisions
 
 All decisions logged in PROJECT.md Key Decisions table.
-Recent decisions affecting current work:
-
-- Runner agent hardcoded HTTP POST replaced with configurable execution engine
-- Use `[service]` (singular) in agent.toml; multi-service deferred
-- Stay on reqwest 0.12 and toml 0.8 for version compatibility
-- Use `async_trait` for `Box<dyn Executor>` until native dyn async traits stabilize
-- [Phase 13]: Used serde_yaml_ng (not deprecated serde_yaml) per RESEARCH.md correction
-- [Phase 13]: Manual char-scanning for env var and placeholder resolution (no regex dependency)
-- [Phase 13]: CliExecutor error message format: 'process exited with code N' for exit code failures
-- [Phase 13]: Clone derive added to CliSection and ResponseSection for executor construction from config
-- [Phase 14]: Used reqwest::Client per-executor for independent timeout/TLS config
-- [Phase 14]: Connection retry on is_connect() only, not timeouts; axum in-process test server for HTTP tests
-- [Phase 14]: Separated SyncApi and AsyncApi into distinct match arms for independent implementation
-- [Phase 15]: find_prefixed_placeholders takes configurable prefix to support response, poll_response, submit_response
-- [Phase 15]: FailedResponseConfig is Optional -- existing configs without failed section work unchanged
-- [Phase 15]: CompletionCondition.evaluate() reuses http_common::extract_json_value for path extraction, string comparison for all operators
-- [Phase 15]: No per-request timeout on async-api reqwest client; tokio::time::timeout wraps entire submit+poll flow
-- [Phase 16]: Used std::sync::Mutex for shared job state (microsecond lock hold time)
-- [Phase 16]: Skip poll URL validation when it contains submit_response placeholders (not valid URL until runtime)
-- [Phase 18]: Replaced inherent from_str with std::str::FromStr trait impl for TaskState
-- [Phase 18-02]: Used unwrap_or_else for error tolerance in metrics.rs refresh_gauges matching previous behavior
-- [Phase 18-03]: Used Option<Layer> ordering trick (file before stdout) to avoid Box<dyn Layer> type erasure in init_tracing
-- [Phase 19]: Store JSON strings directly in Redis without base64 encoding
-- [Phase 19]: Node.js client README unchanged -- already describes payload generically without base64
-- [Phase 19]: Use serde_json::from_str with unwrap_or(Value::String) fallback for parsing stored JSON in HTTP responses
 
 ### Pending Todos
 
 None.
 
-### Roadmap Evolution
-
-- Phase 17 added: Fix Node.js Client API Contract (gap closure from milestone audit)
-- Phase 18 added: Tech Debt Cleanup
-
 ### Blockers/Concerns
 
-- Async-API external job cancellation scope needs explicit decision in Phase 15 planning
-- Re-check `async-trait` vs native async traits (rust-lang/rust#133119) at Phase 13 start
-
-### Quick Tasks Completed
-
-| # | Description | Date | Commit | Directory |
-|---|-------------|------|--------|-----------|
-| 260323-sgb | Fix canCancel to include assigned state and check off stale UI checkboxes | 2026-03-23 | a26a820 | [260323-sgb-fix-cancancel-to-include-assigned-state-](./quick/260323-sgb-fix-cancancel-to-include-assigned-state-/) |
-| Phase 13 P01 | 4min | 2 tasks | 7 files |
-| Phase 13 P02 | 3min | 1 tasks | 2 files |
-| Phase 13 P03 | 4min | 2 tasks | 3 files |
-| Phase 14 P01 | 5min | 2 tasks | 3 files |
-| Phase 14 P02 | 1min | 1 tasks | 1 files |
-| Phase 15 P01 | 7min | 2 tasks | 8 files |
-| Phase 15 P02 | 6min | 3 tasks | 4 files |
-| Phase 16 P01 | 2min | 2 tasks | 6 files |
-| Phase 16 P02 | 2min | 2 tasks | 1 files |
-| Phase 16 P03 | 3min | 2 tasks | 8 files |
-| 260324-w3j | Fix Node.js client URL paths: remove /api prefix | 2026-03-24 | b1c4bed | [260324-w3j-fix-node-js-client-url-paths-remove-api-](./quick/260324-w3j-fix-node-js-client-url-paths-remove-api-/) |
-| Phase 18 P01 | 6min | 2 tasks | 8 files |
-| Phase 18-02 P02 | 2min | 2 tasks | 2 files |
-| Phase 18-03 P03 | 7min | 2 tasks | 2 files |
-| Phase 19-01 P01 | 4min | 2 tasks | 5 files |
-| Phase 19 P03 | 8min | 2 tasks | 6 files |
-| Phase 19 P02 | 10min | 2 tasks | 6 files |
+None.
 
 ## Session Continuity
 
 Last activity: 2026-03-25
-Stopped at: Completed 19-02-PLAN.md
+Stopped at: v1.2 milestone completed
 Resume file: None

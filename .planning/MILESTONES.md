@@ -1,5 +1,30 @@
 # Milestones
 
+## v1.2 Flexible Agent Execution (Shipped: 2026-03-25)
+
+**Phases completed:** 7 phases, 16 plans, 31 tasks
+
+**Key accomplishments:**
+
+- YAML agent config with env var interpolation, single-pass placeholder engine preventing injection, Executor trait with async_trait, and response body template resolver with max_bytes enforcement
+- CliExecutor with arg/stdin modes, concurrent I/O deadlock prevention, timeout enforcement via SIGKILL, and exit code mapping through Executor trait
+- Agent binary refactored from CLI-arg HTTP POST dispatch to YAML-config-driven Executor trait dispatch with CliExecutor wiring
+- SyncApiExecutor with HTTP dispatch, connection retry, dot-notation JSON extraction, and configurable URL/method/headers/body templates
+- SyncApiExecutor wired into agent binary with error-handling construction, dry-run sync-api display, and separate AsyncApi stub
+- Extracted http_common module with shared JSON extraction and prefixed placeholder scanning, restructured ResponseSection into success/failed sub-sections with header fields, and wired failure-path body template resolution into CLI and sync-api executors
+- AsyncApiExecutor with two-phase submit+poll lifecycle, condition-based completion/failure detection, timeout enforcement, and response template mapping
+- Extended sample_service with /sync and /async endpoints, created example YAML configs and CLI echo script for all three agent execution modes
+- Agent --dry-run validates command/URL accessibility, previews response templates with sample values, and prints pass/fail summary
+- Three zero-dependency Node.js client scripts with tutorial READMEs covering all example directories
+- Zero-warning clippy/check baseline via FromStr trait impl, Default impls, clamp(), and dead code removal across 8 files
+- Replaced manual Redis SMEMBERS/HGETALL/derive_health_state calls in admin.rs and metrics.rs with canonical get_nodes_for_service, removing ~65 lines of duplicated code
+- Deduplicated init_tracing from 4-arm match to 2 branches with shared file layer; standardized all admin handlers to return GatewayError
+- Proto payload/result fields changed from bytes to string; Redis queue, executor, response resolver, and placeholder builder all use String types without base64
+- HTTP handlers accept/return native JSON values, all executors produce String results, base64 encoding removed from HTTP layer
+- Integration tests, auth tests, Node.js clients, and README updated from base64 to JSON payloads throughout
+
+---
+
 ## v1.1 Admin Web UI (Shipped: 2026-03-23)
 
 **Phases completed:** 5 phases, 12 plans, 28 tasks

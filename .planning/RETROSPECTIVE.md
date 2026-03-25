@@ -91,18 +91,71 @@
 
 ---
 
+## Milestone: v1.2 — Flexible Agent Execution
+
+**Shipped:** 2026-03-25
+**Phases:** 7 | **Plans:** 16 | **Tasks:** 31
+
+### What Was Built
+- YAML-based agent config with placeholder engine (`<payload>`, `<stdout>`, `<stderr>`, `<response.path>`, `${ENV_VAR}`)
+- CLI executor with arg/stdin modes, concurrent I/O, timeout enforcement via SIGKILL, exit code mapping
+- Sync-API executor with HTTP dispatch, JSON key-path extraction, and connection retry
+- Async-API executor with two-phase submit+poll, condition-based completion/failure, configurable timeout
+- Shared http_common module and response template system with success/failed paths
+- Example configs for all three modes, Node.js client examples, dry-run validation
+- JSON payload format replacing base64 across proto, Redis, HTTP handlers, gRPC handlers, executors, tests, and clients
+- Tech debt cleanup: zero clippy warnings, deduplicated node health queries, standardized error types
+
+### What Worked
+- Executor trait abstraction with async_trait made adding new execution modes (CLI → sync-api → async-api) incremental
+- Phase 15 refactor (http_common extraction, ResponseSection restructure) paid off immediately — async-api reused sync-api's HTTP primitives
+- Milestone audit between Phase 16 and 17 caught real integration gaps (task.status vs task.state, base64 mismatch in clients)
+- Phase 19 (JSON payload format) was a cross-cutting change that cleaned up the entire stack — worth the effort
+- Manual char-scanning placeholder engine avoided regex dependency while preventing injection
+
+### What Was Inefficient
+- Phase 17 (quick fix) had no PLAN/SUMMARY/VERIFICATION — worked fine but left audit gaps
+- TD-01 through TD-05 requirement IDs in Phase 18 weren't formally added to REQUIREMENTS.md
+- SUMMARY frontmatter requirements_completed lists were incomplete in Phases 14 and 15
+- Two separate quick-fix phases (17, 18) could have been combined
+
+### Patterns Established
+- YAML config with `[service]` section for per-service execution configuration
+- Placeholder engine: `<token>` for task data, `${VAR}` for env vars, single-pass resolution
+- Executor trait with `async fn execute(&self, task) -> ExecutionResult` pattern
+- http_common module for shared JSON extraction and prefixed placeholder scanning
+- Response template with success/failed sub-sections and header fields
+- Condition evaluation for async-api completion (equal, not_equal, in, not_in operators)
+
+### Key Lessons
+1. Cross-cutting format changes (base64 → JSON) are worth doing early — they touched 91 files but eliminated encoding bugs everywhere
+2. Quick-fix phases need at least a SUMMARY for audit trail — even one paragraph
+3. The Executor trait pattern worked well for 3 modes; if adding more, consider plugin-style registration
+4. serde_yaml_ng (not deprecated serde_yaml) is the correct choice for YAML in Rust
+
+### Cost Observations
+- 7 phases completed in 4 calendar days
+- ~5,600 new LOC Rust (agent module + executor infrastructure)
+- JSON payload change touched 91 files, +14,300/-528 lines
+- Plan execution averaged ~4-5 minutes per plan
+
+---
+
 ## Cross-Milestone Trends
 
-| Metric | v1.0 | v1.1 |
-|--------|------|------|
-| Phases | 7 | 5 |
-| Plans | 20 | 12 |
-| Tasks | 41 | 28 |
-| LOC shipped | 8,429 Rust | ~6,600 TS/TSX |
-| Calendar days | 2 | 1 |
+| Metric | v1.0 | v1.1 | v1.2 |
+|--------|------|------|------|
+| Phases | 7 | 5 | 7 |
+| Plans | 20 | 12 | 16 |
+| Tasks | 41 | 28 | 31 |
+| LOC shipped | 8,429 Rust | ~6,600 TS/TSX | ~5,600 Rust |
+| Calendar days | 2 | 1 | 4 |
+| Cumulative LOC | 8,429 | ~15,000 | ~20,600 |
 
 ### Top Lessons (Verified Across Milestones)
 
-1. Consistent patterns across similar components dramatically accelerate development (Tower middleware in v1.0, TanStack Query hooks in v1.1)
+1. Consistent patterns across similar components dramatically accelerate development (Tower middleware in v1.0, TanStack Query hooks in v1.1, Executor trait in v1.2)
 2. Milestone audits catch what manual tracking misses — run before completion every time
 3. ROADMAP.md progress table drifts during execution — needs automated sync or post-phase update discipline
+4. Cross-cutting format/protocol changes are best done as dedicated phases rather than spread across features
+5. Quick-fix phases still need minimal audit trail (SUMMARY.md at minimum)

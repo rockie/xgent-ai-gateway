@@ -54,21 +54,13 @@ Tasks submitted by clients reliably reach internal nodes and results reliably fl
 - ✓ Node.js client examples demonstrating full submit-execute-retrieve flow — v1.2
 - ✓ Agent --dry-run validates config (command/URL checks, response template preview, pass/fail summary) — v1.2
 - ✓ JSON payload format replaces base64-encoded bytes across proto, Redis, handlers, executors, tests, and clients — v1.2
+- ✓ YAML-based agent config with placeholder engine, Executor trait, and CLI/sync-api/async-api execution modes — v1.2
+- ✓ Async-API executor with two-phase submit+poll, condition-based completion, failure detection, and timeout — v1.2
+- ✓ Tech debt cleanup: zero clippy warnings, deduplicated node health queries, standardized error types — v1.2
 
 ### Active
 
-## Current Milestone: v1.2 Flexible Agent Execution
-
-**Goal:** Make the runner agent a configurable execution engine supporting HTTP and CLI invocation modes with templated request/response mapping and async two-phase polling.
-
-**Target features:**
-- Configurable execution modes: `cli`, `sync-api`, `async-api` per service in agent.toml
-- CLI mode with arg-based and stdin-pipe execution, placeholder system (`<payload>`, `<stdout>`, `<stderr>`)
-- sync-api mode with configurable URL, method, headers, body template, env var interpolation
-- async-api mode with two-phase submit + poll, key-path extraction, completion conditions, timeout
-- Templated response body mapping for all modes
-- Example services covering all three modes
-- Node.js client example for full end-to-end flow
+(No active requirements — next milestone not yet defined)
 
 ### Out of Scope
 
@@ -87,12 +79,13 @@ Tasks submitted by clients reliably reach internal nodes and results reliably fl
 
 ## Context
 
-Shipped v1.1 with ~6,600 LOC Rust (gateway) + ~6,600 LOC TypeScript/TSX (admin-ui).
-Tech stack: Rust (Tokio, Tonic, Axum, Redis Streams, rustls) + Vite + React 19 + TailwindCSS v4 + shadcn/ui + TanStack Router & Query + Recharts 3.x.
-32 plans across 12 phases completed in 2 days (v1.0 + v1.1).
+Shipped v1.2 with ~14,000 LOC Rust (gateway + agent) + ~6,600 LOC TypeScript/TSX (admin-ui).
+Tech stack: Rust (Tokio, Tonic, Axum, Redis Streams, rustls, reqwest, serde_yaml_ng) + Vite + React 19 + TailwindCSS v4 + shadcn/ui + TanStack Router & Query + Recharts 3.x.
+48 plans across 19 phases completed in 4 days (v1.0 + v1.1 + v1.2).
 34 integration tests cover auth, registry, health, reaper, and gRPC auth flows.
 Admin UI serves as a single-page app with session-based auth, dark mode, auto-refresh, and full CRUD for services, nodes, tasks, and credentials.
-Runner agent currently hardcodes HTTP POST to echo service; v1.2 replaces this with a configurable execution engine.
+Agent is now a configurable execution engine with CLI (arg/stdin), sync-api, and async-api modes, YAML config, placeholder engine, and --dry-run validation.
+JSON payload format used throughout (no base64 encoding).
 
 ## Constraints
 
@@ -125,6 +118,13 @@ Runner agent currently hardcodes HTTP POST to echo service; v1.2 replaces this w
 | SCAN-based pagination | App-layer filtering with Redis SCAN; simple, works for admin scale | ✓ Good — Phase 10 |
 | In-memory ring buffer for metrics | std::sync::Mutex with microsecond locks; captures Prometheus snapshots every 10s | ✓ Good — Phase 12 |
 | Forced-dismissal secret dialog | Prevents accidental dismiss of one-time secret reveal | ✓ Good — Phase 11 |
+| YAML config per service (agent.toml) | Declarative execution config; one file per service, easy to version | ✓ Good — Phase 13 |
+| Single-pass placeholder engine | No regex dependency; prevents injection by scanning char-by-char | ✓ Good — Phase 13 |
+| async_trait for Executor trait | Native dyn async traits not stable yet; async_trait is the pragmatic choice | ✓ Good — Phase 13 |
+| reqwest per-executor | Independent timeout/TLS config per execution mode | ✓ Good — Phase 14 |
+| Condition-based async completion | Operators (equal, not_equal, in, not_in) on key-path values; flexible for any API | ✓ Good — Phase 15 |
+| JSON payload format (no base64) | Simpler client integration; binary blobs deferred to S3-like infrastructure | ✓ Good — Phase 19 |
+| serde_json String storage in Redis | JSON strings stored directly; no encoding overhead | ✓ Good — Phase 19 |
 
 ## Evolution
 
@@ -144,4 +144,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-25 — Phase 19 complete: JSON payload format — replaced base64-encoded bytes with native JSON strings across the entire stack (proto, Redis, handlers, executors, tests, clients, docs). All 19 phases of v1.2 complete.*
+*Last updated: 2026-03-25 after v1.2 milestone*
