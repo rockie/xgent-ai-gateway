@@ -165,32 +165,13 @@ pub async fn refresh_gauges(state: &crate::state::AppState) -> Result<(), Box<dy
             .with_label_values(&[&svc.name])
             .set(xlen as f64);
 
-        // Active nodes: count healthy nodes via SMEMBERS + health check
-        let nodes_key = format!("nodes:{}", svc.name);
-        let node_ids: Vec<String> = redis::AsyncCommands::smembers(&mut conn, &nodes_key)
-            .await
-            .unwrap_or_default();
-
-        let mut active_count = 0i64;
-        for node_id in &node_ids {
-            let node_key = format!("node:{}:{}", svc.name, node_id);
-            let fields: std::collections::HashMap<String, String> = redis::cmd("HGETALL")
-                .arg(&node_key)
-                .query_async(&mut conn)
-                .await
-                .unwrap_or_default();
-
-            if !fields.is_empty() {
-                let last_seen = fields.get("last_seen").cloned().unwrap_or_default();
-                let is_disconnected = fields.get("disconnected").map(|v| v == "true").unwrap_or(false);
-                let health = crate::registry::node_health::derive_health_state(
-                    &last_seen, svc.node_stale_after_secs, is_disconnected
-                );
-                if matches!(health, crate::registry::node_health::NodeHealthState::Healthy) {
-                    active_count += 1;
-                }
-            }
-        }
+        // Active nodes: reuse canonical node health logic
+        let nodes = crate::registry::node_health::get_nodes_for_service(
+            &mut conn, &svc.name, svc.node_stale_after_secs,
+        ).await.unwrap_or_else(|_| Vec::new());
+        let active_count = nodes.iter()
+            .filter(|n| matches!(n.health, crate::registry::node_health::NodeHealthState::Healthy))
+            .count() as i64;
         state.metrics.nodes_active
             .with_label_values(&[&svc.name])
             .set(active_count as f64);
