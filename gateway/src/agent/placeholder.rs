@@ -57,7 +57,7 @@ pub fn resolve_placeholders(
 /// Build the task variable map from a TaskAssignment and service name.
 ///
 /// Inserts:
-/// - `payload` -> UTF-8 lossy conversion of assignment payload
+/// - `payload` -> the task payload (JSON string)
 /// - `service_name` -> the service name
 /// - `metadata.{key}` -> for each entry in assignment metadata
 pub fn build_task_variables(
@@ -65,10 +65,7 @@ pub fn build_task_variables(
     service_name: &str,
 ) -> HashMap<String, String> {
     let mut vars = HashMap::new();
-    vars.insert(
-        "payload".to_string(),
-        String::from_utf8_lossy(&assignment.payload).to_string(),
-    );
+    vars.insert("payload".to_string(), assignment.payload.clone());
     vars.insert("service_name".to_string(), service_name.to_string());
 
     for (key, value) in &assignment.metadata {
@@ -161,7 +158,7 @@ mod tests {
     fn build_task_variables_populates_correctly() {
         let assignment = TaskAssignment {
             task_id: "task-1".to_string(),
-            payload: b"test payload".to_vec(),
+            payload: "test payload".to_string(),
             metadata: {
                 let mut m = HashMap::new();
                 m.insert("region".to_string(), "us-east-1".to_string());

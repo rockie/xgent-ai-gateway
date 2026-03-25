@@ -15,7 +15,7 @@ pub fn resolve_response_body(
     body_template: &str,
     variables: &HashMap<String, String>,
     max_bytes: usize,
-) -> Result<Vec<u8>, String> {
+) -> Result<String, String> {
     // Check raw output size before template resolution
     let stdout_len = variables.get("stdout").map_or(0, |s| s.len());
     let stderr_len = variables.get("stderr").map_or(0, |s| s.len());
@@ -29,7 +29,7 @@ pub fn resolve_response_body(
     }
 
     let resolved = placeholder::resolve_placeholders(body_template, variables)?;
-    Ok(resolved.into_bytes())
+    Ok(resolved)
 }
 
 /// Parse a JSON string of headers into a HashMap.
@@ -58,8 +58,7 @@ mod tests {
         let vars = make_vars(&[("stdout", "hello"), ("stderr", "")]);
         let template = r#"{"output": "<stdout>", "errors": "<stderr>"}"#;
         let result = resolve_response_body(template, &vars, 1_048_576).unwrap();
-        let output = String::from_utf8(result).unwrap();
-        assert_eq!(output, r#"{"output": "hello", "errors": ""}"#);
+        assert_eq!(result, r#"{"output": "hello", "errors": ""}"#);
     }
 
     #[test]
@@ -72,9 +71,8 @@ mod tests {
         ]);
         let template = r#"{"payload": "<payload>", "service": "<service_name>", "out": "<stdout>"}"#;
         let result = resolve_response_body(template, &vars, 1_048_576).unwrap();
-        let output = String::from_utf8(result).unwrap();
         assert_eq!(
-            output,
+            result,
             r#"{"payload": "input-data", "service": "my-svc", "out": "out"}"#
         );
     }
@@ -130,7 +128,6 @@ mod tests {
         ]);
         let template = r#"{"region": "<metadata.region>", "out": "<stdout>"}"#;
         let result = resolve_response_body(template, &vars, 1_048_576).unwrap();
-        let output = String::from_utf8(result).unwrap();
-        assert_eq!(output, r#"{"region": "us-east-1", "out": "ok"}"#);
+        assert_eq!(result, r#"{"region": "us-east-1", "out": "ok"}"#);
     }
 }
