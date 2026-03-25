@@ -49,7 +49,7 @@ impl Executor for CliExecutor {
                 Err(e) => {
                     return ExecutionResult {
                         success: false,
-                        result: Vec::new(),
+                        result: String::new(),
                         error_message: format!("failed to resolve command placeholder: {}", e),
                         headers: HashMap::new(),
                     };
@@ -60,7 +60,7 @@ impl Executor for CliExecutor {
         if resolved_command.is_empty() {
             return ExecutionResult {
                 success: false,
-                result: Vec::new(),
+                result: String::new(),
                 error_message: "command list is empty".to_string(),
                 headers: HashMap::new(),
             };
@@ -102,7 +102,7 @@ impl Executor for CliExecutor {
             Err(e) => {
                 return ExecutionResult {
                     success: false,
-                    result: Vec::new(),
+                    result: String::new(),
                     error_message: format!("failed to spawn process: {}", e),
                     headers: HashMap::new(),
                 };
@@ -114,7 +114,7 @@ impl Executor for CliExecutor {
             let mut stdin_handle = child.stdin.take().expect("stdin was piped");
             let payload = assignment.payload.clone();
             Some(tokio::spawn(async move {
-                let _ = stdin_handle.write_all(&payload).await;
+                let _ = stdin_handle.write_all(payload.as_bytes()).await;
                 let _ = stdin_handle.shutdown().await;
             }))
         } else {
@@ -150,7 +150,7 @@ impl Executor for CliExecutor {
                 let _ = stderr_task.await;
                 return ExecutionResult {
                     success: false,
-                    result: Vec::new(),
+                    result: String::new(),
                     error_message: format!(
                         "process timed out after {} seconds",
                         self.cli.timeout_secs
@@ -166,7 +166,7 @@ impl Executor for CliExecutor {
                 let _ = stderr_task.await;
                 return ExecutionResult {
                     success: false,
-                    result: Vec::new(),
+                    result: String::new(),
                     error_message: format!("failed to wait for process: {}", e),
                     headers: HashMap::new(),
                 };
@@ -182,7 +182,7 @@ impl Executor for CliExecutor {
                     Ok(Err(e)) => {
                         return ExecutionResult {
                             success: false,
-                            result: Vec::new(),
+                            result: String::new(),
                             error_message: format!("stdout read error: {}", e),
                             headers: HashMap::new(),
                         };
@@ -190,7 +190,7 @@ impl Executor for CliExecutor {
                     Err(e) => {
                         return ExecutionResult {
                             success: false,
-                            result: Vec::new(),
+                            result: String::new(),
                             error_message: format!("stdout task panicked: {}", e),
                             headers: HashMap::new(),
                         };
@@ -202,7 +202,7 @@ impl Executor for CliExecutor {
                     Ok(Err(e)) => {
                         return ExecutionResult {
                             success: false,
-                            result: Vec::new(),
+                            result: String::new(),
                             error_message: format!("stderr read error: {}", e),
                             headers: HashMap::new(),
                         };
@@ -210,7 +210,7 @@ impl Executor for CliExecutor {
                     Err(e) => {
                         return ExecutionResult {
                             success: false,
-                            result: Vec::new(),
+                            result: String::new(),
                             error_message: format!("stderr task panicked: {}", e),
                             headers: HashMap::new(),
                         };
@@ -228,8 +228,8 @@ impl Executor for CliExecutor {
                     variables.insert("stderr".to_string(), stderr_str.clone());
                     variables.insert("exit_code".to_string(), exit_code.to_string());
 
-                    let (result_bytes, headers) = if let Some(ref failed) = self.response.failed {
-                        let bytes = response::resolve_response_body(
+                    let (result_str, headers) = if let Some(ref failed) = self.response.failed {
+                        let s = response::resolve_response_body(
                             &failed.body,
                             &variables,
                             self.response.max_bytes,
@@ -237,14 +237,14 @@ impl Executor for CliExecutor {
                         .unwrap_or_default();
                         let hdrs = response::parse_header_json(failed.header.as_deref())
                             .unwrap_or_default();
-                        (bytes, hdrs)
+                        (s, hdrs)
                     } else {
-                        (Vec::new(), HashMap::new())
+                        (String::new(), HashMap::new())
                     };
 
                     return ExecutionResult {
                         success: false,
-                        result: result_bytes,
+                        result: result_str,
                         error_message: format!("process exited with code {}", exit_code),
                         headers,
                     };
@@ -264,15 +264,15 @@ impl Executor for CliExecutor {
                     &variables,
                     self.response.max_bytes,
                 ) {
-                    Ok(bytes) => ExecutionResult {
+                    Ok(result_str) => ExecutionResult {
                         success: true,
-                        result: bytes,
+                        result: result_str,
                         error_message: String::new(),
                         headers,
                     },
                     Err(e) => ExecutionResult {
                         success: false,
-                        result: Vec::new(),
+                        result: String::new(),
                         error_message: e,
                         headers: HashMap::new(),
                     },
@@ -287,21 +287,21 @@ mod tests {
     use super::*;
     use super::super::config::{FailedResponseConfig, SuccessResponseConfig};
 
-    fn make_assignment(payload: &[u8]) -> TaskAssignment {
+    fn make_assignment(payload: &str) -> TaskAssignment {
         TaskAssignment {
             task_id: "test-task-1".to_string(),
-            payload: payload.to_vec(),
+            payload: payload.to_string(),
             metadata: HashMap::new(),
         }
     }
 
     fn make_assignment_with_metadata(
-        payload: &[u8],
+        payload: &str,
         metadata: HashMap<String, String>,
     ) -> TaskAssignment {
         TaskAssignment {
             task_id: "test-task-1".to_string(),
-            payload: payload.to_vec(),
+            payload: payload.to_string(),
             metadata,
         }
     }
@@ -338,11 +338,11 @@ mod tests {
         let cli = make_cli(vec!["echo", "<payload>"], CliInputMode::Arg, 10);
         let response = make_response("<stdout>");
         let executor = CliExecutor::new("test-svc".to_string(), cli, response);
-        let assignment = make_assignment(b"hello");
+        let assignment = make_assignment("hello");
 
         let result = executor.execute(&assignment).await;
         assert!(result.success, "error: {}", result.error_message);
-        assert_eq!(String::from_utf8_lossy(&result.result).trim(), "hello");
+        assert_eq!(result.result.as_str().trim(), "hello");
     }
 
     #[tokio::test]
@@ -350,12 +350,12 @@ mod tests {
         let cli = make_cli(vec!["echo", "--data=<payload>"], CliInputMode::Arg, 10);
         let response = make_response("<stdout>");
         let executor = CliExecutor::new("test-svc".to_string(), cli, response);
-        let assignment = make_assignment(b"test");
+        let assignment = make_assignment("test");
 
         let result = executor.execute(&assignment).await;
         assert!(result.success, "error: {}", result.error_message);
         assert_eq!(
-            String::from_utf8_lossy(&result.result).trim(),
+            result.result.as_str().trim(),
             "--data=test"
         );
     }
@@ -365,12 +365,12 @@ mod tests {
         let cli = make_cli(vec!["echo", "<service_name>"], CliInputMode::Arg, 10);
         let response = make_response("<stdout>");
         let executor = CliExecutor::new("my-service".to_string(), cli, response);
-        let assignment = make_assignment(b"ignored");
+        let assignment = make_assignment("ignored");
 
         let result = executor.execute(&assignment).await;
         assert!(result.success, "error: {}", result.error_message);
         assert_eq!(
-            String::from_utf8_lossy(&result.result).trim(),
+            result.result.as_str().trim(),
             "my-service"
         );
     }
@@ -383,12 +383,12 @@ mod tests {
 
         let mut metadata = HashMap::new();
         metadata.insert("region".to_string(), "us-east-1".to_string());
-        let assignment = make_assignment_with_metadata(b"data", metadata);
+        let assignment = make_assignment_with_metadata("data", metadata);
 
         let result = executor.execute(&assignment).await;
         assert!(result.success, "error: {}", result.error_message);
         assert_eq!(
-            String::from_utf8_lossy(&result.result).trim(),
+            result.result.as_str().trim(),
             "us-east-1"
         );
     }
@@ -400,17 +400,17 @@ mod tests {
         let cli = make_cli(vec!["cat"], CliInputMode::Stdin, 10);
         let response = make_response("<stdout>");
         let executor = CliExecutor::new("test-svc".to_string(), cli, response);
-        let assignment = make_assignment(b"hello");
+        let assignment = make_assignment("hello");
 
         let result = executor.execute(&assignment).await;
         assert!(result.success, "error: {}", result.error_message);
-        assert_eq!(String::from_utf8_lossy(&result.result), "hello");
+        assert_eq!(result.result.as_str(), "hello");
     }
 
     #[tokio::test]
     async fn stdin_mode_large_payload_no_deadlock() {
         // >100KB payload to exercise concurrent I/O (pipe buffers are typically 64KB)
-        let payload = vec![b'X'; 128 * 1024];
+        let payload = "X".repeat(128 * 1024);
         let cli = make_cli(vec!["cat"], CliInputMode::Stdin, 30);
         let response = ResponseSection {
             success: SuccessResponseConfig {
@@ -435,7 +435,7 @@ mod tests {
         let cli = make_cli(vec!["sleep", "60"], CliInputMode::Arg, 1);
         let response = make_response("<stdout>");
         let executor = CliExecutor::new("test-svc".to_string(), cli, response);
-        let assignment = make_assignment(b"");
+        let assignment = make_assignment("");
 
         let result = executor.execute(&assignment).await;
         assert!(!result.success);
@@ -451,7 +451,7 @@ mod tests {
         let cli = make_cli(vec!["sleep", "60"], CliInputMode::Arg, 1);
         let response = make_response("<stdout>");
         let executor = CliExecutor::new("test-svc".to_string(), cli, response);
-        let assignment = make_assignment(b"");
+        let assignment = make_assignment("");
 
         let start = std::time::Instant::now();
         let result = executor.execute(&assignment).await;
@@ -472,7 +472,7 @@ mod tests {
         let cli = make_cli(vec!["true"], CliInputMode::Arg, 10);
         let response = make_response("<stdout>");
         let executor = CliExecutor::new("test-svc".to_string(), cli, response);
-        let assignment = make_assignment(b"");
+        let assignment = make_assignment("");
 
         let result = executor.execute(&assignment).await;
         assert!(result.success, "error: {}", result.error_message);
@@ -483,7 +483,7 @@ mod tests {
         let cli = make_cli(vec!["false"], CliInputMode::Arg, 10);
         let response = make_response("<stdout>");
         let executor = CliExecutor::new("test-svc".to_string(), cli, response);
-        let assignment = make_assignment(b"");
+        let assignment = make_assignment("");
 
         let result = executor.execute(&assignment).await;
         assert!(!result.success);
@@ -502,11 +502,11 @@ mod tests {
         cli.cwd = Some("/tmp".to_string());
         let response = make_response("<stdout>");
         let executor = CliExecutor::new("test-svc".to_string(), cli, response);
-        let assignment = make_assignment(b"");
+        let assignment = make_assignment("");
 
         let result = executor.execute(&assignment).await;
         assert!(result.success, "error: {}", result.error_message);
-        let output = String::from_utf8_lossy(&result.result);
+        let output = result.result.as_str();
         // On macOS /tmp -> /private/tmp
         assert!(
             output.contains("/tmp"),
@@ -522,12 +522,12 @@ mod tests {
             .insert("TEST_CLI_VAR".to_string(), "hello-env".to_string());
         let response = make_response("<stdout>");
         let executor = CliExecutor::new("test-svc".to_string(), cli, response);
-        let assignment = make_assignment(b"");
+        let assignment = make_assignment("");
 
         let result = executor.execute(&assignment).await;
         assert!(result.success, "error: {}", result.error_message);
         assert_eq!(
-            String::from_utf8_lossy(&result.result).trim(),
+            result.result.as_str().trim(),
             "hello-env"
         );
     }
@@ -539,11 +539,11 @@ mod tests {
         let cli = make_cli(vec!["echo", "output-data"], CliInputMode::Arg, 10);
         let response = make_response(r#"{"out": "<stdout>", "err": "<stderr>"}"#);
         let executor = CliExecutor::new("test-svc".to_string(), cli, response);
-        let assignment = make_assignment(b"");
+        let assignment = make_assignment("");
 
         let result = executor.execute(&assignment).await;
         assert!(result.success, "error: {}", result.error_message);
-        let output = String::from_utf8_lossy(&result.result);
+        let output = result.result.as_str();
         assert!(
             output.contains("output-data"),
             "output was: {}",
@@ -573,7 +573,7 @@ mod tests {
             max_bytes: 1_048_576,
         };
         let executor = CliExecutor::new("test-svc".to_string(), cli, response);
-        let assignment = make_assignment(b"");
+        let assignment = make_assignment("");
 
         let result = executor.execute(&assignment).await;
         assert!(!result.success);
@@ -582,7 +582,7 @@ mod tests {
             "error was: {}",
             result.error_message
         );
-        let output = String::from_utf8_lossy(&result.result);
+        let output = result.result.as_str();
         assert!(
             output.contains("code"),
             "output was: {}",

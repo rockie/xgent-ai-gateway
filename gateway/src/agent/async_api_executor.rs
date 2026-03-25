@@ -75,7 +75,7 @@ impl AsyncApiExecutor {
                         Ok(resp) => Ok(resp),
                         Err(retry_err) => Err(ExecutionResult {
                             success: false,
-                            result: Vec::new(),
+                            result: String::new(),
                             error_message: format!(
                                 "HTTP request failed after retry: {}",
                                 retry_err
@@ -86,7 +86,7 @@ impl AsyncApiExecutor {
                 } else {
                     Err(ExecutionResult {
                         success: false,
-                        result: Vec::new(),
+                        result: String::new(),
                         error_message: format!("HTTP request failed: {}", e),
                         headers: HashMap::new(),
                     })
@@ -108,7 +108,7 @@ impl AsyncApiExecutor {
                     Err(e) => {
                         return Err(ExecutionResult {
                             success: false,
-                            result: Vec::new(),
+                            result: String::new(),
                             error_message: format!(
                                 "failed to resolve header '{}' placeholder: {}",
                                 key, e
@@ -123,7 +123,7 @@ impl AsyncApiExecutor {
                 Err(e) => {
                     return Err(ExecutionResult {
                         success: false,
-                        result: Vec::new(),
+                        result: String::new(),
                         error_message: format!("invalid header name '{}': {}", key, e),
                         headers: HashMap::new(),
                     });
@@ -135,7 +135,7 @@ impl AsyncApiExecutor {
                 Err(e) => {
                     return Err(ExecutionResult {
                         success: false,
-                        result: Vec::new(),
+                        result: String::new(),
                         error_message: format!("invalid header value for '{}': {}", key, e),
                         headers: HashMap::new(),
                     });
@@ -161,7 +161,7 @@ impl AsyncApiExecutor {
             Err(e) => {
                 return ExecutionResult {
                     success: false,
-                    result: Vec::new(),
+                    result: String::new(),
                     error_message: format!("failed to resolve submit URL placeholder: {}", e),
                     headers: HashMap::new(),
                 };
@@ -176,7 +176,7 @@ impl AsyncApiExecutor {
                     Err(e) => {
                         return ExecutionResult {
                             success: false,
-                            result: Vec::new(),
+                            result: String::new(),
                             error_message: format!(
                                 "failed to resolve submit body placeholder: {}",
                                 e
@@ -218,7 +218,7 @@ impl AsyncApiExecutor {
             Err(e) => {
                 return ExecutionResult {
                     success: false,
-                    result: Vec::new(),
+                    result: String::new(),
                     error_message: format!("failed to read submit response body: {}", e),
                     headers: HashMap::new(),
                 };
@@ -228,7 +228,7 @@ impl AsyncApiExecutor {
         if !submit_status.is_success() {
             return ExecutionResult {
                 success: false,
-                result: Vec::new(),
+                result: String::new(),
                 error_message: format!("submit HTTP {}: {}", submit_status.as_u16(), submit_body_text),
                 headers: HashMap::new(),
             };
@@ -240,7 +240,7 @@ impl AsyncApiExecutor {
             Err(e) => {
                 return ExecutionResult {
                     success: false,
-                    result: Vec::new(),
+                    result: String::new(),
                     error_message: format!("failed to parse submit response JSON: {}", e),
                     headers: HashMap::new(),
                 };
@@ -275,7 +275,7 @@ impl AsyncApiExecutor {
                 Err(e) => {
                     return ExecutionResult {
                         success: false,
-                        result: Vec::new(),
+                        result: String::new(),
                         error_message: format!(
                             "failed to extract submit_response.{}: {}",
                             path, e
@@ -300,7 +300,7 @@ impl AsyncApiExecutor {
                     Err(e) => {
                         return ExecutionResult {
                             success: false,
-                            result: Vec::new(),
+                            result: String::new(),
                             error_message: format!(
                                 "failed to resolve poll URL placeholder: {}",
                                 e
@@ -317,7 +317,7 @@ impl AsyncApiExecutor {
                         Err(e) => {
                             return ExecutionResult {
                                 success: false,
-                                result: Vec::new(),
+                                result: String::new(),
                                 error_message: format!(
                                     "failed to resolve poll body placeholder: {}",
                                     e
@@ -365,7 +365,7 @@ impl AsyncApiExecutor {
                 Err(e) => {
                     return ExecutionResult {
                         success: false,
-                        result: Vec::new(),
+                        result: String::new(),
                         error_message: format!("failed to read poll response body: {}", e),
                         headers: HashMap::new(),
                     };
@@ -375,7 +375,7 @@ impl AsyncApiExecutor {
             if !poll_status.is_success() {
                 return ExecutionResult {
                     success: false,
-                    result: Vec::new(),
+                    result: String::new(),
                     error_message: format!(
                         "poll HTTP {}: {}",
                         poll_status.as_u16(),
@@ -391,7 +391,7 @@ impl AsyncApiExecutor {
                 Err(e) => {
                     return ExecutionResult {
                         success: false,
-                        result: Vec::new(),
+                        result: String::new(),
                         error_message: format!("failed to parse poll response JSON: {}", e),
                         headers: HashMap::new(),
                     };
@@ -416,7 +416,7 @@ impl AsyncApiExecutor {
                             Err(e) => {
                                 return ExecutionResult {
                                     success: false,
-                                    result: Vec::new(),
+                                    result: String::new(),
                                     error_message: format!(
                                         "failed to extract poll_response.{}: {}",
                                         path, e
@@ -438,15 +438,15 @@ impl AsyncApiExecutor {
                         &variables,
                         self.response.max_bytes,
                     ) {
-                        Ok(bytes) => ExecutionResult {
+                        Ok(result_str) => ExecutionResult {
                             success: true,
-                            result: bytes,
+                            result: result_str,
                             error_message: String::new(),
                             headers,
                         },
                         Err(e) => ExecutionResult {
                             success: false,
-                            result: Vec::new(),
+                            result: String::new(),
                             error_message: e,
                             headers: HashMap::new(),
                         },
@@ -456,7 +456,7 @@ impl AsyncApiExecutor {
                 Err(e) => {
                     return ExecutionResult {
                         success: false,
-                        result: Vec::new(),
+                        result: String::new(),
                         error_message: format!("completed_when evaluation error: {}", e),
                         headers: HashMap::new(),
                     };
@@ -470,7 +470,7 @@ impl AsyncApiExecutor {
                         info!(iteration = poll_iteration, "failure detected");
 
                         // Resolve failed body template if present (D-25)
-                        let (result_bytes, hdrs) =
+                        let (result_str, hdrs) =
                             if let Some(ref failed) = self.response.failed {
                                 let mut fail_vars = variables.clone();
                                 let poll_paths = http_common::find_prefixed_placeholders(
@@ -485,7 +485,7 @@ impl AsyncApiExecutor {
                                             .insert(format!("poll_response.{}", path), value);
                                     }
                                 }
-                                let bytes = response::resolve_response_body(
+                                let s = response::resolve_response_body(
                                     &failed.body,
                                     &fail_vars,
                                     self.response.max_bytes,
@@ -493,14 +493,14 @@ impl AsyncApiExecutor {
                                 .unwrap_or_default();
                                 let h = response::parse_header_json(failed.header.as_deref())
                                     .unwrap_or_default();
-                                (bytes, h)
+                                (s, h)
                             } else {
-                                (Vec::new(), HashMap::new())
+                                (String::new(), HashMap::new())
                             };
 
                         return ExecutionResult {
                             success: false,
-                            result: result_bytes,
+                            result: result_str,
                             error_message: format!(
                                 "failed_when condition matched: {} {:?} {:?}",
                                 failed_when.path, failed_when.operator, failed_when.value
@@ -512,7 +512,7 @@ impl AsyncApiExecutor {
                     Err(e) => {
                         return ExecutionResult {
                             success: false,
-                            result: Vec::new(),
+                            result: String::new(),
                             error_message: format!("failed_when evaluation error: {}", e),
                             headers: HashMap::new(),
                         };
@@ -534,7 +534,7 @@ impl Executor for AsyncApiExecutor {
             Ok(result) => result,
             Err(_) => ExecutionResult {
                 success: false,
-                result: Vec::new(),
+                result: String::new(),
                 error_message: format!(
                     "async-api timed out after {}s",
                     self.async_api.timeout_secs
@@ -614,10 +614,10 @@ mod tests {
         (format!("http://127.0.0.1:{}", addr.port()), counter)
     }
 
-    fn make_assignment(payload: &[u8]) -> TaskAssignment {
+    fn make_assignment(payload: &str) -> TaskAssignment {
         TaskAssignment {
             task_id: "test-task-1".to_string(),
-            payload: payload.to_vec(),
+            payload: payload.to_string(),
             metadata: HashMap::new(),
         }
     }
@@ -703,11 +703,11 @@ mod tests {
         let response = make_response("<poll_response.result>");
         let executor =
             AsyncApiExecutor::new("test-svc".to_string(), async_api, response).unwrap();
-        let assignment = make_assignment(b"test-input");
+        let assignment = make_assignment("test-input");
 
         let result = executor.execute(&assignment).await;
         assert!(result.success, "error: {}", result.error_message);
-        assert_eq!(String::from_utf8_lossy(&result.result), "done");
+        assert_eq!(result.result.as_str(), "done");
     }
 
     // -- Test 2 (AAPI-02): poll_uses_submit_values --
@@ -738,11 +738,11 @@ mod tests {
         let response = make_response("<poll_response.output>");
         let executor =
             AsyncApiExecutor::new("test-svc".to_string(), async_api, response).unwrap();
-        let assignment = make_assignment(b"data");
+        let assignment = make_assignment("data");
 
         let result = executor.execute(&assignment).await;
         assert!(result.success, "error: {}", result.error_message);
-        assert_eq!(String::from_utf8_lossy(&result.result), "result-data");
+        assert_eq!(result.result.as_str(), "result-data");
         // Verify at least 2 calls (submit + poll)
         assert!(counter.load(Ordering::SeqCst) >= 2);
     }
@@ -774,11 +774,11 @@ mod tests {
         let response = make_response(r#"{"data": "<poll_response.result.output>"}"#);
         let executor =
             AsyncApiExecutor::new("test-svc".to_string(), async_api, response).unwrap();
-        let assignment = make_assignment(b"data");
+        let assignment = make_assignment("data");
 
         let result = executor.execute(&assignment).await;
         assert!(result.success, "error: {}", result.error_message);
-        let output = String::from_utf8_lossy(&result.result);
+        let output = result.result.as_str();
         assert!(output.contains("success"), "output was: {}", output);
     }
 
@@ -809,7 +809,7 @@ mod tests {
         let response = make_response("<poll_response.result>");
         let executor =
             AsyncApiExecutor::new("test-svc".to_string(), async_api, response).unwrap();
-        let assignment = make_assignment(b"data");
+        let assignment = make_assignment("data");
 
         let result = executor.execute(&assignment).await;
         assert!(!result.success);
@@ -852,7 +852,7 @@ mod tests {
         let response = make_response("<poll_response.result>");
         let executor =
             AsyncApiExecutor::new("test-svc".to_string(), async_api, response).unwrap();
-        let assignment = make_assignment(b"data");
+        let assignment = make_assignment("data");
 
         let start = std::time::Instant::now();
         let result = executor.execute(&assignment).await;
@@ -901,12 +901,12 @@ mod tests {
             make_response(r#"output=<poll_response.result.output> code=<poll_response.result.code>"#);
         let executor =
             AsyncApiExecutor::new("test-svc".to_string(), async_api, response).unwrap();
-        let assignment = make_assignment(b"data");
+        let assignment = make_assignment("data");
 
         let result = executor.execute(&assignment).await;
         assert!(result.success, "error: {}", result.error_message);
         assert_eq!(
-            String::from_utf8_lossy(&result.result),
+            result.result.as_str(),
             "output=final-output code=0"
         );
     }
@@ -933,7 +933,7 @@ mod tests {
         let response = make_response("<poll_response.result>");
         let executor =
             AsyncApiExecutor::new("test-svc".to_string(), async_api, response).unwrap();
-        let assignment = make_assignment(b"data");
+        let assignment = make_assignment("data");
 
         let result = executor.execute(&assignment).await;
         assert!(!result.success);
@@ -971,7 +971,7 @@ mod tests {
         let response = make_response("<poll_response.result>");
         let executor =
             AsyncApiExecutor::new("test-svc".to_string(), async_api, response).unwrap();
-        let assignment = make_assignment(b"data");
+        let assignment = make_assignment("data");
 
         let result = executor.execute(&assignment).await;
         assert!(!result.success);
@@ -1021,11 +1021,11 @@ mod tests {
         };
         let executor =
             AsyncApiExecutor::new("test-svc".to_string(), async_api, response).unwrap();
-        let assignment = make_assignment(b"data");
+        let assignment = make_assignment("data");
 
         let result = executor.execute(&assignment).await;
         assert!(!result.success);
-        let output = String::from_utf8_lossy(&result.result);
+        let output = result.result.as_str();
         assert!(
             output.contains("out of memory"),
             "output was: {}",

@@ -77,7 +77,7 @@ impl SyncApiExecutor {
                 if e.is_timeout() {
                     return Err(ExecutionResult {
                         success: false,
-                        result: Vec::new(),
+                        result: String::new(),
                         error_message: format!(
                             "HTTP request timed out after {}s",
                             self.sync_api.timeout_secs
@@ -100,7 +100,7 @@ impl SyncApiExecutor {
                             if retry_err.is_timeout() {
                                 Err(ExecutionResult {
                                     success: false,
-                                    result: Vec::new(),
+                                    result: String::new(),
                                     error_message: format!(
                                         "HTTP request timed out after {}s",
                                         self.sync_api.timeout_secs
@@ -110,7 +110,7 @@ impl SyncApiExecutor {
                             } else {
                                 Err(ExecutionResult {
                                     success: false,
-                                    result: Vec::new(),
+                                    result: String::new(),
                                     error_message: format!(
                                         "HTTP request failed after retry: {}",
                                         retry_err
@@ -123,7 +123,7 @@ impl SyncApiExecutor {
                 } else {
                     Err(ExecutionResult {
                         success: false,
-                        result: Vec::new(),
+                        result: String::new(),
                         error_message: format!("HTTP request failed: {}", e),
                         headers: HashMap::new(),
                     })
@@ -145,7 +145,7 @@ impl Executor for SyncApiExecutor {
             Err(e) => {
                 return ExecutionResult {
                     success: false,
-                    result: Vec::new(),
+                    result: String::new(),
                     error_message: format!("failed to resolve URL placeholder: {}", e),
                     headers: HashMap::new(),
                 };
@@ -160,7 +160,7 @@ impl Executor for SyncApiExecutor {
                     Err(e) => {
                         return ExecutionResult {
                             success: false,
-                            result: Vec::new(),
+                            result: String::new(),
                             error_message: format!("failed to resolve body placeholder: {}", e),
                             headers: HashMap::new(),
                         };
@@ -179,7 +179,7 @@ impl Executor for SyncApiExecutor {
                     Err(e) => {
                         return ExecutionResult {
                             success: false,
-                            result: Vec::new(),
+                            result: String::new(),
                             error_message: format!(
                                 "failed to resolve header '{}' placeholder: {}",
                                 key, e
@@ -194,7 +194,7 @@ impl Executor for SyncApiExecutor {
                 Err(e) => {
                     return ExecutionResult {
                         success: false,
-                        result: Vec::new(),
+                        result: String::new(),
                         error_message: format!("invalid header name '{}': {}", key, e),
                         headers: HashMap::new(),
                     };
@@ -206,7 +206,7 @@ impl Executor for SyncApiExecutor {
                 Err(e) => {
                     return ExecutionResult {
                         success: false,
-                        result: Vec::new(),
+                        result: String::new(),
                         error_message: format!("invalid header value for '{}': {}", key, e),
                         headers: HashMap::new(),
                     };
@@ -236,7 +236,7 @@ impl Executor for SyncApiExecutor {
             Err(e) => {
                 return ExecutionResult {
                     success: false,
-                    result: Vec::new(),
+                    result: String::new(),
                     error_message: format!("failed to read response body: {}", e),
                     headers: HashMap::new(),
                 };
@@ -246,7 +246,7 @@ impl Executor for SyncApiExecutor {
         // (h) Check HTTP status
         if !status.is_success() {
             // Try to resolve failed.body template with response.* variables from error body
-            let (result_bytes, hdrs) = if let Some(ref failed) = self.response.failed {
+            let (result_str, hdrs) = if let Some(ref failed) = self.response.failed {
                 // Try to parse error body as JSON for response.* extraction
                 let mut fail_vars = variables.clone();
                 if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(&body_text) {
@@ -261,7 +261,7 @@ impl Executor for SyncApiExecutor {
                 fail_vars.insert("response.status".to_string(), status.as_u16().to_string());
                 fail_vars.insert("response.body".to_string(), body_text.clone());
 
-                let bytes = response::resolve_response_body(
+                let s = response::resolve_response_body(
                     &failed.body,
                     &fail_vars,
                     self.response.max_bytes,
@@ -269,14 +269,14 @@ impl Executor for SyncApiExecutor {
                 .unwrap_or_default();
                 let h = response::parse_header_json(failed.header.as_deref())
                     .unwrap_or_default();
-                (bytes, h)
+                (s, h)
             } else {
-                (Vec::new(), HashMap::new())
+                (String::new(), HashMap::new())
             };
 
             return ExecutionResult {
                 success: false,
-                result: result_bytes,
+                result: result_str,
                 error_message: format!("HTTP {}: {}", status.as_u16(), body_text),
                 headers: hdrs,
             };
@@ -286,7 +286,7 @@ impl Executor for SyncApiExecutor {
         if body_text.len() > self.response.max_bytes {
             return ExecutionResult {
                 success: false,
-                result: Vec::new(),
+                result: String::new(),
                 error_message: format!(
                     "response body size {} bytes exceeds limit of {} bytes",
                     body_text.len(),
@@ -302,7 +302,7 @@ impl Executor for SyncApiExecutor {
             Err(e) => {
                 return ExecutionResult {
                     success: false,
-                    result: Vec::new(),
+                    result: String::new(),
                     error_message: format!("failed to parse response JSON: {}", e),
                     headers: HashMap::new(),
                 };
@@ -320,7 +320,7 @@ impl Executor for SyncApiExecutor {
                 Err(e) => {
                     return ExecutionResult {
                         success: false,
-                        result: Vec::new(),
+                        result: String::new(),
                         error_message: format!("failed to extract response.{}: {}", path, e),
                         headers: HashMap::new(),
                     };
@@ -337,15 +337,15 @@ impl Executor for SyncApiExecutor {
             &variables,
             self.response.max_bytes,
         ) {
-            Ok(bytes) => ExecutionResult {
+            Ok(result_str) => ExecutionResult {
                 success: true,
-                result: bytes,
+                result: result_str,
                 error_message: String::new(),
                 headers,
             },
             Err(e) => ExecutionResult {
                 success: false,
-                result: Vec::new(),
+                result: String::new(),
                 error_message: e,
                 headers: HashMap::new(),
             },
@@ -443,10 +443,10 @@ mod tests {
         }
     }
 
-    fn make_assignment(payload: &[u8]) -> TaskAssignment {
+    fn make_assignment(payload: &str) -> TaskAssignment {
         TaskAssignment {
             task_id: "test-task-1".to_string(),
-            payload: payload.to_vec(),
+            payload: payload.to_string(),
             metadata: HashMap::new(),
         }
     }
@@ -469,11 +469,11 @@ mod tests {
         let response = make_response(r#"{"status": "<response.result>", "data": "<response.output>"}"#);
         let executor =
             SyncApiExecutor::new("test-svc".to_string(), sync_api, response).unwrap();
-        let assignment = make_assignment(b"hello");
+        let assignment = make_assignment("hello");
 
         let result = executor.execute(&assignment).await;
         assert!(result.success, "error: {}", result.error_message);
-        let output = String::from_utf8_lossy(&result.result);
+        let output = result.result.as_str();
         assert!(output.contains("ok"), "output was: {}", output);
         assert!(output.contains("processed"), "output was: {}", output);
     }
@@ -490,11 +490,11 @@ mod tests {
         let response = make_response("<response.status>");
         let executor =
             SyncApiExecutor::new("test-svc".to_string(), sync_api, response).unwrap();
-        let assignment = make_assignment(b"");
+        let assignment = make_assignment("");
 
         let result = executor.execute(&assignment).await;
         assert!(result.success, "error: {}", result.error_message);
-        assert_eq!(String::from_utf8_lossy(&result.result), "healthy");
+        assert_eq!(result.result.as_str(), "healthy");
     }
 
     #[tokio::test]
@@ -509,7 +509,7 @@ mod tests {
         let response = make_response("<response.output>");
         let executor =
             SyncApiExecutor::new("test-svc".to_string(), sync_api, response).unwrap();
-        let assignment = make_assignment(b"data");
+        let assignment = make_assignment("data");
 
         let result = executor.execute(&assignment).await;
         assert!(!result.success);
@@ -537,11 +537,11 @@ mod tests {
         let response = make_response("<response.headers.x-service>");
         let executor =
             SyncApiExecutor::new("my-cool-svc".to_string(), sync_api, response).unwrap();
-        let assignment = make_assignment(b"data");
+        let assignment = make_assignment("data");
 
         let result = executor.execute(&assignment).await;
         assert!(result.success, "error: {}", result.error_message);
-        assert_eq!(String::from_utf8_lossy(&result.result), "my-cool-svc");
+        assert_eq!(result.result.as_str(), "my-cool-svc");
     }
 
     #[tokio::test]
@@ -556,11 +556,11 @@ mod tests {
         let response = make_response(r#"text=<response.result.text> code=<response.result.code>"#);
         let executor =
             SyncApiExecutor::new("test-svc".to_string(), sync_api, response).unwrap();
-        let assignment = make_assignment(b"data");
+        let assignment = make_assignment("data");
 
         let result = executor.execute(&assignment).await;
         assert!(result.success, "error: {}", result.error_message);
-        let output = String::from_utf8_lossy(&result.result);
+        let output = result.result.as_str();
         assert_eq!(output, "text=deep value code=200");
     }
 
@@ -580,11 +580,11 @@ mod tests {
         let response = make_response("<response.ok>");
         let executor =
             SyncApiExecutor::new("my-svc".to_string(), sync_api, response).unwrap();
-        let assignment = make_assignment(b"data");
+        let assignment = make_assignment("data");
 
         let result = executor.execute(&assignment).await;
         assert!(result.success, "error: {}", result.error_message);
-        assert_eq!(String::from_utf8_lossy(&result.result), "true");
+        assert_eq!(result.result.as_str(), "true");
     }
 
     #[tokio::test]
@@ -606,7 +606,7 @@ mod tests {
         };
         let executor =
             SyncApiExecutor::new("test-svc".to_string(), sync_api, response).unwrap();
-        let assignment = make_assignment(b"data");
+        let assignment = make_assignment("data");
 
         let result = executor.execute(&assignment).await;
         assert!(!result.success);
@@ -639,7 +639,7 @@ mod tests {
         };
         let executor =
             SyncApiExecutor::new("test-svc".to_string(), sync_api, response).unwrap();
-        let assignment = make_assignment(b"data");
+        let assignment = make_assignment("data");
 
         let result = executor.execute(&assignment).await;
         assert!(!result.success);
@@ -648,7 +648,7 @@ mod tests {
             "error was: {}",
             result.error_message
         );
-        let output = String::from_utf8_lossy(&result.result);
+        let output = result.result.as_str();
         assert!(
             output.contains("invalid input"),
             "output was: {}",
