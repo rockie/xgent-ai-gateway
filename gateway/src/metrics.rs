@@ -22,6 +22,12 @@ pub struct Metrics {
     pub node_poll_latency_seconds: HistogramVec,
 }
 
+impl Default for Metrics {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Metrics {
     pub fn new() -> Self {
         let registry = Registry::new();

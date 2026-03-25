@@ -3,6 +3,7 @@ use crate::error::GatewayError;
 use crate::types::{ServiceName, TaskId, TaskState};
 use serde::Serialize;
 use std::collections::HashMap;
+use std::str::FromStr;
 
 /// Full task status retrieved from Redis.
 #[derive(Debug, Clone)]

@@ -1,5 +1,6 @@
 use crate::error::GatewayError;
 use std::fmt;
+use std::str::FromStr;
 
 /// Newtype wrapping a UUID v7 task identifier.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -8,6 +9,12 @@ pub struct TaskId(pub String);
 impl TaskId {
     pub fn new() -> Self {
         Self(uuid::Uuid::now_v7().to_string())
+    }
+}
+
+impl Default for TaskId {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -94,7 +101,12 @@ impl TaskState {
         }
     }
 
-    pub fn from_str(s: &str) -> Result<Self, GatewayError> {
+}
+
+impl FromStr for TaskState {
+    type Err = GatewayError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "pending" => Ok(TaskState::Pending),
             "assigned" => Ok(TaskState::Assigned),

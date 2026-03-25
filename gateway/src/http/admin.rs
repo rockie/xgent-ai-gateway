@@ -1,3 +1,4 @@
+use std::str::FromStr;
 use std::sync::Arc;
 
 use axum::extract::{Path, Query, State};
@@ -668,7 +669,7 @@ pub async fn list_tasks_handler(
     State(state): State<Arc<AppState>>,
     Query(params): Query<ListTasksParams>,
 ) -> Result<Json<ListTasksResponse>, GatewayError> {
-    let page_size = params.page_size.unwrap_or(25).min(50).max(1);
+    let page_size = params.page_size.unwrap_or(25).clamp(1, 50);
     let status_filter: Vec<crate::types::TaskState> = params
         .status
         .as_deref()

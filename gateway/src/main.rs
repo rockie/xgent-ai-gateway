@@ -22,6 +22,15 @@ struct Cli {
     /// Path to configuration TOML file
     #[arg(long)]
     config: Option<String>,
+
+    #[command(subcommand)]
+    command: Option<Command>,
+}
+
+#[derive(clap::Subcommand, Debug)]
+enum Command {
+    /// Generate an Argon2id password hash for gateway.toml admin.password_hash
+    HashPassword,
 }
 
 /// Initialize the tracing subscriber based on logging config.
@@ -97,9 +106,43 @@ fn init_tracing(config: &LoggingConfig) -> Option<tracing_appender::non_blocking
     }
 }
 
+fn hash_password_interactive() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    use argon2::Argon2;
+    use password_hash::{PasswordHasher, SaltString};
+    use base64::Engine;
+
+    eprint!("Password: ");
+    let mut password = String::new();
+    std::io::stdin().read_line(&mut password)?;
+    let password = password.trim_end();
+
+    if password.is_empty() {
+        eprintln!("Error: password cannot be empty");
+        std::process::exit(1);
+    }
+
+    // Generate a 16-byte random salt, encode as b64 without padding (PHC salt format)
+    let mut salt_bytes = [0u8; 16];
+    rand::Fill::fill(&mut salt_bytes, &mut rand::rng());
+    let salt_b64 = base64::engine::general_purpose::STANDARD_NO_PAD.encode(salt_bytes);
+    let salt = SaltString::from_b64(&salt_b64)
+        .map_err(|e| format!("salt encoding failed: {e}"))?;
+
+    let hash = Argon2::default()
+        .hash_password(password.as_bytes(), &salt)
+        .map_err(|e| format!("hashing failed: {e}"))?;
+
+    println!("{hash}");
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let cli = Cli::parse();
+
+    if let Some(Command::HashPassword) = cli.command {
+        return hash_password_interactive();
+    }
 
     let config = config::load_config(cli.config.as_deref())?;
     let _log_guard = init_tracing(&config.logging);
@@ -423,7 +466,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     for result in results {
         match result {
             Ok(Ok(())) => {}
-            Ok(Err(e)) => return Err(e.into()),
+            Ok(Err(e)) => return Err(e),
             Err(e) => return Err(e.into()),
         }
     }
