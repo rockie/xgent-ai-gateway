@@ -25,7 +25,7 @@ async function main() {
     },
     body: JSON.stringify({
       service_name: 'async-echo',
-      payload: payload,
+      payload: { message: payload },
     }),
   });
 
@@ -52,7 +52,7 @@ async function main() {
     if (task.state === 'completed') {
       console.log();
       console.log('Result:');
-      console.log(Buffer.from(task.result, 'base64').toString());
+      console.log(JSON.stringify(task.result, null, 2));
       process.exit(0);
     }
 
