@@ -76,18 +76,18 @@ pub struct RevokeApiKeyRequest {
 pub async fn revoke_api_key(
     State(state): State<Arc<AppState>>,
     Json(req): Json<RevokeApiKeyRequest>,
-) -> Result<StatusCode, StatusCode> {
+) -> Result<StatusCode, GatewayError> {
     let deleted = api_key::revoke_api_key(&mut state.auth_conn.clone(), &req.key_hash)
         .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "Failed to revoke API key from Redis");
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
+        .map_err(GatewayError::Redis)?;
 
     if deleted {
         Ok(StatusCode::OK)
     } else {
-        Err(StatusCode::NOT_FOUND)
+        Err(GatewayError::TaskNotFound(format!(
+            "API key not found: {}",
+            req.key_hash
+        )))
     }
 }
 
@@ -190,7 +190,7 @@ pub struct CreateNodeTokenResponse {
 pub async fn create_node_token(
     State(state): State<Arc<AppState>>,
     Json(req): Json<CreateNodeTokenRequest>,
-) -> Result<(StatusCode, Json<CreateNodeTokenResponse>), StatusCode> {
+) -> Result<(StatusCode, Json<CreateNodeTokenResponse>), GatewayError> {
     let (raw_token, token_hash) = node_token::generate_node_token();
 
     node_token::store_node_token(
@@ -201,10 +201,7 @@ pub async fn create_node_token(
         req.expires_at.as_deref(),
     )
     .await
-    .map_err(|e| {
-        tracing::error!(error = %e, "Failed to store node token in Redis");
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
+    .map_err(GatewayError::Redis)?;
 
     Ok((
         StatusCode::CREATED,
@@ -226,22 +223,22 @@ pub struct RevokeNodeTokenRequest {
 pub async fn revoke_node_token(
     State(state): State<Arc<AppState>>,
     Json(req): Json<RevokeNodeTokenRequest>,
-) -> Result<StatusCode, StatusCode> {
+) -> Result<StatusCode, GatewayError> {
     let deleted = node_token::revoke_node_token(
         &mut state.auth_conn.clone(),
         &req.service_name,
         &req.token_hash,
     )
     .await
-    .map_err(|e| {
-        tracing::error!(error = %e, "Failed to revoke node token from Redis");
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
+    .map_err(GatewayError::Redis)?;
 
     if deleted {
         Ok(StatusCode::OK)
     } else {
-        Err(StatusCode::NOT_FOUND)
+        Err(GatewayError::TaskNotFound(format!(
+            "Node token not found: {} for service {}",
+            req.token_hash, req.service_name
+        )))
     }
 }
 
