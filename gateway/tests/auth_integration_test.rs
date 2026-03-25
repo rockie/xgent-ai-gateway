@@ -325,7 +325,7 @@ async fn test_http_no_api_key() {
         .post(format!("{}/v1/tasks", gw.http_addr))
         .json(&serde_json::json!({
             "service_name": "test-svc",
-            "payload": base64::Engine::encode(&base64::engine::general_purpose::STANDARD, b"test"),
+            "payload": {"message": "test"},
             "metadata": {}
         }))
         .send()
@@ -346,7 +346,7 @@ async fn test_http_invalid_api_key() {
         .header("Authorization", "Bearer invalid_key_that_does_not_exist")
         .json(&serde_json::json!({
             "service_name": "test-svc",
-            "payload": base64::Engine::encode(&base64::engine::general_purpose::STANDARD, b"test"),
+            "payload": {"message": "test"},
             "metadata": {}
         }))
         .send()
@@ -375,7 +375,7 @@ async fn test_http_wrong_service_key() {
         .header("Authorization", format!("Bearer {api_key}"))
         .json(&serde_json::json!({
             "service_name": "svc-b",
-            "payload": base64::Engine::encode(&base64::engine::general_purpose::STANDARD, b"test"),
+            "payload": {"message": "test"},
             "metadata": {}
         }))
         .send()
@@ -406,7 +406,7 @@ async fn test_http_valid_api_key() {
         .header("Authorization", format!("Bearer {api_key}"))
         .json(&serde_json::json!({
             "service_name": "test-svc",
-            "payload": base64::Engine::encode(&base64::engine::general_purpose::STANDARD, b"hello"),
+            "payload": {"message": "hello"},
             "metadata": {}
         }))
         .send()
@@ -438,7 +438,7 @@ async fn test_http_x_api_key_header() {
         .header("X-API-Key", &api_key)
         .json(&serde_json::json!({
             "service_name": "test-svc",
-            "payload": base64::Engine::encode(&base64::engine::general_purpose::STANDARD, b"hello"),
+            "payload": {"message": "hello"},
             "metadata": {}
         }))
         .send()
@@ -481,7 +481,7 @@ async fn test_grpc_no_client_cert() {
             let result = client
                 .submit_task(xgent_proto::SubmitTaskRequest {
                     service_name: "test-svc".to_string(),
-                    payload: b"test".to_vec(),
+                    payload: r#"{"message":"test"}"#.to_string(),
                     metadata: std::collections::HashMap::new(),
                     callback_url: String::new(),
                 })
@@ -689,7 +689,7 @@ async fn test_admin_create_api_key() {
         .header("Authorization", format!("Bearer {api_key}"))
         .json(&serde_json::json!({
             "service_name": "test-svc",
-            "payload": base64::Engine::encode(&base64::engine::general_purpose::STANDARD, b"test"),
+            "payload": {"message": "test"},
             "metadata": {}
         }))
         .send()
@@ -726,7 +726,7 @@ async fn test_https_tls_connection() {
         .header("Authorization", format!("Bearer {api_key}"))
         .json(&serde_json::json!({
             "service_name": "tls-test-svc",
-            "payload": base64::Engine::encode(&base64::engine::general_purpose::STANDARD, b"tls-test"),
+            "payload": {"message": "tls-test"},
             "metadata": {}
         }))
         .send()
@@ -778,10 +778,7 @@ async fn test_uat_tls_concurrent_requests() {
                 .header("Authorization", format!("Bearer {key}"))
                 .json(&serde_json::json!({
                     "service_name": "load-svc",
-                    "payload": base64::Engine::encode(
-                        &base64::engine::general_purpose::STANDARD,
-                        format!("req-{i}").as_bytes(),
-                    ),
+                    "payload": {"message": format!("req-{i}")},
                     "metadata": {}
                 }))
                 .send()
@@ -907,7 +904,7 @@ async fn test_uat_redis_reconnect_after_restart() {
         .header("Authorization", format!("Bearer {api_key}"))
         .json(&serde_json::json!({
             "service_name": "resilience-svc",
-            "payload": base64::Engine::encode(&base64::engine::general_purpose::STANDARD, b"before"),
+            "payload": {"message": "before"},
             "metadata": {}
         }))
         .send()
@@ -931,7 +928,7 @@ async fn test_uat_redis_reconnect_after_restart() {
         .header("Authorization", format!("Bearer {api_key}"))
         .json(&serde_json::json!({
             "service_name": "resilience-svc",
-            "payload": base64::Engine::encode(&base64::engine::general_purpose::STANDARD, b"after-flush"),
+            "payload": {"message": "after-flush"},
             "metadata": {}
         }))
         .send()
@@ -955,7 +952,7 @@ async fn test_uat_redis_reconnect_after_restart() {
         .header("Authorization", format!("Bearer {new_key}"))
         .json(&serde_json::json!({
             "service_name": "resilience-svc",
-            "payload": base64::Engine::encode(&base64::engine::general_purpose::STANDARD, b"recovered"),
+            "payload": {"message": "recovered"},
             "metadata": {}
         }))
         .send()

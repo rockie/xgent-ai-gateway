@@ -174,7 +174,7 @@ async fn test_submit_task_grpc() {
     let resp = client
         .submit_task(SubmitTaskRequest {
             service_name: "test-submit-grpc".to_string(),
-            payload: b"hello".to_vec(),
+            payload: r#"{"message":"hello"}"#.to_string(),
             metadata: metadata.clone(),
             callback_url: String::new(),
         })
@@ -223,16 +223,11 @@ async fn test_submit_task_http() {
     let http_client = reqwest::Client::new();
 
     // Submit task via HTTP
-    let payload_b64 = base64::Engine::encode(
-        &base64::engine::general_purpose::STANDARD,
-        b"hello",
-    );
-
     let submit_resp = http_client
         .post(format!("{}/v1/tasks", gw.http_addr))
         .json(&serde_json::json!({
             "service_name": "test-submit-http",
-            "payload": payload_b64,
+            "payload": {"message": "hello"},
             "metadata": {"env": "test"}
         }))
         .send()
@@ -284,7 +279,7 @@ async fn test_full_lifecycle_grpc() {
     let submit_resp = task_client
         .submit_task(SubmitTaskRequest {
             service_name: "test-lifecycle".to_string(),
-            payload: b"work-payload".to_vec(),
+            payload: r#"{"data":"work-payload"}"#.to_string(),
             metadata: HashMap::new(),
             callback_url: String::new(),
         })
@@ -317,7 +312,7 @@ async fn test_full_lifecycle_grpc() {
             .expect("should receive a task assignment");
 
         assert_eq!(assignment.task_id, task_id_clone, "task_id should match");
-        assert_eq!(assignment.payload, b"work-payload", "payload should match");
+        assert_eq!(assignment.payload, r#"{"data":"work-payload"}"#, "payload should match");
 
         // Report result
         let mut report_client = NodeServiceClient::connect(grpc_addr).await.unwrap();
@@ -325,7 +320,7 @@ async fn test_full_lifecycle_grpc() {
             .report_result(ReportResultRequest {
                 task_id: task_id_clone,
                 success: true,
-                result: b"done-result".to_vec(),
+                result: r#"{"output":"done-result"}"#.to_string(),
                 error_message: String::new(),
                 node_id: String::new(),
                 service_name: String::new(),
@@ -357,7 +352,7 @@ async fn test_full_lifecycle_grpc() {
 
     // State should be COMPLETED (4)
     assert_eq!(status.state, 4, "task state should be COMPLETED (4)");
-    assert_eq!(status.result, b"done-result", "result should match");
+    assert_eq!(status.result, r#"{"output":"done-result"}"#, "result should match");
 
     // Cleanup
     flush_keys(
@@ -407,7 +402,7 @@ async fn test_node_disconnect_detection() {
     let resp = task_client
         .submit_task(SubmitTaskRequest {
             service_name: "test-disconnect".to_string(),
-            payload: b"still-works".to_vec(),
+            payload: r#"{"data":"still-works"}"#.to_string(),
             metadata: HashMap::new(),
             callback_url: String::new(),
         })
@@ -448,7 +443,7 @@ async fn test_service_isolation() {
     let resp_a = task_client
         .submit_task(SubmitTaskRequest {
             service_name: "test-iso-svc-a".to_string(),
-            payload: b"payload-a".to_vec(),
+            payload: r#"{"data":"payload-a"}"#.to_string(),
             metadata: HashMap::new(),
             callback_url: String::new(),
         })
@@ -460,7 +455,7 @@ async fn test_service_isolation() {
     let resp_b = task_client
         .submit_task(SubmitTaskRequest {
             service_name: "test-iso-svc-b".to_string(),
-            payload: b"payload-b".to_vec(),
+            payload: r#"{"data":"payload-b"}"#.to_string(),
             metadata: HashMap::new(),
             callback_url: String::new(),
         })
@@ -489,7 +484,7 @@ async fn test_service_isolation() {
             .expect("got assignment");
 
         assert_eq!(assignment.task_id, task_id_a, "svc-a node should get svc-a task");
-        assert_eq!(assignment.payload, b"payload-a");
+        assert_eq!(assignment.payload, r#"{"data":"payload-a"}"#);
     });
 
     // Node polls for svc-b -- should only get svc-b task
@@ -513,7 +508,7 @@ async fn test_service_isolation() {
             .expect("got assignment");
 
         assert_eq!(assignment.task_id, task_id_b, "svc-b node should get svc-b task");
-        assert_eq!(assignment.payload, b"payload-b");
+        assert_eq!(assignment.payload, r#"{"data":"payload-b"}"#);
     });
 
     tokio::time::timeout(Duration::from_secs(15), async {
