@@ -89,7 +89,7 @@ fn flatten_json(prefix: &str, value: &serde_json::Value, out: &mut HashMap<Strin
             for (key, val) in map {
                 let path = format!("{}.{}", prefix, key);
                 match val {
-                    serde_json::Value::String(s) => {
+                    serde_json::Value::String(_) => {
                         // JSON-encode strings so they're valid when interpolated into JSON bodies
                         out.insert(path.clone(), serde_json::to_string(val).unwrap_or_default());
                     }
