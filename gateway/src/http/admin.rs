@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use crate::auth::{api_key, node_token};
 use crate::error::GatewayError;
 use crate::registry;
-use crate::registry::node_health::{derive_health_state, NodeHealthState, ServiceConfig};
+use crate::registry::node_health::{NodeHealthState, ServiceConfig};
 use crate::state::AppState;
 
 // --- API Key Management ---
@@ -423,50 +423,23 @@ pub async fn get_service_detail(
     let config =
         registry::service::get_service(&mut state.auth_conn.clone(), &name).await?;
 
-    // Enumerate nodes via SMEMBERS on nodes:{name}
-    let mut conn = state.auth_conn.clone();
-    let nodes_key = format!("nodes:{}", name);
-    let node_ids: Vec<String> = redis::AsyncCommands::smembers(&mut conn, &nodes_key)
-        .await
-        .unwrap_or_default();
+    let node_statuses = registry::node_health::get_nodes_for_service(
+        &mut state.auth_conn.clone(),
+        &name,
+        config.node_stale_after_secs,
+    )
+    .await?;
 
-    let mut nodes = Vec::new();
-    for node_id in &node_ids {
-        let node_key = format!("node:{}:{}", name, node_id);
-        let fields: std::collections::HashMap<String, String> = redis::cmd("HGETALL")
-            .arg(&node_key)
-            .query_async(&mut conn)
-            .await
-            .unwrap_or_default();
-
-        if fields.is_empty() {
-            continue;
-        }
-
-        let last_seen = fields.get("last_seen").cloned().unwrap_or_default();
-        let is_disconnected = fields
-            .get("disconnected")
-            .map(|v| v == "true")
-            .unwrap_or(false);
-        let health =
-            derive_health_state(&last_seen, config.node_stale_after_secs, is_disconnected);
-        let in_flight_tasks: u32 = fields
-            .get("in_flight_tasks")
-            .and_then(|v| v.parse().ok())
-            .unwrap_or(0);
-        let draining = fields
-            .get("draining")
-            .map(|v| v == "true")
-            .unwrap_or(false);
-
-        nodes.push(NodeStatusResponse {
-            node_id: node_id.clone(),
-            health: format!("{:?}", health).to_lowercase(),
-            last_seen,
-            in_flight_tasks,
-            draining,
-        });
-    }
+    let nodes: Vec<NodeStatusResponse> = node_statuses
+        .iter()
+        .map(|n| NodeStatusResponse {
+            node_id: n.node_id.clone(),
+            health: format!("{:?}", n.health).to_lowercase(),
+            last_seen: n.last_seen.clone(),
+            in_flight_tasks: n.in_flight_tasks,
+            draining: n.draining,
+        })
+        .collect();
 
     Ok(Json(ServiceDetailResponse {
         service: ServiceResponse::from(&config),
