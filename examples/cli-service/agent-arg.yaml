@@ -1,6 +1,6 @@
 gateway:
   address: "localhost:50051"
-  token: "dev-token"
+  token: "46029fde407f3e5f443b4204304f81171229bc109b00aa03027210b1c10c78c9"
   node_id: "cli-arg-node"
 
 service:

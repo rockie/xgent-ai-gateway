@@ -195,7 +195,8 @@ impl NodeService for GrpcNodeService {
                                 }
                             }
                             Ok(None) => {
-                                // Timeout from XREADGROUP, loop and retry
+                                // Timeout from XREADGROUP BLOCK, no tasks available. Loop and retry.
+                                tracing::trace!(node_id=%node_id_clone, service=%service_name_str, "poll cycle: no tasks");
                                 continue;
                             }
                             Err(e) => {

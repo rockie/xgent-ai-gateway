@@ -14,6 +14,22 @@ pub struct AgentConfig {
     #[serde(default)]
     pub async_api: Option<AsyncApiSection>,
     pub response: ResponseSection,
+    #[serde(default)]
+    pub debug: DebugSection,
+}
+
+/// Debug options for the agent.
+#[derive(Debug, Default, Deserialize, Clone)]
+pub struct DebugSection {
+    /// Log the resolved HTTP request body before sending (sync-api and async-api modes).
+    #[serde(default)]
+    pub dump_request_body: bool,
+    /// Log the submit phase response body (async-api mode).
+    #[serde(default)]
+    pub dump_submit_response: bool,
+    /// Log the poll phase response body on each iteration (async-api mode).
+    #[serde(default)]
+    pub dump_poll_response: bool,
 }
 
 /// Gateway connection configuration.

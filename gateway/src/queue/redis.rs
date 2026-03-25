@@ -68,8 +68,16 @@ impl RedisQueue {
             .get_multiplexed_async_connection()
             .await
             .map_err(GatewayError::Redis)?;
+
+        // The blocking connection is used for XREADGROUP BLOCK, which may wait up to
+        // block_timeout_ms (default 5000ms) for new messages. redis-rs 1.0's default
+        // response_timeout is only 500ms, which fires BEFORE the BLOCK timeout and
+        // causes the response to be silently dropped. Disable response_timeout on this
+        // connection so blocking reads can complete naturally.
+        let blocking_config = ::redis::AsyncConnectionConfig::new()
+            .set_response_timeout(None);
         let blocking_conn = client
-            .get_multiplexed_async_connection()
+            .get_multiplexed_async_connection_with_config(&blocking_config)
             .await
             .map_err(GatewayError::Redis)?;
 
@@ -306,7 +314,7 @@ impl RedisQueue {
         // Ensure consumer group exists
         self.ensure_consumer_group(service).await?;
 
-        let result: ::redis::streams::StreamReadReply = ::redis::cmd("XREADGROUP")
+        let result: Result<::redis::streams::StreamReadReply, _> = ::redis::cmd("XREADGROUP")
             .arg("GROUP")
             .arg("workers")
             .arg(node_id)
@@ -318,8 +326,35 @@ impl RedisQueue {
             .arg(&stream_key)
             .arg(">")
             .query_async(&mut conn)
-            .await
-            .map_err(GatewayError::Redis)?;
+            .await;
+
+        // XREADGROUP BLOCK returns Nil on timeout, which redis-rs cannot
+        // deserialize into StreamReadReply (Parse error with "Response was of
+        // incompatible type" containing "nil"). This is the normal "no messages"
+        // case and should be treated as Ok(None).
+        //
+        // Note: With a properly configured blocking connection (response_timeout
+        // disabled), IO "timed out" errors should no longer occur. If they do,
+        // it indicates a real connection problem and should be surfaced.
+        let result = match result {
+            Ok(r) => r,
+            Err(e) if e.kind() == redis::ErrorKind::Parse => {
+                // Normal case: Redis returned Nil (no messages within BLOCK timeout).
+                // Only log at trace level to avoid noise.
+                tracing::trace!(
+                    service=%service, node_id=%node_id,
+                    "XREADGROUP returned nil (no messages), retrying"
+                );
+                return Ok(None);
+            }
+            Err(e) => {
+                tracing::warn!(
+                    service=%service, node_id=%node_id, error=%e, kind=?e.kind(),
+                    "XREADGROUP error during poll"
+                );
+                return Err(GatewayError::Redis(e));
+            }
+        };
 
         // Parse the result
         for stream in &result.keys {
@@ -328,6 +363,10 @@ impl RedisQueue {
                 if let Some(redis::Value::BulkString(task_id_bytes)) = entry.map.get("task_id") {
                     let task_id_str = String::from_utf8_lossy(task_id_bytes).to_string();
                     let task_id = TaskId::from(task_id_str);
+                    tracing::debug!(
+                        service=%service, node_id=%node_id, task_id=%task_id,
+                        stream_id=%entry_id, "claimed task from stream"
+                    );
 
                     // Update task state to assigned and record stream_id
                     // Use the main (non-blocking) connection for this write

@@ -22,8 +22,8 @@ export interface TaskDetailResponse {
   task_id: string
   state: string
   service: string
-  payload: string       // base64-encoded
-  result: string        // base64-encoded
+  payload: unknown      // JSON value from backend
+  result: unknown       // JSON value from backend
   error_message: string
   metadata: Record<string, string>
   created_at: string

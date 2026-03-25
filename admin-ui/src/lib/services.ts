@@ -10,7 +10,6 @@ export interface ServiceResponse {
   description: string
   created_at: string
   task_timeout_secs: number
-  max_retries: number
   max_nodes: number | null
   node_stale_after_secs: number
   drain_timeout_secs: number
@@ -36,7 +35,6 @@ export interface RegisterServiceRequest {
   name: string
   description?: string
   task_timeout_secs?: number
-  max_retries?: number
   max_nodes?: number
   node_stale_after_secs?: number
   drain_timeout_secs?: number

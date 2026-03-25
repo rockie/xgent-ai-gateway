@@ -106,7 +106,6 @@ fn make_service_config(name: &str) -> ServiceConfig {
         description: "test service".to_string(),
         created_at: chrono::Utc::now().to_rfc3339(),
         task_timeout_secs: 300,
-        max_retries: 3,
         max_nodes: None,
         node_stale_after_secs: 60,
         drain_timeout_secs: 300,
@@ -130,7 +129,6 @@ async fn test_register_service() {
         description: "test".to_string(),
         created_at: chrono::Utc::now().to_rfc3339(),
         task_timeout_secs: 300,
-        max_retries: 3,
         max_nodes: None,
         node_stale_after_secs: 60,
         drain_timeout_secs: 300,
@@ -148,7 +146,6 @@ async fn test_register_service() {
     assert_eq!(retrieved.name, svc_name);
     assert_eq!(retrieved.description, "test");
     assert_eq!(retrieved.task_timeout_secs, 300);
-    assert_eq!(retrieved.max_retries, 3);
     assert!(retrieved.max_nodes.is_none());
     assert_eq!(retrieved.node_stale_after_secs, 60);
     assert_eq!(retrieved.drain_timeout_secs, 300);
@@ -239,7 +236,6 @@ async fn test_service_config_persistence() {
         description: "persistent test".to_string(),
         created_at: chrono::Utc::now().to_rfc3339(),
         task_timeout_secs: 600,
-        max_retries: 5,
         max_nodes: None,
         node_stale_after_secs: 120,
         drain_timeout_secs: 300,
@@ -255,7 +251,6 @@ async fn test_service_config_persistence() {
 
     let retrieved = get_service(&mut conn2, svc_name).await.unwrap();
     assert_eq!(retrieved.task_timeout_secs, 600);
-    assert_eq!(retrieved.max_retries, 5);
     assert_eq!(retrieved.node_stale_after_secs, 120);
 
     cleanup_keys(&mut conn2, svc_name).await;
@@ -436,7 +431,6 @@ async fn test_node_drain_flow() {
         description: "drain test".to_string(),
         created_at: chrono::Utc::now().to_rfc3339(),
         task_timeout_secs: 300,
-        max_retries: 3,
         max_nodes: None,
         node_stale_after_secs: 60,
         drain_timeout_secs: 120,

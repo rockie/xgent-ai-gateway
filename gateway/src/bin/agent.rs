@@ -309,6 +309,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 config.service.name.clone(),
                 sync_api_section,
                 config.response.clone(),
+                config.debug.dump_request_body,
             ) {
                 Ok(executor) => Box::new(executor),
                 Err(e) => {
@@ -326,6 +327,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 config.service.name.clone(),
                 async_api_section,
                 config.response.clone(),
+                config.debug.dump_request_body,
+                config.debug.dump_submit_response,
+                config.debug.dump_poll_response,
             ) {
                 Ok(executor) => Box::new(executor),
                 Err(e) => {
@@ -364,7 +368,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     tracing::info!("agent exiting after graceful shutdown");
                     break;
                 }
-                tracing::error!(?e, delay=?reconnect_delay, "poll loop error, reconnecting");
+                let msg = classify_reconnect_error(&e);
+                tracing::warn!(delay=?reconnect_delay, "{}", msg);
                 tokio::time::sleep(reconnect_delay).await;
                 reconnect_delay = (reconnect_delay * 2).min(max_delay);
             }
@@ -374,19 +379,44 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+/// Classify a reconnect error into a short, human-friendly message.
+fn classify_reconnect_error(e: &Box<dyn std::error::Error>) -> String {
+    let text = format!("{:#}", e);
+    if text.contains("Connection refused") {
+        "gateway unavailable (connection refused), retrying".to_string()
+    } else if text.contains("broken pipe") || text.contains("stream closed") || text.contains("h2 protocol error") {
+        "gateway connection lost (server went away), reconnecting".to_string()
+    } else if text.contains("timed out") || text.contains("Timeout") {
+        "gateway connection timed out, retrying".to_string()
+    } else if text.contains("dns") || text.contains("resolve") {
+        "gateway hostname could not be resolved, retrying".to_string()
+    } else {
+        format!("connection error: {text}, reconnecting")
+    }
+}
+
 /// Perform the graceful drain sequence: call DrainNode RPC, wait for in-flight task.
 async fn graceful_drain(
     drain_client: &mut NodeServiceClient<tonic::transport::Channel>,
     service_name: &str,
     node_id: &str,
+    token: &str,
     has_in_flight: bool,
     in_flight_done: &tokio::sync::Notify,
 ) {
     // Call DrainNode RPC to notify gateway
-    let drain_req = tonic::Request::new(DrainNodeRequest {
+    let mut drain_req = tonic::Request::new(DrainNodeRequest {
         service_name: service_name.to_string(),
         node_id: node_id.to_string(),
     });
+    drain_req.metadata_mut().insert(
+        "authorization",
+        format!("Bearer {}", token).parse().unwrap(),
+    );
+    drain_req.metadata_mut().insert(
+        "x-service-name",
+        service_name.parse().unwrap(),
+    );
     match drain_client.drain_node(drain_req).await {
         Ok(resp) => {
             let inner = resp.into_inner();
@@ -456,6 +486,10 @@ async fn run_poll_loop(
         "authorization",
         format!("Bearer {}", config.gateway.token).parse().unwrap(),
     );
+    request.metadata_mut().insert(
+        "x-service-name",
+        config.service.name.parse().unwrap(),
+    );
 
     let mut stream = client.poll_tasks(request).await?.into_inner();
 
@@ -480,6 +514,7 @@ async fn run_poll_loop(
                     &mut drain_client,
                     &config.service.name,
                     &config.gateway.node_id,
+                    &config.gateway.token,
                     false,
                     &in_flight_done,
                 ).await;
@@ -505,14 +540,22 @@ async fn run_poll_loop(
                             );
                         }
 
-                        let report = ReportResultRequest {
+                        let mut report = tonic::Request::new(ReportResultRequest {
                             task_id: assignment.task_id.clone(),
                             success: exec_result.success,
                             result: exec_result.result,
                             error_message: exec_result.error_message,
                             node_id: config.gateway.node_id.clone(),
                             service_name: config.service.name.clone(),
-                        };
+                        });
+                        report.metadata_mut().insert(
+                            "authorization",
+                            format!("Bearer {}", config.gateway.token).parse().unwrap(),
+                        );
+                        report.metadata_mut().insert(
+                            "x-service-name",
+                            config.service.name.parse().unwrap(),
+                        );
 
                         let mut rc = report_client.clone();
                         let ack = rc.report_result(report).await?;

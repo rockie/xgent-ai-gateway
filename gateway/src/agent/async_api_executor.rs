@@ -22,6 +22,9 @@ pub struct AsyncApiExecutor {
     async_api: AsyncApiSection,
     response: ResponseSection,
     client: reqwest::Client,
+    dump_request_body: bool,
+    dump_submit_response: bool,
+    dump_poll_response: bool,
 }
 
 impl AsyncApiExecutor {
@@ -33,6 +36,9 @@ impl AsyncApiExecutor {
         service_name: String,
         async_api: AsyncApiSection,
         response: ResponseSection,
+        dump_request_body: bool,
+        dump_submit_response: bool,
+        dump_poll_response: bool,
     ) -> Result<Self, String> {
         let mut builder = reqwest::Client::builder().redirect(Policy::limited(5));
         if async_api.tls_skip_verify {
@@ -46,6 +52,9 @@ impl AsyncApiExecutor {
             async_api,
             response,
             client,
+            dump_request_body,
+            dump_submit_response,
+            dump_poll_response,
         })
     }
 
@@ -201,6 +210,16 @@ impl AsyncApiExecutor {
             reqwest::Method::from_bytes(self.async_api.submit.method.to_uppercase().as_bytes())
                 .unwrap_or(reqwest::Method::POST);
 
+        // Dump resolved request for debugging
+        if self.dump_request_body {
+            tracing::info!(
+                url = %submit_url,
+                method = %submit_method,
+                body = submit_body.as_deref().unwrap_or("(none)"),
+                "dump_request_body [submit]"
+            );
+        }
+
         // (6) Send submit request
         info!(url = %submit_url, method = %submit_method, "sending async-api submit request");
         let submit_resp = match self
@@ -247,7 +266,9 @@ impl AsyncApiExecutor {
             }
         };
 
-        info!(body = %submit_body_text, "submit response received");
+        if self.dump_submit_response {
+            tracing::info!(body = %submit_body_text, "dump_submit_response");
+        }
 
         // (9) Scan poll URL and poll body for <submit_response.*> placeholders
         let mut submit_paths =
@@ -266,7 +287,8 @@ impl AsyncApiExecutor {
             ));
         }
 
-        // (10) Extract submit_response values into variables
+        // (10) Insert whole submit response body and extract dot-path values
+        variables.insert("submit_response".to_string(), submit_body_text.clone());
         for path in &submit_paths {
             match http_common::extract_json_value(&submit_json, path) {
                 Ok(value) => {
@@ -385,6 +407,10 @@ impl AsyncApiExecutor {
                 };
             }
 
+            if self.dump_poll_response {
+                tracing::info!(iteration = poll_iteration, body = %poll_body_text, "dump_poll_response");
+            }
+
             // (11g) Parse poll response as JSON (D-16)
             let poll_json: serde_json::Value = match serde_json::from_str(&poll_body_text) {
                 Ok(v) => v,
@@ -402,6 +428,9 @@ impl AsyncApiExecutor {
             match self.async_api.completed_when.evaluate(&poll_json) {
                 Ok(true) => {
                     info!(iteration = poll_iteration, "completion detected");
+
+                    // Insert the whole poll response body as <poll_response>
+                    variables.insert("poll_response".to_string(), poll_body_text.clone());
 
                     // Extract poll_response.* into variables for success body
                     let poll_paths = http_common::find_prefixed_placeholders(
@@ -473,6 +502,7 @@ impl AsyncApiExecutor {
                         let (result_str, hdrs) =
                             if let Some(ref failed) = self.response.failed {
                                 let mut fail_vars = variables.clone();
+                                fail_vars.insert("poll_response".to_string(), poll_body_text.clone());
                                 let poll_paths = http_common::find_prefixed_placeholders(
                                     &failed.body,
                                     "poll_response",
@@ -702,7 +732,7 @@ mod tests {
         );
         let response = make_response("<poll_response.result>");
         let executor =
-            AsyncApiExecutor::new("test-svc".to_string(), async_api, response).unwrap();
+            AsyncApiExecutor::new("test-svc".to_string(), async_api, response, false, false, false).unwrap();
         let assignment = make_assignment("test-input");
 
         let result = executor.execute(&assignment).await;
@@ -737,7 +767,7 @@ mod tests {
         );
         let response = make_response("<poll_response.output>");
         let executor =
-            AsyncApiExecutor::new("test-svc".to_string(), async_api, response).unwrap();
+            AsyncApiExecutor::new("test-svc".to_string(), async_api, response, false, false, false).unwrap();
         let assignment = make_assignment("data");
 
         let result = executor.execute(&assignment).await;
@@ -773,7 +803,7 @@ mod tests {
         );
         let response = make_response(r#"{"data": "<poll_response.result.output>"}"#);
         let executor =
-            AsyncApiExecutor::new("test-svc".to_string(), async_api, response).unwrap();
+            AsyncApiExecutor::new("test-svc".to_string(), async_api, response, false, false, false).unwrap();
         let assignment = make_assignment("data");
 
         let result = executor.execute(&assignment).await;
@@ -808,7 +838,7 @@ mod tests {
         );
         let response = make_response("<poll_response.result>");
         let executor =
-            AsyncApiExecutor::new("test-svc".to_string(), async_api, response).unwrap();
+            AsyncApiExecutor::new("test-svc".to_string(), async_api, response, false, false, false).unwrap();
         let assignment = make_assignment("data");
 
         let result = executor.execute(&assignment).await;
@@ -851,7 +881,7 @@ mod tests {
 
         let response = make_response("<poll_response.result>");
         let executor =
-            AsyncApiExecutor::new("test-svc".to_string(), async_api, response).unwrap();
+            AsyncApiExecutor::new("test-svc".to_string(), async_api, response, false, false, false).unwrap();
         let assignment = make_assignment("data");
 
         let start = std::time::Instant::now();
@@ -900,7 +930,7 @@ mod tests {
         let response =
             make_response(r#"output=<poll_response.result.output> code=<poll_response.result.code>"#);
         let executor =
-            AsyncApiExecutor::new("test-svc".to_string(), async_api, response).unwrap();
+            AsyncApiExecutor::new("test-svc".to_string(), async_api, response, false, false, false).unwrap();
         let assignment = make_assignment("data");
 
         let result = executor.execute(&assignment).await;
@@ -932,7 +962,7 @@ mod tests {
         );
         let response = make_response("<poll_response.result>");
         let executor =
-            AsyncApiExecutor::new("test-svc".to_string(), async_api, response).unwrap();
+            AsyncApiExecutor::new("test-svc".to_string(), async_api, response, false, false, false).unwrap();
         let assignment = make_assignment("data");
 
         let result = executor.execute(&assignment).await;
@@ -970,7 +1000,7 @@ mod tests {
         );
         let response = make_response("<poll_response.result>");
         let executor =
-            AsyncApiExecutor::new("test-svc".to_string(), async_api, response).unwrap();
+            AsyncApiExecutor::new("test-svc".to_string(), async_api, response, false, false, false).unwrap();
         let assignment = make_assignment("data");
 
         let result = executor.execute(&assignment).await;
@@ -1020,7 +1050,7 @@ mod tests {
             max_bytes: 1_048_576,
         };
         let executor =
-            AsyncApiExecutor::new("test-svc".to_string(), async_api, response).unwrap();
+            AsyncApiExecutor::new("test-svc".to_string(), async_api, response, false, false, false).unwrap();
         let assignment = make_assignment("data");
 
         let result = executor.execute(&assignment).await;

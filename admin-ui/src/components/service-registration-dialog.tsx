@@ -27,7 +27,6 @@ export function ServiceRegistrationDialog({
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [taskTimeoutSecs, setTaskTimeoutSecs] = useState('')
-  const [maxRetries, setMaxRetries] = useState('')
   const [maxNodes, setMaxNodes] = useState('')
   const [nodeStaleAfterSecs, setNodeStaleAfterSecs] = useState('')
   const [drainTimeoutSecs, setDrainTimeoutSecs] = useState('')
@@ -36,7 +35,6 @@ export function ServiceRegistrationDialog({
     setName('')
     setDescription('')
     setTaskTimeoutSecs('')
-    setMaxRetries('')
     setMaxNodes('')
     setNodeStaleAfterSecs('')
     setDrainTimeoutSecs('')
@@ -51,7 +49,6 @@ export function ServiceRegistrationDialog({
 
     if (description.trim()) request.description = description.trim()
     if (taskTimeoutSecs) request.task_timeout_secs = Number(taskTimeoutSecs)
-    if (maxRetries) request.max_retries = Number(maxRetries)
     if (maxNodes) request.max_nodes = Number(maxNodes)
     if (nodeStaleAfterSecs)
       request.node_stale_after_secs = Number(nodeStaleAfterSecs)
@@ -110,16 +107,6 @@ export function ServiceRegistrationDialog({
                 placeholder="300"
                 value={taskTimeoutSecs}
                 onChange={(e) => setTaskTimeoutSecs(e.target.value)}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="max-retries">Max Retries</Label>
-              <Input
-                id="max-retries"
-                type="number"
-                placeholder="3"
-                value={maxRetries}
-                onChange={(e) => setMaxRetries(e.target.value)}
               />
             </div>
             <div className="grid gap-2">

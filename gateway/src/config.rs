@@ -111,8 +111,6 @@ pub struct ServiceDefaultsConfig {
     pub drain_timeout_secs: u64,
     #[serde(default = "default_task_timeout_secs")]
     pub task_timeout_secs: u64,
-    #[serde(default = "default_max_retries")]
-    pub max_retries: u32,
 }
 
 impl Default for ServiceDefaultsConfig {
@@ -121,7 +119,6 @@ impl Default for ServiceDefaultsConfig {
             node_stale_after_secs: default_node_stale_after_secs(),
             drain_timeout_secs: default_drain_timeout_secs(),
             task_timeout_secs: default_task_timeout_secs(),
-            max_retries: default_max_retries(),
         }
     }
 }
@@ -180,10 +177,6 @@ fn default_drain_timeout_secs() -> u64 {
 
 fn default_task_timeout_secs() -> u64 {
     300
-}
-
-fn default_max_retries() -> u32 {
-    3
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -281,7 +274,6 @@ pub fn load_config(config_path: Option<&str>) -> Result<GatewayConfig, config::C
         .set_default("service_defaults.node_stale_after_secs", 60_i64)?
         .set_default("service_defaults.drain_timeout_secs", 300_i64)?
         .set_default("service_defaults.task_timeout_secs", 300_i64)?
-        .set_default("service_defaults.max_retries", 3_i64)?
         .set_default("callback.max_retries", 3_i64)?
         .set_default("callback.initial_delay_ms", 1000_i64)?
         .set_default("callback.timeout_secs", 10_i64)?

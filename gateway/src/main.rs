@@ -235,10 +235,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     }
 
     // HTTP listener (D-07: separate tokio::spawn)
+    // Pre-bind the listener so port conflicts are caught immediately (before spawn).
+    let http_listener = if config.http.enabled {
+        let http_addr = &config.http.listen_addr;
+        let listener = tokio::net::TcpListener::bind(http_addr).await
+            .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> {
+                format!("HTTP bind on {http_addr} failed: {e}").into()
+            })?;
+        tracing::info!(%http_addr, "HTTP listener bound");
+        Some(listener)
+    } else {
+        None
+    };
+
     if config.http.enabled {
         let http_state = state.clone();
         let http_addr = config.http.listen_addr.clone();
         let http_tls = config.http.tls.clone();
+        let pre_bound_listener = http_listener.unwrap();
         handles.push(tokio::spawn(async move {
             // API routes protected by API key auth middleware
             let api_routes = axum::Router::new()
@@ -382,12 +396,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                         format!("HTTP TLS config error: {e}").into()
                     })?;
                 let tls_acceptor = tokio_rustls::TlsAcceptor::from(Arc::new(tls_config));
-                let tcp_listener = tokio::net::TcpListener::bind(&http_addr).await?;
 
                 tracing::info!(%http_addr, "HTTPS server starting (TLS enabled)");
 
                 loop {
-                    let (tcp_stream, addr) = tcp_listener.accept().await?;
+                    let (tcp_stream, addr) = pre_bound_listener.accept().await?;
                     let acceptor = tls_acceptor.clone();
                     let app = app.clone();
                     tokio::spawn(async move {
@@ -415,10 +428,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 }
             } else {
                 // Plain HTTP mode with keepalive (INFR-06 fix)
-                let listener = tokio::net::TcpListener::bind(&http_addr).await?;
                 tracing::info!(%http_addr, "HTTP server starting (plain, with keepalive)");
                 loop {
-                    let (tcp_stream, addr) = listener.accept().await?;
+                    let (tcp_stream, addr) = pre_bound_listener.accept().await?;
                     let app = app.clone();
                     tokio::spawn(async move {
                         let io = hyper_util::rt::TokioIo::new(tcp_stream);
@@ -439,15 +451,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         }));
     }
 
-    // Wait for all servers (error if any crashes)
-    let results = futures::future::join_all(handles).await;
-    for result in results {
-        match result {
-            Ok(Ok(())) => {}
-            Ok(Err(e)) => return Err(e),
-            Err(e) => return Err(e.into()),
-        }
+    // Wait for first server to exit (any exit is an error — servers run forever)
+    if handles.is_empty() {
+        tracing::error!("no servers enabled — enable at least grpc or http");
+        return Err("no servers enabled".into());
     }
-
-    Ok(())
+    let (result, _index, _remaining) = futures::future::select_all(handles).await;
+    match result {
+        Ok(Ok(())) => Ok(()),
+        Ok(Err(e)) => Err(e),
+        Err(e) => Err(e.into()),
+    }
 }

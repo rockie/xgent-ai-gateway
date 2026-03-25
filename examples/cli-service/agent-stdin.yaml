@@ -1,10 +1,10 @@
 gateway:
   address: "localhost:50051"
-  token: "dev-token"
+  token: "fab12a8a60ba64cbbcf40dfd401ec4eaa92cbcc1048b1dbfb1a1e1ea7f6b9cef"
   node_id: "cli-stdin-node"
 
 service:
-  name: "cli-echo"
+  name: "cli-echo-stdin"
   mode: cli
 
 cli:

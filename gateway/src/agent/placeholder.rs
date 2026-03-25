@@ -58,6 +58,7 @@ pub fn resolve_placeholders(
 ///
 /// Inserts:
 /// - `payload` -> the task payload (JSON string)
+/// - `payload.{key}` -> for each top-level field in the payload JSON (recursively flattened)
 /// - `service_name` -> the service name
 /// - `metadata.{key}` -> for each entry in assignment metadata
 pub fn build_task_variables(
@@ -68,11 +69,48 @@ pub fn build_task_variables(
     vars.insert("payload".to_string(), assignment.payload.clone());
     vars.insert("service_name".to_string(), service_name.to_string());
 
+    // Expand payload JSON fields so templates can use <payload.field> syntax
+    if let Ok(json) = serde_json::from_str::<serde_json::Value>(&assignment.payload) {
+        flatten_json("payload", &json, &mut vars);
+    }
+
     for (key, value) in &assignment.metadata {
         vars.insert(format!("metadata.{}", key), value.clone());
     }
 
     vars
+}
+
+/// Recursively flatten a JSON value into dotted-path string entries.
+/// Objects are expanded (e.g. `prefix.key`), arrays and scalars become JSON strings.
+fn flatten_json(prefix: &str, value: &serde_json::Value, out: &mut HashMap<String, String>) {
+    match value {
+        serde_json::Value::Object(map) => {
+            for (key, val) in map {
+                let path = format!("{}.{}", prefix, key);
+                match val {
+                    serde_json::Value::String(s) => {
+                        // JSON-encode strings so they're valid when interpolated into JSON bodies
+                        out.insert(path.clone(), serde_json::to_string(val).unwrap_or_default());
+                    }
+                    serde_json::Value::Object(_) => {
+                        // Recurse into nested objects
+                        flatten_json(&path, val, out);
+                        // Also insert the serialized form for the whole object
+                        out.insert(path, serde_json::to_string(val).unwrap_or_default());
+                    }
+                    _ => {
+                        // Numbers, bools, arrays, null → JSON representation
+                        out.insert(path, serde_json::to_string(val).unwrap_or_default());
+                    }
+                }
+            }
+        }
+        _ => {
+            // Top-level non-object: just store the JSON representation
+            out.insert(prefix.to_string(), serde_json::to_string(value).unwrap_or_default());
+        }
+    }
 }
 
 #[cfg(test)]

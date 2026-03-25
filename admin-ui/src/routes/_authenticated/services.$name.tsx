@@ -90,10 +90,6 @@ function ServiceDetailPage() {
                   value={`${data.task_timeout_secs}s`}
                 />
                 <ConfigItem
-                  label="Max Retries"
-                  value={`${data.max_retries}`}
-                />
-                <ConfigItem
                   label="Max Nodes"
                   value={`${data.max_nodes ?? 'Unlimited'}`}
                 />

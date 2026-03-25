@@ -284,7 +284,6 @@ pub struct RegisterServiceRequest {
     pub name: String,
     pub description: Option<String>,
     pub task_timeout_secs: Option<u64>,
-    pub max_retries: Option<u32>,
     pub max_nodes: Option<u32>,
     pub node_stale_after_secs: Option<u64>,
     pub drain_timeout_secs: Option<u64>,
@@ -296,7 +295,6 @@ pub struct ServiceResponse {
     pub description: String,
     pub created_at: String,
     pub task_timeout_secs: u64,
-    pub max_retries: u32,
     pub max_nodes: Option<u32>,
     pub node_stale_after_secs: u64,
     pub drain_timeout_secs: u64,
@@ -330,7 +328,6 @@ impl From<&ServiceConfig> for ServiceResponse {
             description: cfg.description.clone(),
             created_at: cfg.created_at.clone(),
             task_timeout_secs: cfg.task_timeout_secs,
-            max_retries: cfg.max_retries,
             max_nodes: cfg.max_nodes,
             node_stale_after_secs: cfg.node_stale_after_secs,
             drain_timeout_secs: cfg.drain_timeout_secs,
@@ -355,7 +352,6 @@ pub async fn register_service(
         description: req.description.unwrap_or_default(),
         created_at: chrono::Utc::now().to_rfc3339(),
         task_timeout_secs: req.task_timeout_secs.unwrap_or(defaults.task_timeout_secs),
-        max_retries: req.max_retries.unwrap_or(defaults.max_retries),
         max_nodes: req.max_nodes,
         node_stale_after_secs: req
             .node_stale_after_secs

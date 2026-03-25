@@ -11,7 +11,6 @@ pub struct ServiceConfig {
     pub description: String,
     pub created_at: String,
     pub task_timeout_secs: u64,
-    pub max_retries: u32,
     pub max_nodes: Option<u32>,
     pub node_stale_after_secs: u64,
     pub drain_timeout_secs: u64,
@@ -72,8 +71,8 @@ pub async fn register_or_update_node(
     let nodes_key = format!("nodes:{service_name}");
     let now = chrono::Utc::now().to_rfc3339();
 
-    // Pipeline: always update last_seen, node_id, service_name;
-    // use HSETNX for draining, in_flight_tasks, disconnected (only set if new)
+    // Pipeline: always update last_seen, node_id, service_name, and clear disconnected;
+    // use HSETNX for draining, in_flight_tasks (only set if new — preserve intentional state)
     redis::pipe()
         .cmd("HSET")
         .arg(&node_key)
@@ -83,6 +82,8 @@ pub async fn register_or_update_node(
         .arg(service_name)
         .arg("last_seen")
         .arg(&now)
+        .arg("disconnected")
+        .arg("false")
         .ignore()
         .cmd("HSETNX")
         .arg(&node_key)
@@ -93,11 +94,6 @@ pub async fn register_or_update_node(
         .arg(&node_key)
         .arg("in_flight_tasks")
         .arg("0")
-        .ignore()
-        .cmd("HSETNX")
-        .arg(&node_key)
-        .arg("disconnected")
-        .arg("false")
         .ignore()
         .cmd("SADD")
         .arg(&nodes_key)

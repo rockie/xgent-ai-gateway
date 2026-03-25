@@ -39,8 +39,6 @@ pub async fn register_service(
         .arg(&config.created_at)
         .arg("task_timeout_secs")
         .arg(config.task_timeout_secs)
-        .arg("max_retries")
-        .arg(config.max_retries)
         .arg("max_nodes")
         .arg(&max_nodes_str)
         .arg("node_stale_after_secs")
@@ -176,10 +174,6 @@ fn parse_service_config(
         .get("task_timeout_secs")
         .and_then(|v| v.parse().ok())
         .unwrap_or(300);
-    let max_retries = fields
-        .get("max_retries")
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(3);
     let max_nodes = fields
         .get("max_nodes")
         .and_then(|v| if v.is_empty() { None } else { v.parse().ok() });
@@ -197,7 +191,6 @@ fn parse_service_config(
         description,
         created_at,
         task_timeout_secs,
-        max_retries,
         max_nodes,
         node_stale_after_secs,
         drain_timeout_secs,

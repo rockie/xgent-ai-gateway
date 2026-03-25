@@ -109,7 +109,6 @@ async fn start_test_grpc_server() -> TestGrpcServer {
         description: "test service".to_string(),
         created_at: chrono::Utc::now().to_rfc3339(),
         task_timeout_secs: 300,
-        max_retries: 3,
         max_nodes: None,
         node_stale_after_secs: 60,
         drain_timeout_secs: 300,

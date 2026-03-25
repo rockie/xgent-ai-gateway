@@ -51,7 +51,6 @@ async fn register_test_service(
         description: "test service".to_string(),
         created_at: chrono::Utc::now().to_rfc3339(),
         task_timeout_secs,
-        max_retries: 0,
         max_nodes: None,
         node_stale_after_secs: 120,
         drain_timeout_secs: 300,

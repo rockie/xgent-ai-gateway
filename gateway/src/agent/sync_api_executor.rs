@@ -22,6 +22,7 @@ pub struct SyncApiExecutor {
     sync_api: SyncApiSection,
     response: ResponseSection,
     client: reqwest::Client,
+    dump_request_body: bool,
 }
 
 impl SyncApiExecutor {
@@ -33,6 +34,7 @@ impl SyncApiExecutor {
         service_name: String,
         sync_api: SyncApiSection,
         response: ResponseSection,
+        dump_request_body: bool,
     ) -> Result<Self, String> {
         let mut builder = reqwest::Client::builder()
             .timeout(Duration::from_secs(sync_api.timeout_secs))
@@ -51,6 +53,7 @@ impl SyncApiExecutor {
             sync_api,
             response,
             client,
+            dump_request_body,
         })
     }
 
@@ -220,6 +223,16 @@ impl Executor for SyncApiExecutor {
         let method = reqwest::Method::from_bytes(self.sync_api.method.to_uppercase().as_bytes())
             .unwrap_or(reqwest::Method::POST);
 
+        // Dump resolved request for debugging
+        if self.dump_request_body {
+            tracing::info!(
+                url = %resolved_url,
+                method = %method,
+                body = resolved_body.as_deref().unwrap_or("(none)"),
+                "dump_request_body"
+            );
+        }
+
         // (f) Send HTTP request with retry logic
         let resp = match self
             .send_request(&method, &resolved_url, &header_map, resolved_body)
@@ -309,7 +322,8 @@ impl Executor for SyncApiExecutor {
             }
         };
 
-        // (k) Scan response template for <response.XXX> placeholders and extract values
+        // (k) Insert whole response body and scan for <response.XXX> placeholders
+        variables.insert("response".to_string(), body_text.clone());
         let response_paths =
             http_common::find_prefixed_placeholders(&self.response.success.body, "response");
         for path in &response_paths {
@@ -468,7 +482,7 @@ mod tests {
         );
         let response = make_response(r#"{"status": "<response.result>", "data": "<response.output>"}"#);
         let executor =
-            SyncApiExecutor::new("test-svc".to_string(), sync_api, response).unwrap();
+            SyncApiExecutor::new("test-svc".to_string(), sync_api, response, false).unwrap();
         let assignment = make_assignment("hello");
 
         let result = executor.execute(&assignment).await;
@@ -489,7 +503,7 @@ mod tests {
         let sync_api = make_sync_api(&format!("{}/health", base_url), "GET", None);
         let response = make_response("<response.status>");
         let executor =
-            SyncApiExecutor::new("test-svc".to_string(), sync_api, response).unwrap();
+            SyncApiExecutor::new("test-svc".to_string(), sync_api, response, false).unwrap();
         let assignment = make_assignment("");
 
         let result = executor.execute(&assignment).await;
@@ -508,7 +522,7 @@ mod tests {
         let sync_api = make_sync_api(&format!("{}/api", base_url), "POST", Some("{}"));
         let response = make_response("<response.output>");
         let executor =
-            SyncApiExecutor::new("test-svc".to_string(), sync_api, response).unwrap();
+            SyncApiExecutor::new("test-svc".to_string(), sync_api, response, false).unwrap();
         let assignment = make_assignment("data");
 
         let result = executor.execute(&assignment).await;
@@ -536,7 +550,7 @@ mod tests {
         );
         let response = make_response("<response.headers.x-service>");
         let executor =
-            SyncApiExecutor::new("my-cool-svc".to_string(), sync_api, response).unwrap();
+            SyncApiExecutor::new("my-cool-svc".to_string(), sync_api, response, false).unwrap();
         let assignment = make_assignment("data");
 
         let result = executor.execute(&assignment).await;
@@ -555,7 +569,7 @@ mod tests {
         let sync_api = make_sync_api(&format!("{}/api", base_url), "POST", Some("{}"));
         let response = make_response(r#"text=<response.result.text> code=<response.result.code>"#);
         let executor =
-            SyncApiExecutor::new("test-svc".to_string(), sync_api, response).unwrap();
+            SyncApiExecutor::new("test-svc".to_string(), sync_api, response, false).unwrap();
         let assignment = make_assignment("data");
 
         let result = executor.execute(&assignment).await;
@@ -579,7 +593,7 @@ mod tests {
         );
         let response = make_response("<response.ok>");
         let executor =
-            SyncApiExecutor::new("my-svc".to_string(), sync_api, response).unwrap();
+            SyncApiExecutor::new("my-svc".to_string(), sync_api, response, false).unwrap();
         let assignment = make_assignment("data");
 
         let result = executor.execute(&assignment).await;
@@ -605,7 +619,7 @@ mod tests {
             max_bytes: 100, // Very small limit
         };
         let executor =
-            SyncApiExecutor::new("test-svc".to_string(), sync_api, response).unwrap();
+            SyncApiExecutor::new("test-svc".to_string(), sync_api, response, false).unwrap();
         let assignment = make_assignment("data");
 
         let result = executor.execute(&assignment).await;
@@ -638,7 +652,7 @@ mod tests {
             max_bytes: 1_048_576,
         };
         let executor =
-            SyncApiExecutor::new("test-svc".to_string(), sync_api, response).unwrap();
+            SyncApiExecutor::new("test-svc".to_string(), sync_api, response, false).unwrap();
         let assignment = make_assignment("data");
 
         let result = executor.execute(&assignment).await;

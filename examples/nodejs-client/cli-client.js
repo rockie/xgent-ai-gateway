@@ -3,8 +3,10 @@
 // Usage: node cli-client.js [payload]
 // Requires: Node 18+ (native fetch), gateway running, agent running with cli-echo config
 
-const GATEWAY_URL = process.env.GATEWAY_URL || 'http://localhost:3000';
-const API_KEY = process.env.API_KEY || 'dev-api-key';
+const GATEWAY_URL = process.env.GATEWAY_URL || 'http://localhost:8080';
+// cli stdin: b308d5a53e9b63860bdb60b41f5e6d639e7e0993f07d7ef7d3b652bf52170200
+// cli arg: b6261cde6f8d61ba0868af98d08ed6f057f9aa78c8bb7d367ed64c60163a90a9
+const API_KEY = process.env.API_KEY || 'b308d5a53e9b63860bdb60b41f5e6d639e7e0993f07d7ef7d3b652bf52170200';
 const payload = process.argv[2] || 'Hello from Node.js client!';
 
 async function main() {
@@ -21,7 +23,7 @@ async function main() {
       'Authorization': `Bearer ${API_KEY}`,
     },
     body: JSON.stringify({
-      service_name: 'cli-echo',
+      service_name: 'cli-echo-stdin',
       payload: { message: payload },
     }),
   });
