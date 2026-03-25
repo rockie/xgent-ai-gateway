@@ -147,9 +147,9 @@ Phases execute in numeric order: 13 → 14 → 15 → 16
 **Goal:** Resolve clippy/compiler warnings, eliminate duplicated node health queries, refactor tracing init, and standardize admin error handling
 **Requirements**: TD-01, TD-02, TD-03, TD-04, TD-05
 **Depends on:** Phase 17
-**Plans:** 1/3 plans executed
+**Plans:** 2/3 plans executed
 
 Plans:
 - [x] 18-01-PLAN.md — Fix all clippy and compiler warnings (Default impls, FromStr trait, clamp, unused assignments)
-- [ ] 18-02-PLAN.md — Deduplicate node health fetching in admin.rs and metrics.rs
+- [x] 18-02-PLAN.md — Deduplicate node health fetching in admin.rs and metrics.rs
 - [ ] 18-03-PLAN.md — Refactor init_tracing duplication and standardize admin handler error types
