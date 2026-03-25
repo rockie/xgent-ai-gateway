@@ -20,7 +20,6 @@ use std::convert::Infallible;
 use std::net::SocketAddr;
 use std::sync::Mutex as StdMutex;
 use std::sync::Arc;
-use std::time::Instant;
 
 use bytes::Bytes;
 use clap::Parser;
@@ -35,8 +34,6 @@ use uuid::Uuid;
 /// In-memory async job state.
 struct AsyncJob {
     payload: String,
-    #[allow(dead_code)]
-    created: Instant,
     polls: u32,
 }
 
@@ -167,7 +164,6 @@ async fn handle_async_submit(
             job_id.clone(),
             AsyncJob {
                 payload,
-                created: Instant::now(),
                 polls: 0,
             },
         );

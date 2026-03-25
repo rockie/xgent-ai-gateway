@@ -461,7 +461,6 @@ async fn run_poll_loop(
 
     // Track in-flight task completion
     let in_flight_done = std::sync::Arc::new(tokio::sync::Notify::new());
-    let mut has_in_flight = false;
 
     // Create the shutdown signal future
     let shutdown = shutdown_signal();
@@ -474,11 +473,14 @@ async fn run_poll_loop(
                 tracing::info!("shutdown signal received, initiating graceful drain");
                 SHUTTING_DOWN.store(true, Ordering::SeqCst);
 
+                // In single-threaded select, shutdown can only fire between task
+                // executions (while awaiting stream.message), so no task is ever
+                // in-flight when drain begins.
                 graceful_drain(
                     &mut drain_client,
                     &config.service.name,
                     &config.gateway.node_id,
-                    has_in_flight,
+                    false,
                     &in_flight_done,
                 ).await;
 
@@ -490,7 +492,6 @@ async fn run_poll_loop(
                 match msg? {
                     Some(assignment) => {
                         tracing::info!(task_id = %assignment.task_id, "received task");
-                        has_in_flight = true;
 
                         let exec_result = executor.execute(&assignment).await;
 
@@ -521,7 +522,6 @@ async fn run_poll_loop(
                             "result reported"
                         );
 
-                        has_in_flight = false;
                         in_flight_done.notify_one();
                     }
                     None => {
