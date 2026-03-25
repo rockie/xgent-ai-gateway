@@ -35,10 +35,10 @@ Demonstrates the agent executing a shell script, supporting both **arg mode** (p
 
    ```bash
    # Using curl
-   curl -X POST http://localhost:3000/api/v1/tasks \
+   curl -X POST http://localhost:8080/v1/tasks \
      -H "Content-Type: application/json" \
      -H "Authorization: Bearer dev-api-key" \
-     -d '{"service_name": "cli-echo", "payload": "Hello, CLI!"}'
+     -d '{"service_name": "cli-echo", "payload": {"message": "Hello, CLI!"}}'
 
    # Using Node.js client
    cd examples/nodejs-client && node cli-client.js "Hello, CLI!"

@@ -44,10 +44,10 @@ Demonstrates the agent performing a two-phase async HTTP flow: submit a job, the
 
    ```bash
    # Using curl
-   curl -X POST http://localhost:3000/api/v1/tasks \
+   curl -X POST http://localhost:8080/v1/tasks \
      -H "Content-Type: application/json" \
      -H "Authorization: Bearer dev-api-key" \
-     -d '{"service_name": "async-echo", "payload": "Hello, async-api!"}'
+     -d '{"service_name": "async-echo", "payload": {"message": "Hello, async-api!"}}'
 
    # Using Node.js client
    cd examples/nodejs-client && node async-api-client.js "Hello, async-api!"

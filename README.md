@@ -236,14 +236,16 @@ curl -s http://localhost:8080/v1/tasks/<task-id> \
 ### Start a Node (Runner Agent)
 
 ```bash
-./target/release/xgent-agent \
-  --gateway-addr localhost:50051 \
-  --service-name my-service \
-  --token <node-token> \
-  --dispatch-url http://localhost:8090/execute
+./target/release/xgent-agent --config agent.yaml
 ```
 
-The agent connects to the gateway, receives task assignments via gRPC streaming, POSTs the payload to your local service, and reports results back.
+The agent reads its configuration from `agent.yaml` (gateway address, service name, execution mode, and response mapping), connects to the gateway via gRPC, picks up task assignments, executes them using the configured mode (CLI, sync-api, or async-api), and reports results back. See `examples/` for sample configs.
+
+Use `--dry-run` to validate the config without connecting:
+
+```bash
+./target/release/xgent-agent --config agent.yaml --dry-run
+```
 
 ### Sample Echo Service
 

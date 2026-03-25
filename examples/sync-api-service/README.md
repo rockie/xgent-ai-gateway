@@ -44,10 +44,10 @@ Demonstrates the agent forwarding task payloads to a synchronous HTTP endpoint a
 
    ```bash
    # Using curl
-   curl -X POST http://localhost:3000/api/v1/tasks \
+   curl -X POST http://localhost:8080/v1/tasks \
      -H "Content-Type: application/json" \
      -H "Authorization: Bearer dev-api-key" \
-     -d '{"service_name": "sync-echo", "payload": "Hello, sync-api!"}'
+     -d '{"service_name": "sync-echo", "payload": {"message": "Hello, sync-api!"}}'
 
    # Using Node.js client
    cd examples/nodejs-client && node sync-api-client.js "Hello, sync-api!"
