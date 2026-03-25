@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.2
-milestone_name: Flexible Agent Execution
-status: Milestone shipped
-stopped_at: v1.2 milestone completed
+milestone: v1.3
+milestone_name: Operational Visibility & Agent Scaling
+status: Defining requirements
+stopped_at: null
 last_updated: "2026-03-25"
 last_activity: 2026-03-25
 progress:
-  total_phases: 7
-  completed_phases: 7
-  total_plans: 16
-  completed_plans: 16
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
 ---
 
 # Project State
@@ -20,11 +20,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-25)
 
 **Core value:** Tasks submitted by clients reliably reach internal nodes and results reliably flow back, regardless of network topology
-**Current focus:** Planning next milestone
+**Current focus:** Defining requirements for v1.3
 
 ## Current Position
 
-Milestone v1.2 shipped. No active milestone.
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-03-25 — Milestone v1.3 started
 
 ## Performance Metrics
 
@@ -50,5 +53,5 @@ None.
 ## Session Continuity
 
 Last activity: 2026-03-25
-Stopped at: v1.2 milestone completed
+Stopped at: null
 Resume file: None

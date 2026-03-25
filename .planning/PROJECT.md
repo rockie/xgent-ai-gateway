@@ -60,7 +60,26 @@ Tasks submitted by clients reliably reach internal nodes and results reliably fl
 
 ### Active
 
-(No active requirements — next milestone not yet defined)
+- [ ] Audit trail + execution logs stored in PostgreSQL with time-partitioned retention
+- [ ] Log viewer in admin UI with filtering by task/service/time
+- [ ] Agent reports host machine info (CPU arch, cores, memory, OS) on connect
+- [ ] Agent sends runtime stats (CPU/memory/disk usage) with heartbeats
+- [ ] Node detail page shows machine info and live runtime stats
+- [ ] Admin password change (current + new password)
+- [ ] Configurable `max_concurrent_tasks` in agent YAML config
+- [ ] Agent worker pool pulls multiple tasks in parallel
+
+## Current Milestone: v1.3 Operational Visibility & Agent Scaling
+
+**Goal:** Give admins full operational visibility (logs, machine info, runtime stats) and make agents production-ready with concurrent task execution.
+
+**Target features:**
+- Audit trail + execution logs in PostgreSQL
+- Log viewer in admin UI
+- Agent machine info + runtime stats reporting
+- Node detail page with machine info and live stats
+- Admin password change
+- Agent concurrent task execution
 
 ### Out of Scope
 
@@ -74,12 +93,12 @@ Tasks submitted by clients reliably reach internal nodes and results reliably fl
 - Payload encryption at rest — callers encrypt before submission; gateway treats payloads as opaque bytes
 - Task retry with exponential backoff — never for this project; clients resubmit on failure (D-07)
 - Dead letter queues — descoped v1; failed state is terminal (D-08/D-09)
-- Log viewer in admin UI — deferred from v1.1; revisit later
 - HTTP node polling — deferred; runner agent proxy unifies node protocol to gRPC (D-13)
 
 ## Context
 
 Shipped v1.2 with ~14,000 LOC Rust (gateway + agent) + ~6,600 LOC TypeScript/TSX (admin-ui).
+v1.3 adds PostgreSQL as a new dependency for structured log storage (Redis remains for task queue state).
 Tech stack: Rust (Tokio, Tonic, Axum, Redis Streams, rustls, reqwest, serde_yaml_ng) + Vite + React 19 + TailwindCSS v4 + shadcn/ui + TanStack Router & Query + Recharts 3.x.
 48 plans across 19 phases completed in 4 days (v1.0 + v1.1 + v1.2).
 34 integration tests cover auth, registry, health, reaper, and gRPC auth flows.
@@ -144,4 +163,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-25 after v1.2 milestone*
+*Last updated: 2026-03-25 after v1.3 milestone start*
