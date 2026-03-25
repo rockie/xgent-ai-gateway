@@ -53,6 +53,7 @@ Tasks submitted by clients reliably reach internal nodes and results reliably fl
 - ✓ Example configs for CLI (arg + stdin), sync-api, and async-api execution modes — v1.2
 - ✓ Node.js client examples demonstrating full submit-execute-retrieve flow — v1.2
 - ✓ Agent --dry-run validates config (command/URL checks, response template preview, pass/fail summary) — v1.2
+- ✓ JSON payload format replaces base64-encoded bytes across proto, Redis, handlers, executors, tests, and clients — v1.2
 
 ### Active
 
@@ -143,4 +144,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-25 — Phase 18 complete: Tech debt cleanup — zero clippy warnings, deduplicated node health logic, standardized tracing init and admin error types. Codebase ready for v1.2 release.*
+*Last updated: 2026-03-25 — Phase 19 complete: JSON payload format — replaced base64-encoded bytes with native JSON strings across the entire stack (proto, Redis, handlers, executors, tests, clients, docs). All 19 phases of v1.2 complete.*
