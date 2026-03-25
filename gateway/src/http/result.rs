@@ -14,7 +14,7 @@ pub struct GetTaskResponse {
     pub task_id: String,
     pub state: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub result: Option<String>,
+    pub result: Option<serde_json::Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error_message: Option<String>,
     pub created_at: String,
@@ -33,10 +33,7 @@ pub async fn get_task(
     let result = if status.result.is_empty() {
         None
     } else {
-        Some(base64::Engine::encode(
-            &base64::engine::general_purpose::STANDARD,
-            &status.result,
-        ))
+        Some(serde_json::from_str(&status.result).unwrap_or(serde_json::Value::String(status.result.clone())))
     };
 
     let error_message = if status.error_message.is_empty() {

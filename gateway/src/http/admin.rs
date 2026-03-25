@@ -4,7 +4,6 @@ use std::sync::Arc;
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::Json;
-use base64::Engine as _;
 use serde::{Deserialize, Serialize};
 
 use crate::auth::{api_key, node_token};
@@ -625,8 +624,8 @@ pub struct TaskDetailResponse {
     pub task_id: String,
     pub state: String,
     pub service: String,
-    pub payload: String,  // base64-encoded
-    pub result: String,   // base64-encoded
+    pub payload: serde_json::Value,
+    pub result: serde_json::Value,
     pub error_message: String,
     pub metadata: std::collections::HashMap<String, String>,
     pub created_at: String,
@@ -672,19 +671,23 @@ pub async fn get_task_detail_handler(
     let tid = crate::types::TaskId::from(task_id);
     let status = state.queue.get_task_status(&tid).await?;
 
-    let payload_b64 = base64::engine::general_purpose::STANDARD.encode(&status.payload);
-    let result_b64 = if status.result.is_empty() {
-        String::new()
+    let payload_json: serde_json::Value = if status.payload.is_empty() {
+        serde_json::Value::Null
     } else {
-        base64::engine::general_purpose::STANDARD.encode(&status.result)
+        serde_json::from_str(&status.payload).unwrap_or(serde_json::Value::String(status.payload.clone()))
+    };
+    let result_json: serde_json::Value = if status.result.is_empty() {
+        serde_json::Value::Null
+    } else {
+        serde_json::from_str(&status.result).unwrap_or(serde_json::Value::String(status.result.clone()))
     };
 
     Ok(Json(TaskDetailResponse {
         task_id: status.task_id.0,
         state: status.state.as_str().to_string(),
         service: status.service,
-        payload: payload_b64,
-        result: result_b64,
+        payload: payload_json,
+        result: result_json,
         error_message: status.error_message,
         metadata: status.metadata,
         created_at: status.created_at,

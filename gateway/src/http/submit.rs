@@ -14,8 +14,8 @@ use crate::types::ServiceName;
 #[derive(Debug, Deserialize)]
 pub struct SubmitTaskRequest {
     pub service_name: String,
-    /// Base64-encoded opaque payload. Gateway treats this as opaque per TASK-04.
-    pub payload: String,
+    /// Task payload — any valid JSON value.
+    pub payload: serde_json::Value,
     #[serde(default)]
     pub metadata: HashMap<String, String>,
     /// Optional callback URL for result delivery. Overrides per-key default.
@@ -68,17 +68,12 @@ pub async fn submit_task(
         crate::callback::validate_callback_url(url).map_err(GatewayError::InvalidRequest)?;
     }
 
-    // Payload is treated as an opaque base64 string by the gateway.
-    // Store it as bytes for consistency with gRPC (which uses bytes natively).
-    let payload_bytes = base64::Engine::decode(
-        &base64::engine::general_purpose::STANDARD,
-        &req.payload,
-    )
-    .map_err(|e| GatewayError::InvalidRequest(format!("invalid base64 payload: {e}")))?;
+    let payload_json = serde_json::to_string(&req.payload)
+        .map_err(|e| GatewayError::InvalidRequest(format!("failed to serialize payload: {e}")))?;
 
     let task_id = state
         .queue
-        .submit_task(&service, payload_bytes, req.metadata)
+        .submit_task(&service, payload_json, req.metadata)
         .await?;
 
     // Store resolved callback_url in task hash if present
