@@ -143,4 +143,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-24 — Phase 16 complete: Example configs for all execution modes, Node.js client examples, enhanced --dry-run validation. v1.2 milestone fully complete.*
+*Last updated: 2026-03-25 — Phase 18 complete: Tech debt cleanup — zero clippy warnings, deduplicated node health logic, standardized tracing init and admin error types. Codebase ready for v1.2 release.*
